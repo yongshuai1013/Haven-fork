@@ -122,7 +122,14 @@ fetch_tarball() {
     if [ -d "$dst" ]; then echo "  [cached] $name"; return; fi
     [ -f "$DL_DIR/$tarball" ] || {
         echo "  [download] $url"
-        curl -fsSL -o "$DL_DIR/$tarball" "$url"
+        # Retry on transient network blips. F-Droid's buildserver hit
+        # `curl: (7) Failed to connect to downloads.xiph.org port 443`
+        # on the v5.24.99 bot MR (!37726, 2026-05-05) — single tarball
+        # blip aborted the whole build. Retries absorb DNS/TCP flakes
+        # without changing behaviour on the happy path.
+        curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused \
+            --connect-timeout 15 --max-time 600 \
+            -o "$DL_DIR/$tarball" "$url"
     }
     tar -xf "$DL_DIR/$tarball" -C "$SRC_DIR"
     if [ "$extracted" != "$name" ]; then
