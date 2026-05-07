@@ -125,4 +125,6 @@
     <string name="stepca_field_ssh_host_ca_hint">ssh-ed25519 AAAAC3…</string>
     <string name="stepca_discover_host_ca">Discover from /1.0/ssh/config</string>
     <string name="stepca_discovering">Discovering…</string>
+    <string name="stepca_import_from_file">Import from file</string>
+    <string name="stepca_import_failed">Import failed: %1$s</string>
 </resources>

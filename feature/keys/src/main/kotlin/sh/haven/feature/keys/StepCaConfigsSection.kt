@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -262,10 +264,43 @@ private fun StepCaConfigDialog(
     var sshHostCa by remember { mutableStateOf(initial?.sshHostCaPublicKey.orEmpty()) }
     var discovering by remember { mutableStateOf(false) }
     var discoverError by remember { mutableStateOf<String?>(null) }
+    var importError by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+    val importFailedTemplate = stringResource(R.string.stepca_import_failed)
+
+    val rootCertPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        importError = null
+        try {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IllegalStateException("Couldn't open file")
+            rootCert = StepCaFileImport.readRootCertPem(bytes)
+        } catch (t: Throwable) {
+            importError = importFailedTemplate.format(
+                t.message ?: t::class.simpleName ?: "unknown error",
+            )
+        }
+    }
+    val sshHostCaPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        importError = null
+        try {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: throw IllegalStateException("Couldn't open file")
+            sshHostCa = StepCaFileImport.readSshHostCaPubkey(bytes)
+        } catch (t: Throwable) {
+            importError = importFailedTemplate.format(
+                t.message ?: t::class.simpleName ?: "unknown error",
+            )
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -358,6 +393,9 @@ private fun StepCaConfigDialog(
                         .fillMaxWidth()
                         .height(120.dp),
                 )
+                TextButton(onClick = { rootCertPicker.launch("*/*") }) {
+                    Text(stringResource(R.string.stepca_import_from_file))
+                }
                 OutlinedTextField(
                     value = sshHostCa,
                     onValueChange = { sshHostCa = it },
@@ -367,6 +405,14 @@ private fun StepCaConfigDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TextButton(onClick = { sshHostCaPicker.launch("*/*") }) {
+                        Text(stringResource(R.string.stepca_import_from_file))
+                    }
+                }
                 TextButton(
                     enabled = !discovering &&
                         caUrl.trim().startsWith("https://") &&
@@ -396,6 +442,13 @@ private fun StepCaConfigDialog(
                     )
                 }
                 discoverError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                importError?.let {
                     Text(
                         it,
                         color = MaterialTheme.colorScheme.error,

@@ -127,4 +127,6 @@
     <string name="stepca_field_ssh_host_ca_hint">ssh-ed25519 AAAAC3…</string>
     <string name="stepca_discover_host_ca">从 /1.0/ssh/config 发现</string>
     <string name="stepca_discovering">正在发现…</string>
+    <string name="stepca_import_from_file">从文件导入</string>
+    <string name="stepca_import_failed">导入失败: %1$s</string>
 </resources>
