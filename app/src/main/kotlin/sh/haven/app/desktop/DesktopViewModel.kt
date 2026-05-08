@@ -731,6 +731,7 @@ class DesktopViewModel @Inject constructor(
                 is DesktopTab.Vnc -> {
                     tab.client.stop()
                     tearDownTunnel(tab.tunnelPort, tab.tunnelSessionId)
+                    releaseSshTunnelDependent(tab.profileId)
                 }
                 is DesktopTab.Rdp -> {
                     if (tab.profileId != null) {
@@ -739,10 +740,28 @@ class DesktopViewModel @Inject constructor(
                     }
                     tab.session.close()
                     tearDownTunnel(tab.tunnelPort, tab.tunnelSessionId)
+                    releaseSshTunnelDependent(tab.profileId)
                 }
                 is DesktopTab.Wayland -> {} // compositor lifecycle managed externally
             }
         }
+    }
+
+    /**
+     * Decrement the refcount on any SSH session that was opened solely
+     * to carry this profile's tunnel. The v5.24.85 wiring in
+     * [ConnectionsViewModel.disconnect] called this for connections-tab
+     * disconnects, but the bottom-of-Desktop-tab "Disconnect" button
+     * routes through [closeTab] / [disconnectTab] instead — without
+     * this call the auto-opened SSH idled on with a green dot in the
+     * connections list (#121, KoriKraut on v5.24.89).
+     *
+     * No-op when [profileId] is null (older tabs / Wayland) or when
+     * the profile was never registered as a tunnel dependent.
+     */
+    private fun releaseSshTunnelDependent(profileId: String?) {
+        if (profileId == null) return
+        sshSessionManager.releaseTunnelDependent(profileId)
     }
 
     private fun tearDownTunnel(port: Int?, sessionId: String?) {
