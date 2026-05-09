@@ -15,6 +15,8 @@ import org.json.JSONObject
 import sh.haven.core.data.agent.ConsentLevel
 import sh.haven.core.data.db.entities.ConnectionProfile
 import sh.haven.core.data.db.entities.PortForwardRule
+import sh.haven.core.data.db.entities.TunnelConfig
+import sh.haven.core.data.db.entities.TunnelConfigType
 import sh.haven.core.data.font.TerminalFontInstaller
 import sh.haven.core.data.preferences.UserPreferencesRepository
 import sh.haven.core.data.repository.ConnectionRepository
@@ -64,6 +66,8 @@ internal class McpTools(
     private val transportSelector: sh.haven.feature.sftp.transport.TransportSelector,
     private val workspaceRepository: sh.haven.core.data.repository.WorkspaceRepository,
     private val workspaceLauncher: sh.haven.app.workspace.WorkspaceLauncher,
+    private val tunnelConfigRepository: sh.haven.core.data.repository.TunnelConfigRepository,
+    private val tunnelManager: sh.haven.core.tunnel.TunnelManager,
 ) {
 
     /**
@@ -556,6 +560,129 @@ internal class McpTools(
                 "Open workspace \"$name\"?"
             },
         ) { args -> composeWorkspace(args) },
+
+        "list_tunnels" to ToolHandler(
+            description = "List saved WireGuard / Tailscale tunnel configs available for Route-through on connection profiles. Returns id, label, type (WIREGUARD or TAILSCALE), and createdAt for each. The encrypted configText (wg-quick payload or Tailscale authkey blob) is NOT returned.",
+            inputSchema = emptyObjectSchema(),
+        ) { _ -> listTunnels() },
+
+        "list_live_tunnels" to ToolHandler(
+            description = "Return the live-tunnel snapshot from TunnelManager — every tunnel currently up, paired with the set of profile ids holding it. Useful for verifying refcount semantics in #149 integration tests: confirm the tunnel stays open while a sibling transport keeps it acquired, and that it tears down on the last release.",
+            inputSchema = emptyObjectSchema(),
+        ) { _ -> listLiveTunnels() },
+
+        "create_tunnel" to ToolHandler(
+            description = "Add a new WireGuard or Tailscale tunnel config. For WIREGUARD pass `configText` containing a wg-quick INI body. For TAILSCALE pass `tailscaleAuthKey` (and optionally `tailscaleControlUrl` for Headscale). Returns the new tunnel id, which can then be passed to set_profile_routing.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("label", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "User-facing label (also used to derive the Tailscale hostname).")
+                    })
+                    put("type", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "WIREGUARD or TAILSCALE.")
+                    })
+                    put("configText", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "WireGuard wg-quick INI body. Required when type=WIREGUARD.")
+                    })
+                    put("tailscaleAuthKey", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Tailscale single-use authkey (tskey-auth-...). Required when type=TAILSCALE.")
+                    })
+                    put("tailscaleControlUrl", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Self-hosted Headscale coordination URL. Optional — empty defaults to controlplane.tailscale.com.")
+                    })
+                })
+                put("required", JSONArray().put("label").put("type"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args ->
+                val type = args.optString("type")
+                val label = args.optString("label", "(unnamed)")
+                "Add $type tunnel \"$label\" to the keystore?"
+            },
+        ) { args -> createTunnel(args) },
+
+        "delete_tunnel" to ToolHandler(
+            description = "Delete a saved tunnel config by id. Profiles that referenced it via tunnelConfigId will fall through to direct dialling on next connect.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("tunnelConfigId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Tunnel id from list_tunnels.")
+                    })
+                })
+                put("required", JSONArray().put("tunnelConfigId"))
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args -> "Delete tunnel ${args.optString("tunnelConfigId").take(8)}…?" },
+        ) { args -> deleteTunnel(args) },
+
+        "set_profile_routing" to ToolHandler(
+            description = "Set or clear the Route-through configuration on a connection profile. Pass either tunnelConfigId (WireGuard / Tailscale tunnel from list_tunnels) OR proxyType+proxyHost+proxyPort (legacy SOCKS5 / SOCKS4 / HTTP), and the other field set is cleared — mutually exclusive at the data layer too. Pass `clear=true` to drop both and route direct.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Profile id from list_connections.")
+                    })
+                    put("tunnelConfigId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Tunnel id to route through. Mutually exclusive with proxyType.")
+                    })
+                    put("proxyType", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "SOCKS5 | SOCKS4 | HTTP. Pair with proxyHost + proxyPort.")
+                    })
+                    put("proxyHost", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Proxy host. Required when proxyType is set.")
+                    })
+                    put("proxyPort", JSONObject().apply {
+                        put("type", "integer")
+                        put("description", "Proxy port. Default 1080 (SOCKS) / 8080 (HTTP).")
+                    })
+                    put("clear", JSONObject().apply {
+                        put("type", "boolean")
+                        put("description", "If true, clear both tunnelConfigId and proxyType. Profile routes direct.")
+                    })
+                })
+                put("required", JSONArray().put("profileId"))
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                val pid = args.optString("profileId")
+                val target = when {
+                    args.optBoolean("clear", false) -> "direct"
+                    args.has("tunnelConfigId") -> "tunnel ${args.optString("tunnelConfigId").take(8)}…"
+                    args.has("proxyType") -> "${args.optString("proxyType")} ${args.optString("proxyHost")}:${args.optInt("proxyPort")}"
+                    else -> "(unchanged)"
+                }
+                "Route \"${profileLabel(pid)}\" through $target?"
+            },
+        ) { args -> setProfileRouting(args) },
+
+        "connect_profile" to ToolHandler(
+            description = "Initiate a connection for a saved profile via the same code path a UI tap uses (route-through, stored password, key auth all apply). Posts an AgentUiCommand.ConnectProfile that ConnectionsViewModel observes — the actual connect happens asynchronously. Use list_sessions afterwards to confirm the session reached CONNECTED. If the profile needs a password that isn't stored and isn't a key, the UI password prompt will surface to the user.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Profile id from list_connections.")
+                    })
+                })
+                put("required", JSONArray().put("profileId"))
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args -> "Connect to \"${profileLabel(args.optString("profileId"))}\"?" },
+        ) { args -> connectProfile(args) },
     )
 
     /** Return the list of tool definitions for MCP `tools/list`. */
@@ -649,6 +776,10 @@ internal class McpTools(
             put("proxyType", p.proxyType)
             put("proxyHost", p.proxyHost ?: JSONObject.NULL)
             put("proxyPort", p.proxyPort)
+        }
+        // WireGuard / Tailscale routing — tunnel config id (resolve via list_tunnels).
+        if (!p.tunnelConfigId.isNullOrEmpty()) {
+            put("tunnelConfigId", p.tunnelConfigId)
         }
     }
 
@@ -1655,6 +1786,179 @@ internal class McpTools(
             put("workspaceName", workspace.profile.name)
             put("itemCount", workspace.items.size)
             put("outcome", finalState::class.simpleName ?: "Unknown")
+        }
+    }
+
+    // ---- #149 tunnel + routing tools --------------------------------------
+
+    private suspend fun listTunnels(): JSONObject {
+        val tunnels = tunnelConfigRepository.getAll()
+        val arr = JSONArray()
+        for (t in tunnels) {
+            arr.put(JSONObject().apply {
+                put("id", t.id)
+                put("label", t.label)
+                put("type", t.type)
+                put("createdAt", t.createdAt)
+            })
+        }
+        return JSONObject().apply {
+            put("count", tunnels.size)
+            put("tunnels", arr)
+        }
+    }
+
+    private suspend fun listLiveTunnels(): JSONObject {
+        val live = tunnelManager.liveSnapshot()
+        val arr = JSONArray()
+        for (entry in live) {
+            arr.put(JSONObject().apply {
+                put("configId", entry.configId)
+                put("dependentCount", entry.dependentProfileIds.size)
+                put("dependentProfileIds", JSONArray().apply {
+                    entry.dependentProfileIds.forEach { put(it) }
+                })
+            })
+        }
+        return JSONObject().apply {
+            put("count", live.size)
+            put("liveTunnels", arr)
+        }
+    }
+
+    private suspend fun createTunnel(args: JSONObject): JSONObject {
+        val label = args.optString("label").ifBlank { throw IllegalArgumentException("label required") }
+        val typeRaw = args.optString("type").uppercase()
+        val type = when (typeRaw) {
+            "WIREGUARD" -> TunnelConfigType.WIREGUARD
+            "TAILSCALE" -> TunnelConfigType.TAILSCALE
+            else -> throw IllegalArgumentException("type must be WIREGUARD or TAILSCALE")
+        }
+        val configBytes: ByteArray = when (type) {
+            TunnelConfigType.WIREGUARD -> {
+                val wgQuick = args.optString("configText")
+                if (wgQuick.isBlank()) {
+                    throw IllegalArgumentException("configText required for WIREGUARD type")
+                }
+                wgQuick.toByteArray()
+            }
+            TunnelConfigType.TAILSCALE -> {
+                val authKey = args.optString("tailscaleAuthKey")
+                if (authKey.isBlank()) {
+                    throw IllegalArgumentException("tailscaleAuthKey required for TAILSCALE type")
+                }
+                val controlUrl = args.optString("tailscaleControlUrl")
+                sh.haven.core.tunnel.TailscaleConfigBlob(authKey, controlUrl).encode()
+            }
+        }
+        val config = TunnelConfig(
+            label = label,
+            type = type.name,
+            configText = configBytes,
+        )
+        tunnelConfigRepository.save(config)
+        return JSONObject().apply {
+            put("id", config.id)
+            put("label", config.label)
+            put("type", config.type)
+            put("createdAt", config.createdAt)
+        }
+    }
+
+    private suspend fun deleteTunnel(args: JSONObject): JSONObject {
+        val id = args.optString("tunnelConfigId").ifBlank {
+            throw IllegalArgumentException("tunnelConfigId required")
+        }
+        val existing = tunnelConfigRepository.getById(id)
+            ?: return JSONObject().apply { put("deleted", false); put("reason", "not found") }
+        tunnelConfigRepository.delete(id)
+        // If a live tunnel depends on this config, ask TunnelManager to
+        // release every dependent — they fall through to direct on next
+        // connect. (The current TunnelManager API is profileId-keyed so
+        // the simplest correct thing is to release each dependent.)
+        tunnelManager.liveSnapshot()
+            .firstOrNull { it.configId == id }
+            ?.dependentProfileIds
+            ?.forEach { tunnelManager.release(it) }
+        return JSONObject().apply {
+            put("deleted", true)
+            put("id", id)
+            put("label", existing.label)
+        }
+    }
+
+    private suspend fun setProfileRouting(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifBlank {
+            throw IllegalArgumentException("profileId required")
+        }
+        val profile = connectionRepository.getById(profileId)
+            ?: throw IllegalArgumentException("profile $profileId not found")
+        val clear = args.optBoolean("clear", false)
+        val tunnelConfigId = if (args.has("tunnelConfigId")) args.optString("tunnelConfigId") else null
+        val proxyType = if (args.has("proxyType")) args.optString("proxyType") else null
+        val proxyHost = if (args.has("proxyHost")) args.optString("proxyHost") else null
+        val proxyPort = if (args.has("proxyPort")) args.optInt("proxyPort", 1080) else null
+
+        val updated = when {
+            clear -> profile.copy(
+                tunnelConfigId = null,
+                proxyType = null,
+                proxyHost = null,
+            )
+            !tunnelConfigId.isNullOrBlank() -> {
+                tunnelConfigRepository.getById(tunnelConfigId)
+                    ?: throw IllegalArgumentException("tunnel config $tunnelConfigId not found")
+                profile.copy(
+                    tunnelConfigId = tunnelConfigId,
+                    proxyType = null,
+                    proxyHost = null,
+                )
+            }
+            !proxyType.isNullOrBlank() -> {
+                if (proxyType !in setOf("SOCKS5", "SOCKS4", "HTTP")) {
+                    throw IllegalArgumentException("proxyType must be SOCKS5, SOCKS4, or HTTP")
+                }
+                if (proxyHost.isNullOrBlank()) {
+                    throw IllegalArgumentException("proxyHost required when proxyType is set")
+                }
+                profile.copy(
+                    tunnelConfigId = null,
+                    proxyType = proxyType,
+                    proxyHost = proxyHost,
+                    proxyPort = proxyPort ?: profile.proxyPort,
+                )
+            }
+            else -> throw IllegalArgumentException(
+                "set_profile_routing needs one of: tunnelConfigId, proxyType+proxyHost, or clear=true"
+            )
+        }
+        connectionRepository.save(updated)
+        return JSONObject().apply {
+            put("profileId", updated.id)
+            put("tunnelConfigId", updated.tunnelConfigId ?: JSONObject.NULL)
+            put("proxyType", updated.proxyType ?: JSONObject.NULL)
+            put("proxyHost", updated.proxyHost ?: JSONObject.NULL)
+            put("proxyPort", updated.proxyPort)
+        }
+    }
+
+    private suspend fun connectProfile(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifBlank {
+            throw IllegalArgumentException("profileId required")
+        }
+        val profile = connectionRepository.getById(profileId)
+            ?: throw IllegalArgumentException("profile $profileId not found")
+        agentUiCommandBus.emit(
+            sh.haven.core.data.agent.AgentUiCommand.ConnectProfile(profileId)
+        )
+        return JSONObject().apply {
+            put("profileId", profileId)
+            put("label", profile.label)
+            put("dispatched", true)
+            put(
+                "note",
+                "Connect dispatched asynchronously through the same path a UI tap uses. Poll list_sessions for status."
+            )
         }
     }
 }

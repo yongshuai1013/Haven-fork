@@ -96,6 +96,8 @@ class McpServer @Inject constructor(
     private val transportSelector: sh.haven.feature.sftp.transport.TransportSelector,
     private val workspaceRepository: sh.haven.core.data.repository.WorkspaceRepository,
     private val workspaceLauncher: sh.haven.app.workspace.WorkspaceLauncher,
+    private val tunnelConfigRepository: sh.haven.core.data.repository.TunnelConfigRepository,
+    private val tunnelManager: sh.haven.core.tunnel.TunnelManager,
 ) : Closeable {
 
     /**
@@ -171,6 +173,8 @@ class McpServer @Inject constructor(
         transportSelector = transportSelector,
         workspaceRepository = workspaceRepository,
         workspaceLauncher = workspaceLauncher,
+        tunnelConfigRepository = tunnelConfigRepository,
+        tunnelManager = tunnelManager,
     )
 
     /**

@@ -102,6 +102,7 @@ class ConnectionsViewModel @Inject constructor(
     private val tunnelResolver: sh.haven.core.tunnel.TunnelResolver,
     private val tunnelConfigRepository: sh.haven.core.data.repository.TunnelConfigRepository,
     private val certRenewalGate: CertRenewalGate,
+    private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
 ) : ViewModel() {
 
     /**
@@ -115,6 +116,23 @@ class ConnectionsViewModel @Inject constructor(
     private val pendingVerboseLogs = mutableMapOf<String, String>()
 
     init {
+        // Agent-driven connect: MCP `connect_profile` tool posts here.
+        // Look up the profile and dispatch through the unified connect()
+        // entry so route-through, stored passwords, and key auth all
+        // apply identically to a UI tap.
+        viewModelScope.launch {
+            agentUiCommandBus.commands.collect { command ->
+                if (command is sh.haven.core.data.agent.AgentUiCommand.ConnectProfile) {
+                    val profile = repository.getById(command.profileId)
+                    if (profile != null) {
+                        connect(profile, password = profile.sshPassword.orEmpty())
+                    } else {
+                        Log.w(TAG, "ConnectProfile: profile ${command.profileId} not found")
+                    }
+                }
+            }
+        }
+
         // Stop foreground service when last session closes, regardless of how it was removed
         // (close tab, network drop, etc.). Debounce prevents rapid start/stop cycling.
         @OptIn(kotlinx.coroutines.FlowPreview::class)

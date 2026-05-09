@@ -137,7 +137,25 @@ class TunnelManager @Inject constructor(
     suspend fun dependentCount(configId: String): Int = mutex.withLock {
         dependents[configId]?.size ?: 0
     }
+
+    /**
+     * Snapshot of the live tunnel state — every configId that currently
+     * has at least one active dependent, paired with the set of profile
+     * ids holding it. For agent / debug tooling that wants to verify
+     * refcount semantics end-to-end (#149 integration tests).
+     */
+    suspend fun liveSnapshot(): List<LiveTunnelEntry> = mutex.withLock {
+        dependents
+            .filterValues { it.isNotEmpty() }
+            .map { (configId, deps) -> LiveTunnelEntry(configId, deps.toSet()) }
+    }
 }
+
+/** A live tunnel as visible to introspection: the config it came from, and the profiles depending on it. */
+data class LiveTunnelEntry(
+    val configId: String,
+    val dependentProfileIds: Set<String>,
+)
 
 /**
  * Production [TunnelFactory] — dispatches by config type and wires up

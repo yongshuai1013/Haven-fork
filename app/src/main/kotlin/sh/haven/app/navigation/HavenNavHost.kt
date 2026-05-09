@@ -167,6 +167,10 @@ fun HavenNavHost(
                     sh.haven.core.ui.navigation.Screen.Keys.route
                 is sh.haven.core.data.agent.AgentUiCommand.OpenInEditor ->
                     sh.haven.core.ui.navigation.Screen.Sftp.route
+                is sh.haven.core.data.agent.AgentUiCommand.ConnectProfile ->
+                    // Connect lands the user on the Connections tab so they
+                    // can see the connecting → connected status flip.
+                    sh.haven.core.ui.navigation.Screen.Connections.route
             }
             val target = screens.indexOfFirst { it.route == route }
             if (target >= 0) pagerState.animateScrollToPage(target)

@@ -134,4 +134,20 @@ sealed class AgentUiCommand {
         val profileId: String,
         val path: String,
     ) : AgentUiCommand()
+
+    /**
+     * Initiate a connection for a saved profile. Picked up by
+     * [ConnectionsViewModel], which dispatches to the right transport
+     * (SSH / Mosh / ET / VNC / RDP / SMB / rclone / Reticulum / local)
+     * using the same code path a UI tap would, so route-through,
+     * stored passwords, and key auth all apply identically.
+     *
+     * Used by the MCP `connect_profile` tool — the only sanctioned
+     * way for the agent to drive a connect, since this re-uses the
+     * existing UI password-prompt fallback when neither a stored
+     * password nor a key is configured.
+     */
+    data class ConnectProfile(
+        val profileId: String,
+    ) : AgentUiCommand()
 }

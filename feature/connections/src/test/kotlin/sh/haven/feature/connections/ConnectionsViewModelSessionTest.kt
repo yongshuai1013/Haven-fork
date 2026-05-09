@@ -149,6 +149,9 @@ class ConnectionsViewModelSessionTest {
             certRenewalGate = mockk(relaxed = true) {
                 every { renewing } returns kotlinx.coroutines.flow.MutableStateFlow(null)
             },
+            agentUiCommandBus = mockk(relaxed = true) {
+                every { commands } returns kotlinx.coroutines.flow.MutableSharedFlow()
+            },
         )
     }
 
