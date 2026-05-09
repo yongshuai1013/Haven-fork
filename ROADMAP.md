@@ -35,6 +35,9 @@
 - [x] **Eternal Terminal** — ET protocol support
 - [x] **Reticulum** — mesh network transport
 - [x] **Network-aware reconnect** — ConnectivityManager detects WiFi/cellular/VPN changes, triggers immediate SSH reconnect (2s debounce) instead of waiting for TCP timeout
+- [x] **WireGuard tunnels** — per-app userspace WireGuard tunnel (wireguard-go + gVisor netstack via gomobile), wg-quick config per profile, no system VPN slot
+- [x] **Tailscale auto-discovery** — detect Tailscale peers via local API and show as discovered hosts
+- [x] **Workspace profiles** — savable session bundles open SSH tabs + port forwards + SFTP in one tap; also exposed as MCP `compose_workspace` verb
 
 ### Security
 - [x] **Encrypted password storage** — AES-256-GCM encrypted stored passwords
@@ -85,16 +88,9 @@
 ### Encryption
 - [ ] **age file encryption** — encrypt/decrypt files in the SFTP/rclone browser using [age](https://age-encryption.org) (Go library via gomobile), with key management in Haven's key store
 
-### Networking
-- [ ] **WireGuard** — built-in WireGuard tunnel for self-hosted VPN (userspace Go implementation), auto-discover and connect to peers without a separate VPN app
-- [x] **Tailscale auto-discovery** — detect Tailscale peers via local API and show as discovered hosts
-
 ### Terminal depth
 - [ ] **Split panes** — horizontal/vertical splits within a tab, independent SSH sessions per pane
 - [ ] **Prompt-to-prompt navigation** — jump between commands using OSC 133 markers (infrastructure exists in termlib accessibility layer)
-
-### Workflow continuity
-- [ ] **Workspace profiles** — "Work" opens SSH tabs + port forwards + SFTP in one tap
 
 ### PRoot development
 - [ ] **Curated dev stacks** — one-tap Python/Node.js/Rust/Go installation following the existing DesktopEnvironment enum pattern

@@ -45,7 +45,7 @@
 
 ## At a glance
 
-- **Terminal** — Mosh / Eternal Terminal / SSH with tmux-aware session restore, configurable keyboard toolbar, OSC 52/8/9/777/7/133 integration. Bundled Hack Nerd Font Mono renders Powerline / Devicons / Font Awesome / Material Design glyphs in shell prompts out of the box.
+- **Terminal** — Mosh / Eternal Terminal / SSH with tmux-aware session restore, configurable keyboard toolbar, OSC 7/8/9/52/777 integration. Bundled Hack Nerd Font Mono renders Powerline / Devicons / Font Awesome / Material Design glyphs in shell prompts out of the box.
 - **Desktop** — VNC (RFB 3.8 with VeNCrypt), RDP (via IronRDP), a native Wayland compositor (labwc on GLES2), and one-tap local X11 desktop via PRoot.
 - **Files** — Unified browser for SFTP/SCP, SMB, and 60+ cloud providers. Multi-select, built-in editor, image tools, chmod, cross-filesystem copy/move.
 - **Media** — Transcode and stream on-device with FFmpeg 8.0; HLS streaming to the LAN; DLNA server for cloud media.
@@ -60,7 +60,7 @@ See [docs/FEATURES.md](docs/FEATURES.md) for the full, detailed feature list.
 
 ## Languages
 
-Available in 11 languages: English, Chinese (simplified), Spanish, Hindi, Arabic (with RTL support), Portuguese, Bengali, Russian, Japanese, French, and German. The UI follows the device language. Community translation contributions welcome.
+Available in 12 languages: English, Chinese (simplified), Spanish, Hindi, Arabic (with RTL support), Portuguese, Bengali, Russian, Japanese, Korean, French, and German. The UI follows the device language. Community translation contributions welcome.
 
 ## Install
 
@@ -97,7 +97,7 @@ Output: `app/build/outputs/apk/debug/haven-*-debug.apk`
 - [Backup file format](docs/backup-format.md) — wire format, the
   PBKDF2/AES-GCM envelope, and a Python recipe for manual decryption
   if the in-app importer fails.
-- [Release process](RELEASE.md) — versioning, tagging, F-Droid and Play Store steps.
+- [Release process](RELEASE.md) — versioning, tagging, and F-Droid steps.
 - [Privacy policy](PRIVACY_POLICY.md).
 - [Roadmap](ROADMAP.md) and [Vision](VISION.md).
 
