@@ -1282,173 +1282,6 @@ fun ConnectionEditDialog(
                         }
                     }
 
-                    // Route through — unified picker for proxy AND WireGuard
-                    // tunnel. Mutually exclusive at the UI layer: picking
-                    // any tunnel clears proxy fields; picking any proxy
-                    // clears tunnelConfigId. The underlying data model
-                    // allows both but the VM's connect path picks tunnel
-                    // > jump > proxy, and showing both on the same profile
-                    // is confusing.
-                    Spacer(Modifier.height(4.dp))
-                    var proxyExpanded by remember { mutableStateOf(false) }
-                    val selectedTunnel = tunnelConfigs.firstOrNull { it.id == tunnelConfigId }
-                    val noneDirectLabel = stringResource(R.string.connections_dropdown_none_direct)
-                    val tunnelDropdownLabel = selectedTunnel?.let {
-                        stringResource(R.string.connections_tunnel_dropdown_label, it.label)
-                    }
-                    val selectedLabel = when {
-                        tunnelDropdownLabel != null -> tunnelDropdownLabel
-                        proxyType != null -> proxyType!!
-                        else -> noneDirectLabel
-                    }
-                    ExposedDropdownMenuBox(
-                        expanded = proxyExpanded,
-                        onExpandedChange = { proxyExpanded = it },
-                    ) {
-                        OutlinedTextField(
-                            value = selectedLabel,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.connections_field_route_through)) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = proxyExpanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                        )
-                        ExposedDropdownMenu(
-                            expanded = proxyExpanded,
-                            onDismissRequest = { proxyExpanded = false },
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.connections_dropdown_none_direct)) },
-                                onClick = {
-                                    proxyType = null
-                                    proxyHost = ""
-                                    tunnelConfigId = null
-                                    proxyExpanded = false
-                                },
-                            )
-                            listOf("SOCKS5", "SOCKS4", "HTTP").forEach { kind ->
-                                DropdownMenuItem(
-                                    text = { Text(kind) },
-                                    onClick = {
-                                        proxyType = kind
-                                        tunnelConfigId = null
-                                        if (kind == "HTTP" && proxyPort == "1080") {
-                                            proxyPort = "8080"
-                                        } else if (kind != "HTTP" && proxyPort == "8080") {
-                                            proxyPort = "1080"
-                                        }
-                                        proxyExpanded = false
-                                    },
-                                )
-                            }
-                            if (tunnelConfigs.isNotEmpty()) {
-                                HorizontalDivider()
-                                tunnelConfigs.forEach { tunnel ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Column {
-                                                Text(stringResource(R.string.connections_tunnel_dropdown_label, tunnel.label))
-                                                Text(
-                                                    runCatching {
-                                                        sh.haven.core.data.db.entities.TunnelConfigType
-                                                            .fromStorage(tunnel.type).name
-                                                    }.getOrDefault(tunnel.type),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-                                        },
-                                        onClick = {
-                                            tunnelConfigId = tunnel.id
-                                            proxyType = null
-                                            proxyHost = ""
-                                            proxyExpanded = false
-                                        },
-                                    )
-                                }
-                            }
-                            if (onManageTunnels != null) {
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            if (tunnelConfigs.isEmpty()) "Add WireGuard tunnel…"
-                                            else "Manage tunnels…",
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                    },
-                                    onClick = {
-                                        proxyExpanded = false
-                                        onManageTunnels()
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    if (proxyType != null) {
-                        Spacer(Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = proxyHost,
-                                onValueChange = { proxyHost = it },
-                                label = { Text(stringResource(R.string.connections_field_proxy_host)) },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f),
-                            )
-                            OutlinedTextField(
-                                value = proxyPort,
-                                onValueChange = { proxyPort = it.filter { c -> c.isDigit() } },
-                                label = { Text(stringResource(R.string.connections_field_port)) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.width(80.dp),
-                            )
-                        }
-                        if (host.endsWith(".onion") && proxyType == "SOCKS5") {
-                            Text(
-                                "Tor .onion address detected — hostname will be resolved through the SOCKS5 proxy",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        } else if (host.endsWith(".onion") && proxyType != "SOCKS5") {
-                            Text(
-                                ".onion addresses require a SOCKS5 proxy (e.g. Orbot on localhost:9050)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
-
-                        // Visual chain indicator for proxy
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Filled.PhoneAndroid, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(4.dp))
-                            Text("$proxyType", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Filled.Storage, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    } else if (host.endsWith(".onion")) {
-                        Text(
-                            ".onion addresses require a SOCKS5 proxy (e.g. Orbot on localhost:9050)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
 
                     // Session manager
                     Spacer(Modifier.height(4.dp))
@@ -2047,6 +1880,178 @@ fun ConnectionEditDialog(
                         maxLines = 3,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+
+                // Route through — shared picker for SOCKS / HTTP proxy and
+                // WireGuard / Tailscale tunnel. Was SSH-only until #149;
+                // VNC, RDP, and SMB now also honour profile.tunnelConfigId
+                // so the picker has to surface for them too. LOCAL has no
+                // network; RCLONE and Reticulum manage their own transport.
+                // Mutually exclusive at the UI layer: picking any tunnel
+                // clears proxy fields; picking any proxy clears
+                // tunnelConfigId. The connect path enforces tunnel >
+                // jump > proxy precedence.
+                if (connectionType in setOf("SSH", "VNC", "RDP", "SMB")) {
+                    Spacer(Modifier.height(4.dp))
+                    var proxyExpanded by remember { mutableStateOf(false) }
+                    val selectedTunnel = tunnelConfigs.firstOrNull { it.id == tunnelConfigId }
+                    val noneDirectLabel = stringResource(R.string.connections_dropdown_none_direct)
+                    val tunnelDropdownLabel = selectedTunnel?.let {
+                        stringResource(R.string.connections_tunnel_dropdown_label, it.label)
+                    }
+                    val selectedLabel = when {
+                        tunnelDropdownLabel != null -> tunnelDropdownLabel
+                        proxyType != null -> proxyType!!
+                        else -> noneDirectLabel
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = proxyExpanded,
+                        onExpandedChange = { proxyExpanded = it },
+                    ) {
+                        OutlinedTextField(
+                            value = selectedLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.connections_field_route_through)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = proxyExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                        )
+                        ExposedDropdownMenu(
+                            expanded = proxyExpanded,
+                            onDismissRequest = { proxyExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.connections_dropdown_none_direct)) },
+                                onClick = {
+                                    proxyType = null
+                                    proxyHost = ""
+                                    tunnelConfigId = null
+                                    proxyExpanded = false
+                                },
+                            )
+                            listOf("SOCKS5", "SOCKS4", "HTTP").forEach { kind ->
+                                DropdownMenuItem(
+                                    text = { Text(kind) },
+                                    onClick = {
+                                        proxyType = kind
+                                        tunnelConfigId = null
+                                        if (kind == "HTTP" && proxyPort == "1080") {
+                                            proxyPort = "8080"
+                                        } else if (kind != "HTTP" && proxyPort == "8080") {
+                                            proxyPort = "1080"
+                                        }
+                                        proxyExpanded = false
+                                    },
+                                )
+                            }
+                            if (tunnelConfigs.isNotEmpty()) {
+                                HorizontalDivider()
+                                tunnelConfigs.forEach { tunnel ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(stringResource(R.string.connections_tunnel_dropdown_label, tunnel.label))
+                                                Text(
+                                                    runCatching {
+                                                        sh.haven.core.data.db.entities.TunnelConfigType
+                                                            .fromStorage(tunnel.type).name
+                                                    }.getOrDefault(tunnel.type),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            tunnelConfigId = tunnel.id
+                                            proxyType = null
+                                            proxyHost = ""
+                                            proxyExpanded = false
+                                        },
+                                    )
+                                }
+                            }
+                            if (onManageTunnels != null) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (tunnelConfigs.isEmpty()) "Add WireGuard tunnel…"
+                                            else "Manage tunnels…",
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    },
+                                    onClick = {
+                                        proxyExpanded = false
+                                        onManageTunnels()
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    if (proxyType != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = proxyHost,
+                                onValueChange = { proxyHost = it },
+                                label = { Text(stringResource(R.string.connections_field_proxy_host)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            OutlinedTextField(
+                                value = proxyPort,
+                                onValueChange = { proxyPort = it.filter { c -> c.isDigit() } },
+                                label = { Text(stringResource(R.string.connections_field_port)) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(80.dp),
+                            )
+                        }
+                        if (host.endsWith(".onion") && proxyType == "SOCKS5") {
+                            Text(
+                                "Tor .onion address detected — hostname will be resolved through the SOCKS5 proxy",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        } else if (host.endsWith(".onion") && proxyType != "SOCKS5") {
+                            Text(
+                                ".onion addresses require a SOCKS5 proxy (e.g. Orbot on localhost:9050)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+
+                        // Visual chain indicator for proxy
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.PhoneAndroid, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Text("$proxyType", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Filled.Storage, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (host.endsWith(".onion")) {
+                        Text(
+                            ".onion addresses require a SOCKS5 proxy (e.g. Orbot on localhost:9050)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
             }
         },
