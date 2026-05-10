@@ -2321,8 +2321,16 @@ class ConnectionsViewModel @Inject constructor(
     }
 
     private suspend fun finishConnect(sessionId: String, profileId: String, verboseLog: String? = pendingVerboseLogs.remove(sessionId), silent: Boolean = false) {
+        // Tunnel-only profiles (#150 Phase B): bring up the transport,
+        // register port forwards, but skip shell allocation and the
+        // terminal navigation. Session lives in the background just
+        // for its forwards — autossh-style when paired with the
+        // auto-reconnect policy from Phase A.
+        val tunnelOnly = repository.getById(profileId)?.tunnelOnly == true
         withContext(Dispatchers.IO) {
-            sshSessionManager.openShellForSession(sessionId)
+            if (!tunnelOnly) {
+                sshSessionManager.openShellForSession(sessionId)
+            }
 
             // Apply enabled port forward rules
             val rules = portForwardRepository.getEnabledForProfile(profileId)
@@ -2362,7 +2370,7 @@ class ConnectionsViewModel @Inject constructor(
         }
         connectionLogRepository.logEvent(profileId, ConnectionLog.Status.CONNECTED, details = authDetail, verboseLog = verboseLog)
         startForegroundServiceIfNeeded()
-        if (!silent) {
+        if (!silent && !tunnelOnly) {
             _navigateToTerminal.value = profileId
             // Verify a terminal tab appears — if the session manager (tmux/zellij/screen)
             // isn't installed on the remote host, the shell exits silently and no tab is created.

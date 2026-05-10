@@ -159,6 +159,21 @@ data class ConnectionProfile(
     val autoReconnect: Boolean = true,
     val reconnectMaxAttempts: Int = 5,
     val reconnectOnNetworkChange: Boolean = true,
+    /**
+     * Tunnel-only mode (#150 Phase B). When true, a connect to this
+     * profile brings up the SSH transport and registers the
+     * configured port-forward rules but DOES NOT allocate a PTY or
+     * open a terminal tab. The session lives in the background
+     * carrying just the forwards — equivalent to `ssh -N -L … host`.
+     *
+     * Defaults to false so existing profiles keep their interactive
+     * behaviour. Compose with autoReconnect + maxAttempts=0 to get
+     * autossh-style indefinite-keepalive port forwards.
+     *
+     * Only meaningful for SSH-family profiles. Ignored on
+     * VNC/RDP/SMB/RCLONE/RETICULUM/LOCAL.
+     */
+    val tunnelOnly: Boolean = false,
 ) {
     enum class AuthType {
         PASSWORD,

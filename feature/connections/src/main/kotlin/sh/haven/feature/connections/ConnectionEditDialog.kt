@@ -219,6 +219,7 @@ fun ConnectionEditDialog(
     var reconnectOnNetworkChange by rememberSaveable {
         mutableStateOf(existing?.reconnectOnNetworkChange ?: true)
     }
+    var tunnelOnly by rememberSaveable { mutableStateOf(existing?.tunnelOnly ?: false) }
 
     val isEdit = existing != null
     val title = if (isEdit) stringResource(R.string.connections_dialog_edit) else stringResource(R.string.connections_dialog_new)
@@ -1424,13 +1425,34 @@ fun ConnectionEditDialog(
                         )
                     }
 
-                    // Reconnect controls (#150). Defaults preserve current
-                    // behaviour: auto-reconnect on transport drop, 5
-                    // attempts, plus reconnect on network change. Users
+                    // Tunnel-only mode (#150 Phase B). When on, connect
+                    // brings up the SSH transport and registers port
+                    // forwards but does NOT open a terminal — the
+                    // session lives in the background just for its
+                    // forwards. Pair with the Reconnect controls below
+                    // (max attempts = 0 = unlimited) for autossh-style
+                    // keepalive of the forwards.
+                    Spacer(Modifier.height(8.dp))
+                    FilterChip(
+                        selected = tunnelOnly,
+                        onClick = { tunnelOnly = !tunnelOnly },
+                        label = { Text("Tunnel-only (no terminal)") },
+                    )
+                    if (tunnelOnly) {
+                        Text(
+                            "Bring up SSH for port forwards only — no terminal session is opened.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    // Reconnect controls (#150 Phase A). Defaults preserve
+                    // current behaviour: auto-reconnect on transport drop,
+                    // 5 attempts, plus reconnect on network change. Users
                     // who run noisy auth (the loop spammed during a wrong-
                     // password phase) or who want indefinite retry on a
-                    // tunnel-only profile holding port forwards alive
-                    // (#150 Phase B) get the knobs here.
+                    // tunnel-only profile holding port forwards alive get
+                    // the knobs here.
                     Spacer(Modifier.height(8.dp))
                     Text("Reconnect", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(4.dp))
@@ -2257,6 +2279,7 @@ fun ConnectionEditDialog(
                             autoReconnect = autoReconnect,
                             reconnectMaxAttempts = reconnectMaxAttempts.toIntOrNull()?.coerceAtLeast(0) ?: 5,
                             reconnectOnNetworkChange = reconnectOnNetworkChange,
+                            tunnelOnly = tunnelOnly,
                             sessionManager = selectedSessionManager,
                             useMosh = selectedTransport == "MOSH",
                             useEternalTerminal = selectedTransport == "ET",
