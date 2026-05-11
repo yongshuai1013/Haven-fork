@@ -143,6 +143,7 @@ class ConnectionsViewModelSessionTest {
             hostKeyVerifier = mockk(relaxed = true),
             connectionLogRepository = mockk(relaxed = true),
             tunnelResolver = mockk(relaxed = true),
+            portKnocker = mockk(relaxed = true),
             tunnelConfigRepository = mockk(relaxed = true) {
                 every { observeAll() } returns flowOf(emptyList())
             },
