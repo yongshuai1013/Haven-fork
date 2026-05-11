@@ -44,34 +44,43 @@ class SmartCopyTest {
     // ---------- smartCopy ----------
 
     @Test
-    fun `single-row selection returns the selected substring`() {
+    fun `single-row selection returns the controller's text`() {
         val out = smartCopy(
-            controller(SelectionRange(startRow = 0, startCol = 6, endRow = 0, endCol = 10)),
+            controller(
+                SelectionRange(startRow = 0, startCol = 6, endRow = 0, endCol = 10),
+                selectedText = "world",
+            ),
             emulator(listOf("hello world")),
         )
         assertEquals("world", out)
     }
 
     @Test
-    fun `multi-row selection on hard line breaks keeps newlines`() {
-        // Neither row fills the terminal width (40 columns), so rows are
-        // treated as separate logical lines joined with "\n".
+    fun `multi-row hard-break selection keeps the controller's newlines`() {
+        // The controller (backed by SelectionManager.getSelectedText) reports
+        // hard-broken rows by inserting "\n" between them — these rows aren't
+        // softWrapped, so smartCopy passes that through verbatim.
         val out = smartCopy(
-            controller(SelectionRange(startRow = 0, startCol = 0, endRow = 1, endCol = 2)),
+            controller(
+                SelectionRange(startRow = 0, startCol = 0, endRow = 1, endCol = 2),
+                selectedText = "foo\nbar",
+            ),
             emulator(listOf("foo", "bar"), columns = 40),
         )
         assertEquals("foo\nbar", out)
     }
 
     @Test
-    fun `soft-wrapped lines (at terminal width) are joined without newlines`() {
-        // Both rows fill the terminal width exactly → treated as a single
-        // logical line that wrapped. Selection spans both rows and the
-        // copied text reads as if typed into a wider terminal.
-        val cols = 10
+    fun `soft-wrapped selection joins without newlines via the controller`() {
+        // The two rows happen to fill the 10-column viewport exactly, but
+        // the controller already knows (via libvterm's softWrapped flag)
+        // that they're one logical line — smartCopy returns the joined form.
         val out = smartCopy(
-            controller(SelectionRange(startRow = 0, startCol = 0, endRow = 1, endCol = 9)),
-            emulator(listOf("abcdefghij", "klmnopqrst"), columns = cols),
+            controller(
+                SelectionRange(startRow = 0, startCol = 0, endRow = 1, endCol = 9),
+                selectedText = "abcdefghijklmnopqrst",
+            ),
+            emulator(listOf("abcdefghij", "klmnopqrst"), columns = 10),
         )
         assertEquals("abcdefghijklmnopqrst", out)
     }
@@ -95,15 +104,22 @@ class SmartCopyTest {
     }
 
     @Test
-    fun `selection starting past end of short line yields empty string`() {
+    fun `selection starting past end of short line yields no contribution`() {
         // This is the shape that silently wrote `""` to the clipboard in
         // v5.19.x — selection columns point past where the line's real
-        // content ends, so substring(start, end) is empty.
+        // content ends, so the controller has nothing selected. smartCopy
+        // now returns null in that case (rather than ""), which
+        // SmartTerminalClipboard.setText reads as "no contribution" and
+        // keeps the caller's AnnotatedString instead of clobbering the
+        // clipboard with empty text.
         val out = smartCopy(
-            controller(SelectionRange(startRow = 0, startCol = 50, endRow = 0, endCol = 55)),
+            controller(
+                SelectionRange(startRow = 0, startCol = 50, endRow = 0, endCol = 55),
+                selectedText = "",
+            ),
             emulator(listOf("short"), columns = 80),
         )
-        assertEquals("", out)
+        assertNull(out)
     }
 
     @Test
@@ -116,12 +132,11 @@ class SmartCopyTest {
     }
 
     @Test
-    fun `controller getSelectedText is preferred when non-empty`() {
-        // The fullTexts heuristic would join "abcdefghij" + "klmnopqrst"
-        // because both rows fill the 10-column viewport — but if the
-        // controller already knows (via libvterm's softWrapped flag) that
-        // these rows are NOT wrapped, it wins. This is the case the
-        // heuristic gets wrong.
+    fun `controller text is returned verbatim for full-width hard-broken rows`() {
+        // Pair with the soft-wrap test above: same row layout (two rows
+        // exactly filling the 10-col viewport), but the controller reports
+        // them as hard-broken (libvterm's softWrapped=false). smartCopy
+        // must trust the controller and preserve the newline.
         val out = smartCopy(
             controller(
                 range = SelectionRange(startRow = 0, startCol = 0, endRow = 1, endCol = 9),
@@ -155,34 +170,19 @@ class SmartCopyTest {
         assertEquals("left\nline2\nline3", out)
     }
 
-    @Test
-    fun `falls back to fullTexts heuristic when controller returns empty`() {
-        // When the controller can't supply selected text (returns ""),
-        // smartCopy keeps the column-length heuristic as a safety net.
-        // This mirrors today's behaviour for callers that haven't wired
-        // the new method yet.
-        val out = smartCopy(
-            controller(
-                range = SelectionRange(startRow = 0, startCol = 0, endRow = 0, endCol = 4),
-                selectedText = "",
-            ),
-            emulator(listOf("hello world")),
-        )
-        assertEquals("hello", out)
-    }
-
     // ---------- SmartTerminalClipboard.setText ----------
 
     private fun clipboard(
         controllerRange: SelectionRange?,
         lines: List<String>,
         columns: Int = 80,
+        selectedText: String = "",
     ): Pair<SmartTerminalClipboard, androidx.compose.ui.platform.ClipboardManager> {
         val delegate = mockk<androidx.compose.ui.platform.ClipboardManager>(relaxed = true)
         val smart = SmartTerminalClipboard(
             delegate = delegate,
             getEmulator = { emulator(lines, columns = columns) },
-            getController = { controller(controllerRange) },
+            getController = { controller(controllerRange, selectedText = selectedText) },
         )
         return smart to delegate
     }
@@ -192,9 +192,11 @@ class SmartCopyTest {
         val (smart, delegate) = clipboard(
             controllerRange = SelectionRange(0, 6, 0, 10),
             lines = listOf("hello world"),
+            selectedText = "world",
         )
-        // Caller passes an unprocessed AnnotatedString; smartCopy trims/
-        // fixes it to "world".
+        // Caller passes an unprocessed AnnotatedString; smartCopy returns
+        // the controller's selected text ("world") and SmartTerminalClipboard
+        // substitutes that for the caller's text.
         smart.setText(AnnotatedString("hello world"))
 
         val captured = slot<AnnotatedString>()
@@ -203,14 +205,15 @@ class SmartCopyTest {
     }
 
     @Test
-    fun `setText falls back to caller text when smartCopy returns blank`() {
-        // Selection is past the end of a short line → smartCopy returns "".
-        // Without the fallback, the clipboard would silently be cleared —
-        // the v5.19.x regression. With the fallback, the caller's text
-        // (what SelectionManager extracted) is used instead.
+    fun `setText falls back to caller text when smartCopy has no contribution`() {
+        // Selection is past the end of a short line → controller returns "",
+        // smartCopy returns null. Without the fallback, the clipboard would
+        // silently be cleared — the v5.19.x regression. With the fallback,
+        // the caller's text (what SelectionManager extracted) is used.
         val (smart, delegate) = clipboard(
             controllerRange = SelectionRange(0, 50, 0, 55),
             lines = listOf("short"),
+            selectedText = "",
         )
         smart.setText(AnnotatedString("short-from-selection"))
 
@@ -329,12 +332,14 @@ class SmartCopyTest {
 
     @Test
     fun `setText falls back when smartCopy returns only whitespace`() {
-        // A selection covering only trailing padding/whitespace on a row —
-        // smartCopy would return " " (just whitespace). isNullOrBlank()
-        // treats that as no contribution, so we keep the caller's text.
+        // The controller is allowed to return whitespace-only text (e.g. a
+        // selection covering trailing padding on a row that
+        // SelectionManager trims to spaces). isNullOrBlank() treats that as
+        // no contribution, so we keep the caller's text.
         val (smart, delegate) = clipboard(
             controllerRange = SelectionRange(0, 5, 0, 8),
             lines = listOf("text    "),
+            selectedText = "   ",
         )
         smart.setText(AnnotatedString("meaningful"))
 

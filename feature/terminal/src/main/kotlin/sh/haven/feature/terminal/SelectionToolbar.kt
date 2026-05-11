@@ -41,7 +41,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.connectbot.terminal.SelectionController
-import org.connectbot.terminal.SelectionRange
 
 private const val TAG = "SelectionToolbar"
 
@@ -280,63 +279,25 @@ private fun extractPanelContent(
 }
 
 /**
- * Extract the selected portion of each line and unwrap soft-wrapped lines.
- * A line that fills the full terminal width is assumed to be soft-wrapped.
- */
-private fun extractWithSoftWrapUnwrap(
-    fullTexts: List<String>,
-    sel: SelectionRange,
-    columns: Int,
-): String {
-    // Extract selected portion of each line
-    val selectedTexts = fullTexts.mapIndexed { i, text ->
-        val row = sel.startRow + i
-        val start = if (row == sel.startRow) sel.startCol else 0
-        val end = if (row == sel.endRow) (sel.endCol + 1).coerceAtMost(text.length) else text.length
-        if (start < end && start < text.length) {
-            text.substring(start, end.coerceAtMost(text.length))
-        } else ""
-    }
-
-    val result = StringBuilder()
-    for (i in selectedTexts.indices) {
-        result.append(selectedTexts[i])
-        if (i < selectedTexts.size - 1) {
-            // If the full line fills the terminal width, it was likely soft-wrapped
-            if (fullTexts[i].trimEnd().length >= columns) {
-                // Soft-wrapped: join without newline
-            } else {
-                result.append('\n')
-            }
-        }
-    }
-    return result.toString()
-}
-
-/**
  * Smart copy: extracts text from the terminal selection with two enhancements:
  * 1. TUI border stripping — detects vertical box-drawing borders and extracts
  *    only the panel content where the selection started.
- * 2. Soft-wrap unwrapping — joins lines that were soft-wrapped at the terminal
- *    width boundary, so copied text reads as it would in a wider terminal.
+ * 2. Soft-wrap unwrapping via [SelectionController.getSelectedText], which
+ *    consults libvterm's authoritative `softWrapped` flag on each
+ *    `TerminalLine`. Wrapped rows rejoin without `\n`; hard breaks keep
+ *    their newlines regardless of whether the row happens to fill the
+ *    viewport exactly. Selection rows that have scrolled out of view are
+ *    resolved against the live `scrollbackPosition` by the same path.
  *
- * The soft-wrap rejoin is delegated to [SelectionController.getSelectedText],
- * which uses libvterm's authoritative `softWrapped` flag and so handles cases
- * the local fullTexts heuristic gets wrong: NUL-padded rows where a wrapped
- * line trims to less than the column count, and hand-typed lines that happen
- * to fill the viewport exactly. The local [extractWithSoftWrapUnwrap]
- * remains as a fallback for callers (or tests) where the controller can't
- * supply selected text.
- *
- * Returns null if the emulator snapshot is unavailable; callers should
- * fall back to [SelectionController.copySelection] in that case.
+ * Returns null if the snapshot is unavailable or the controller has no
+ * selection text to contribute; [SmartTerminalClipboard.setText] falls back
+ * to the caller's `AnnotatedString` in that case.
  */
 internal fun smartCopy(
     controller: SelectionController,
     emulator: org.connectbot.terminal.TerminalEmulator,
 ): String? {
     val sel = controller.getSelectionRange() ?: return null
-    val columns = emulator.dimensions.columns
     val snapshotLines = getSnapshotLines(emulator) ?: return null
 
     val fullTexts = (sel.startRow..sel.endRow).map { row ->
@@ -352,17 +313,7 @@ internal fun smartCopy(
         return extractPanelContent(fullTexts, borderCols, sel.startCol)
     }
 
-    // Prefer the controller's authoritative text — it consults the real
-    // `softWrapped` flag on each TerminalLine, so wrapped lines rejoin and
-    // hard breaks keep their newlines whether or not the row happens to
-    // exactly fill the viewport. Fall back to the column-length heuristic
-    // only when the controller can't supply text (e.g. unit-test mocks).
-    val fromController = controller.getSelectedText()
-    return if (fromController.isNotEmpty()) {
-        fromController
-    } else {
-        extractWithSoftWrapUnwrap(fullTexts, sel, columns)
-    }
+    return controller.getSelectedText().ifEmpty { null }
 }
 
 /**
