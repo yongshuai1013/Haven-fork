@@ -32,4 +32,10 @@ class SshVerboseLogger : Logger {
         if (lines.isEmpty()) return null
         return lines.joinToString("\n")
     }
+
+    /** Haven-level entry point so callers don't import `com.jcraft.jsch.Logger.INFO`. */
+    fun logInfo(message: String) { log(Logger.INFO, message) }
+
+    /** Haven-level entry point so callers don't import `com.jcraft.jsch.Logger.WARN`. */
+    fun logWarn(message: String) { log(Logger.WARN, message) }
 }

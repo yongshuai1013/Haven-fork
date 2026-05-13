@@ -64,7 +64,7 @@ import sh.haven.feature.connections.R
 import sh.haven.core.smb.SmbSessionManager
 import sh.haven.core.stepca.CertRenewalGate
 import android.util.Log
-import com.jcraft.jsch.Proxy
+import sh.haven.core.ssh.HavenProxy
 import java.io.File
 import javax.inject.Inject
 
@@ -853,7 +853,7 @@ class ConnectionsViewModel @Inject constructor(
                 "(sent ${result.sentSteps}/${sequence.steps.size}): ${result.error?.message}"
         }
         Log.d(TAG, line)
-        verboseLogger?.log(com.jcraft.jsch.Logger.INFO, line)
+        verboseLogger?.logInfo(line)
     }
 
     /**
@@ -1602,7 +1602,7 @@ class ConnectionsViewModel @Inject constructor(
                         sshSessionManager.createProxyJump(jumpSessionId)
                             ?: throw Exception("Jump host session not usable for tunneling")
                     } else {
-                        tunnelResolver.jschProxy(profile)
+                        tunnelResolver.havenProxy(profile)
                     }
                     Log.d(TAG, "Connecting to ${config.host}:${config.port} (proxy=${proxy != null})")
                     try {
@@ -1824,7 +1824,7 @@ class ConnectionsViewModel @Inject constructor(
                         val (jid, _) = connectJumpHost(jumpProfileId, password)
                         sshSessionManager.createProxyJump(jid)
                     } else {
-                        tunnelResolver.jschProxy(profile)
+                        tunnelResolver.havenProxy(profile)
                     }
 
                     try {
@@ -1958,7 +1958,7 @@ class ConnectionsViewModel @Inject constructor(
                         val (jid, _) = connectJumpHost(jumpProfileId, password)
                         sshSessionManager.createProxyJump(jid)
                     } else {
-                        tunnelResolver.jschProxy(profile)
+                        tunnelResolver.havenProxy(profile)
                     }
 
                     try {
@@ -3213,7 +3213,7 @@ class ConnectionsViewModel @Inject constructor(
         profile: ConnectionProfile,
         password: String,
         onAutoCreatedJump: (String) -> Unit,
-    ): Proxy? {
+    ): HavenProxy? {
         val jumpProfileId = profile.jumpProfileId
         if (jumpProfileId != null) {
             val (jumpSessionId, reused) = connectJumpHost(jumpProfileId, password)
@@ -3221,7 +3221,7 @@ class ConnectionsViewModel @Inject constructor(
             return sshSessionManager.createProxyJump(jumpSessionId)
                 ?: throw Exception("Jump host session not usable for tunneling")
         }
-        return tunnelResolver.jschProxy(profile)
+        return tunnelResolver.havenProxy(profile)
     }
 
     private fun startForegroundServiceIfNeeded() {
@@ -3376,7 +3376,7 @@ class ConnectionsViewModel @Inject constructor(
                     sshSessionManager.createProxyJump(jumpSessionId)
                         ?: throw Exception("Jump host session not usable for tunneling")
                 } else {
-                    tunnelResolver.jschProxy(profile)
+                    tunnelResolver.havenProxy(profile)
                 }
                 val hostKeyEntry = client.connect(
                     config,
@@ -3444,7 +3444,7 @@ class ConnectionsViewModel @Inject constructor(
                     val (jid, _) = connectJumpHost(jumpProfileId, password)
                     sshSessionManager.createProxyJump(jid)
                 } else {
-                    tunnelResolver.jschProxy(profile)
+                    tunnelResolver.havenProxy(profile)
                 }
                 val hostKeyEntry = sshClient.connect(
                     config,
@@ -3501,7 +3501,7 @@ class ConnectionsViewModel @Inject constructor(
                     val (jid, _) = connectJumpHost(jumpProfileId, password)
                     sshSessionManager.createProxyJump(jid)
                 } else {
-                    tunnelResolver.jschProxy(profile)
+                    tunnelResolver.havenProxy(profile)
                 }
                 val hostKeyEntry = sshClient.connect(
                     config,

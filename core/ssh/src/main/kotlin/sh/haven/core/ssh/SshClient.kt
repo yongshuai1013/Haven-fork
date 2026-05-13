@@ -56,7 +56,7 @@ class SshClient : Closeable {
     suspend fun connect(
         config: ConnectionConfig,
         connectTimeoutMs: Int = 10_000,
-        proxy: Proxy? = null,
+        proxy: HavenProxy? = null,
         keyboardInteractivePrompter: KeyboardInteractivePrompter? = null,
         preConnect: (suspend () -> Unit)? = null,
     ): KnownHostEntry = withContext(Dispatchers.IO) {
@@ -65,7 +65,7 @@ class SshClient : Closeable {
 
         val resolvedIp = if (proxy != null) config.host else resolveHost(config.host, family = config.addressFamily)
         val sess = jsch.getSession(config.username, resolvedIp, config.port)
-        if (proxy != null) sess.setProxy(proxy)
+        if (proxy != null) sess.setProxy(proxy.jschProxy)
         // Accept any key at the JSch level; we verify post-connect ourselves (TOFU)
         sess.setConfig("StrictHostKeyChecking", "no")
         // Disable GSSAPI auth — it causes multi-second timeouts on most servers
@@ -247,7 +247,7 @@ class SshClient : Closeable {
     fun connectBlocking(
         config: ConnectionConfig,
         connectTimeoutMs: Int = 10_000,
-        proxy: Proxy? = null,
+        proxy: HavenProxy? = null,
         keyboardInteractivePrompter: KeyboardInteractivePrompter? = null,
         preConnect: (() -> Unit)? = null,
     ): KnownHostEntry {
@@ -256,7 +256,7 @@ class SshClient : Closeable {
 
         val resolvedIp = if (proxy != null) config.host else resolveHost(config.host, family = config.addressFamily)
         val sess = jsch.getSession(config.username, resolvedIp, config.port)
-        if (proxy != null) sess.setProxy(proxy)
+        if (proxy != null) sess.setProxy(proxy.jschProxy)
         sess.setConfig("StrictHostKeyChecking", "no")
         sess.setConfig("PreferredAuthentications", "publickey,keyboard-interactive,password")
         sess.serverAliveInterval = 15_000

@@ -25,8 +25,11 @@ android {
 
 dependencies {
     // JSch Proxy interface is the integration seam — tunnels expose themselves
-    // to SshClient by implementing it.
-    api(libs.jsch)
+    // to SshClient by implementing it. JSch stays an `implementation` dep so it
+    // doesn't leak through `core/tunnel`'s public surface; consumers see only
+    // `sh.haven.core.ssh.HavenProxy`.
+    implementation(libs.jsch)
+    implementation(project(":core:ssh"))
     implementation(project(":core:data"))
     // The gomobile wgbridge package (wireguard-go + gVisor netstack) lives
     // inside the rclone-transport jar — they share a single libgojni.so to

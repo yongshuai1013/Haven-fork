@@ -1,10 +1,10 @@
 package sh.haven.core.tunnel
 
-import com.jcraft.jsch.Proxy
 import com.jcraft.jsch.ProxyHTTP
 import com.jcraft.jsch.ProxySOCKS4
 import com.jcraft.jsch.ProxySOCKS5
 import sh.haven.core.data.db.entities.ConnectionProfile
+import sh.haven.core.ssh.HavenProxy
 import java.net.InetSocketAddress
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,10 +31,11 @@ import javax.net.SocketFactory
  * All three return null when the profile has no tunnel selected — the
  * caller falls through to dialling a real Socket directly.
  *
- * A fourth surface, [jschProxy], is for JSch consumers. It wraps the
- * tunnel as a `com.jcraft.jsch.Proxy` and *also* honours the legacy
- * `proxyType`/`proxyHost`/`proxyPort` columns on [ConnectionProfile]
- * (SOCKS5 / SOCKS4 / HTTP). [dial] and [socketFactory] don't yet honour
+ * A fourth surface, [havenProxy], is for SSH consumers. It wraps the
+ * tunnel as an opaque [HavenProxy] (over JSch's `Proxy` for now) and
+ * *also* honours the legacy `proxyType`/`proxyHost`/`proxyPort` columns
+ * on [ConnectionProfile] (SOCKS5 / SOCKS4 / HTTP). [dial] and
+ * [socketFactory] don't yet honour
  * the SOCKS columns; that will land alongside non-SSH transport adoption
  * (step 7 of #149).
  */
@@ -69,15 +70,23 @@ class TunnelResolver @Inject constructor(
     }
 
     /**
-     * com.jcraft.jsch.Proxy chain for a profile. WireGuard / Tailscale
-     * tunnel takes precedence over the legacy `proxyType` columns; both
-     * are mutually exclusive at the UI level. Returns null for direct
-     * dialling.
+     * Proxy / tunnel chain for a profile, as an opaque [HavenProxy] that
+     * `SshClient` consumes. WireGuard / Tailscale tunnel takes precedence
+     * over the legacy `proxyType` columns; both are mutually exclusive at
+     * the UI level. Returns null for direct dialling.
      *
      * Does **not** handle SSH jump-host — that needs a live SSH session,
      * so callers resolve it before delegating here.
      */
-    suspend fun jschProxy(profile: ConnectionProfile): Proxy? {
+    suspend fun havenProxy(profile: ConnectionProfile): HavenProxy? =
+        jschProxy(profile)?.let(::HavenProxy)
+
+    /**
+     * Test-only accessor returning the underlying JSch `Proxy` so unit tests
+     * can assert the proxy variant (`TunnelProxy` / `ProxySOCKS5` / etc.).
+     * Production code uses [havenProxy] instead.
+     */
+    internal suspend fun jschProxy(profile: ConnectionProfile): com.jcraft.jsch.Proxy? {
         tunnelFor(profile)?.let { return TunnelProxy(it) }
         val proxyHost = profile.proxyHost ?: return null
         return when (profile.proxyType) {
@@ -91,7 +100,7 @@ class TunnelResolver @Inject constructor(
     /**
      * Release the tunnel acquired for [profileId]. Pair with any prior
      * call that returned a non-null result from [dial], [socketFactory],
-     * [socketDialer], or [jschProxy]. Idempotent — safe to call on
+     * [socketDialer], or [havenProxy]. Idempotent — safe to call on
      * disconnect even if the profile never acquired anything.
      */
     suspend fun release(profileId: String) {
