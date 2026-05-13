@@ -146,7 +146,7 @@
     <string name="connections_field_route_through">Route through</string>
     <string name="connections_field_session_manager">Session Manager</string>
     <string name="connections_field_ssh_options">SSH Options</string>
-    <string name="connections_helper_ssh_options">ssh_config format: Key Value (one per line)</string>
+    <string name="connections_helper_ssh_options">ssh_config syntax, one per line. Supports KexAlgorithms, Ciphers, MACs, HostKeyAlgorithms, PubkeyAcceptedAlgorithms, PubkeyAuthentication, ServerAlive*. Prefix algorithm lists with + (append), - (remove) or ^ (prepend) to keep the defaults.</string>
     <string name="connections_field_post_login">Post-login command</string>
     <string name="connections_helper_post_login">Sent after login.</string>
     <string name="connections_dropdown_none_direct">None (direct)</string>

@@ -129,8 +129,10 @@ class SshClient : Closeable {
             )
         }
 
-        // Apply user SSH options (overrides defaults above)
-        config.sshOptions.forEach { (key, value) -> sess.setConfig(key, value) }
+        // Apply user SSH options (overrides defaults above). The applier
+        // translates OpenSSH directive names (KexAlgorithms, Ciphers, …)
+        // to JSch's internal keys and handles +/-/^ list prefixes — see #155.
+        SshOptionsApplier.apply(sess, config.sshOptions)
 
         // Port-knock hook (when configured): runs after socket params are set
         // but before JSch opens the TCP connection. Throwing here aborts the
@@ -307,7 +309,7 @@ class SshClient : Closeable {
             )
         }
 
-        config.sshOptions.forEach { (key, value) -> sess.setConfig(key, value) }
+        SshOptionsApplier.apply(sess, config.sshOptions)
 
         // See [connect] for the rationale on hook placement.
         preConnect?.invoke()
