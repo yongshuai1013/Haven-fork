@@ -45,7 +45,7 @@ data class ConsentRequest(
      * way is memoised against (clientHint, toolName) for that window —
      * subsequent identical requests within the window resolve
      * immediately as ALLOW without re-prompting. Used by the
-     * [`queue_self_message`][sh.haven.app.agent.OutOfTurnMessageQueue]
+     * [`queue_terminal_input`][sh.haven.app.agent.TerminalInputQueue]
      * delivery prompt where a power user wants to authorise the agent
      * to type into the REPL for a short collaborative window without
      * being interrupted on every queued message.

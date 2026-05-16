@@ -16,31 +16,43 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Out-of-turn message queue (#161). The MCP `queue_self_message` tool
- * lets an agent inject text into the very Claude Code (or other REPL)
- * session that's driving the MCP traffic, by watching the SSH
- * terminal output for a prompt and typing the queued text when it
- * appears. The premise: the SSH session that carries the MCP reverse
- * tunnel *is* the session Claude Code is running in, so its agent-
- * scoped scrollback ring is a window into Claude Code's stdout. When
- * a prompt appears at the tail of the scrollback after the agent's
- * own turn has flushed, the message gets sent into the session as if
- * the user typed it — which is exactly the surface a slash command
- * like `/mcp reconnect haven` needs.
+ * Generic out-of-turn terminal input queue (#161). The MCP
+ * `queue_terminal_input` tool lets an agent inject text into any
+ * connected SSH session — including the very session running an
+ * interactive REPL the agent is talking through — by watching the
+ * session's stdout for a configurable prompt pattern and typing the
+ * queued text + a configurable submit key when the pattern appears.
  *
- * Power-user feature: gated by [UserPreferencesRepository
- * .agentAllowQueueSelfMessage] in the dispatcher, on top of EVERY_CALL
- * consent in the tool itself. Both must be on.
+ * Two motivating use cases:
+ *
+ * 1. **Agent drives its own conversation.** The SSH session carrying
+ *    the MCP reverse tunnel hosts the Claude Code (or equivalent)
+ *    REPL the agent is currently talking through. Watcher pattern
+ *    `❯\s*\$` matches Claude Code's empty prompt; queued text submits
+ *    as the next user input — useful for slash commands like
+ *    `/mcp reconnect haven` that only fire from user input.
+ *
+ * 2. **Agent drives an unrelated interactive session.** A long-running
+ *    install script in another tmux pane prompts `Continue? [y/N]`;
+ *    agent queues `y` against that session's id with that pattern,
+ *    waits, then queues `/usr/local` against the *next* prompt. Same
+ *    mechanism, no Claude Code assumption.
+ *
+ * Safety: pre-delivery consent fires on the phone before any typing
+ * happens, with an "Allow for N min" option so a power-user
+ * collaborative window doesn't re-prompt per queue. The session-wide
+ * "Allow all from <client>" bypass that AgentConsentManager already
+ * tracks covers this too.
  *
  * Polling-based rather than callback-based — simpler, and the tail of
- * the scrollback ring is cheap to read.
+ * the per-session scrollback ring is cheap to read every 200 ms.
  */
 @Singleton
-class OutOfTurnMessageQueue @Inject constructor(
+class TerminalInputQueue @Inject constructor(
     private val sshSessionManager: SshSessionManager,
     private val consentManager: AgentConsentManager,
 ) {
-    private data class QueuedMessage(
+    private data class QueuedInput(
         val id: String,
         val sessionId: String,
         val text: String,
@@ -49,21 +61,28 @@ class OutOfTurnMessageQueue @Inject constructor(
         /**
          * Monotonic total-bytes-appended on the scrollback ring at
          * enqueue time. The watcher only fires once this value has
-         * grown — guards against firing on a `❯` that was already on
-         * screen at enqueue time (e.g. agent re-queueing during the
-         * same idle prompt). Uses the ring's lifetime counter rather
-         * than its snapshot size so it stays usable after the ring
-         * fills to its capacity cap.
+         * grown — guards against firing on a prompt that was already
+         * on screen at enqueue time. Uses the ring's lifetime counter
+         * rather than its snapshot size so it stays usable after the
+         * ring fills to its capacity cap.
          */
         val baselineTotalBytes: Long,
+        /**
+         * Submit key sent after the queued text. TUIs in raw mode
+         * (Claude Code, most readline-style REPLs) treat `\r` (CR) as
+         * Enter; some line-buffered programs prefer `\n` (LF); pass
+         * an empty string to type text without submitting (e.g. into
+         * a search box). Default `\r`.
+         */
+        val submitKey: String,
         val clientHint: String?,
     )
 
-    private val queue = ConcurrentHashMap<String, QueuedMessage>()
+    private val queue = ConcurrentHashMap<String, QueuedInput>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        Log.i(TAG, "OutOfTurnMessageQueue starting poll loop (interval=${POLL_INTERVAL_MS}ms)")
+        Log.i(TAG, "TerminalInputQueue starting poll loop (interval=${POLL_INTERVAL_MS}ms)")
         scope.launch {
             try {
                 pollLoop()
@@ -75,36 +94,36 @@ class OutOfTurnMessageQueue @Inject constructor(
 
     /**
      * Schedule [text] to be typed into [sessionId]'s SSH terminal when
-     * the next output matching [promptPattern] (default: a line ending
-     * in `> `) appears at the tail of the scrollback. Returns a queue
-     * id the caller can use to [cancel] before delivery.
+     * the next output matching [promptPattern] appears at the tail of
+     * the scrollback. Returns a queue id the caller can use to
+     * [cancel] before delivery.
      *
-     * The [baselineBytes] capture is the size of the agent scrollback
-     * *at enqueue time* — the watcher only fires when new bytes have
-     * been written since (so a prompt that was already on screen at
-     * the moment the agent called this won't trigger an immediate
-     * fire mid-turn; we wait for the agent's own turn output to flush
-     * first).
+     * Captures the ring's monotonic byte counter at enqueue time as
+     * the baseline — the watcher only fires when new bytes have been
+     * written since, so a prompt that was already on screen at the
+     * moment the agent enqueued won't trigger an immediate fire.
      */
     fun enqueue(
         sessionId: String,
         text: String,
         promptPattern: String,
         timeoutSeconds: Int,
-        clientHint: String?,
+        submitKey: String = "\r",
+        clientHint: String? = null,
     ): String {
         val baseline = sshSessionManager.agentScrollbackTotalBytes(sessionId) ?: 0L
         val id = UUID.randomUUID().toString()
-        queue[id] = QueuedMessage(
+        queue[id] = QueuedInput(
             id = id,
             sessionId = sessionId,
             text = text,
             promptRegex = Regex(promptPattern, RegexOption.MULTILINE),
             deadline = System.currentTimeMillis() + timeoutSeconds.coerceAtLeast(1) * 1000L,
             baselineTotalBytes = baseline,
+            submitKey = submitKey,
             clientHint = clientHint,
         )
-        Log.i(TAG, "enqueue $id: sessionId=$sessionId text='${text.take(40)}' pattern=$promptPattern timeout=${timeoutSeconds}s baselineTotalBytes=$baseline")
+        Log.i(TAG, "enqueue $id: sessionId=$sessionId text='${text.take(40)}' pattern=$promptPattern timeout=${timeoutSeconds}s baselineTotalBytes=$baseline submitKey=${submitKey.toByteArray().joinToString { "0x%02x".format(it) }}")
         return id
     }
 
@@ -146,11 +165,6 @@ class OutOfTurnMessageQueue @Inject constructor(
                 val tail = stripped.takeLast(TAIL_MATCH_CHARS)
                 val matched = msg.promptRegex.containsMatchIn(tail)
                 if (now - lastTickLog > LOG_TICK_INTERVAL_MS) {
-                    // Dump the *raw* tail (printable codepoints only) so
-                    // we can see whether ❯ actually arrives in the
-                    // scrollback ring after the agent's turn ends. The
-                    // last 200 chars is enough to see the prompt block
-                    // without spamming logcat.
                     val visible = tail.takeLast(200).map { c ->
                         when {
                             c == '\n' -> "\\n"
@@ -164,21 +178,21 @@ class OutOfTurnMessageQueue @Inject constructor(
                     lastTickLog = now
                 }
                 if (matched) {
-                    // Pre-delivery consent — the typing target is also the
-                    // user's input field. Without this gate we'd risk
-                    // garbling whatever the user is mid-typing. The
-                    // consent sheet offers an extra "Allow for N min"
-                    // action so a power user iterating with an agent
-                    // can authorise the agent to drive the REPL for a
-                    // short collaborative window without the prompt
-                    // re-firing every queue. (#161)
+                    // Pre-delivery consent — the typing target is also
+                    // potentially the user's input field. Without this
+                    // gate we'd risk garbling whatever the user is
+                    // mid-typing. The consent sheet offers an extra
+                    // "Allow for N min" action so a power user iterating
+                    // with an agent can authorise the agent to drive
+                    // the REPL for a short collaborative window without
+                    // the prompt re-firing every queue. (#161)
                     if (queue.remove(id) != null) {
                         val display = if (msg.text.length > 80) msg.text.take(77) + "…" else msg.text
                         val decision = try {
                             consentManager.requestConsent(
                                 toolName = DELIVERY_CONSENT_TOOL_NAME,
                                 clientHint = msg.clientHint,
-                                summary = "Type into the SSH REPL session «${msg.sessionId.take(8)}…»:\n\n$display",
+                                summary = "Type into the SSH session «${msg.sessionId.take(8)}…»:\n\n$display",
                                 level = ConsentLevel.EVERY_CALL,
                                 offerTimedAllow = true,
                             )
@@ -191,15 +205,8 @@ class OutOfTurnMessageQueue @Inject constructor(
                             continue
                         }
                         try {
-                            // CR not LF: TUIs in raw mode (Claude Code,
-                            // most readline-style REPLs) treat `\r` as the
-                            // Enter key. `\n` lands in the input buffer
-                            // but doesn't submit it — observed
-                            // end-to-end via this queue's first
-                            // successful delivery, which pasted but
-                            // never submitted. (#161)
-                            sshSessionManager.sendInput(msg.sessionId, msg.text + "\r")
-                            Log.i(TAG, "queue $id delivered to ${msg.sessionId} (${msg.text.length} chars + CR)")
+                            sshSessionManager.sendInput(msg.sessionId, msg.text + msg.submitKey)
+                            Log.i(TAG, "queue $id delivered to ${msg.sessionId} (${msg.text.length} chars + ${msg.submitKey.length}-byte submit)")
                         } catch (e: Exception) {
                             Log.w(TAG, "queue $id delivery failed: ${e.message}")
                         }
@@ -212,7 +219,7 @@ class OutOfTurnMessageQueue @Inject constructor(
     private fun stripAnsi(s: String): String = ANSI_REGEX.replace(s, "")
 
     companion object {
-        private const val TAG = "OutOfTurnQueue"
+        private const val TAG = "TerminalInputQueue"
         private const val POLL_INTERVAL_MS = 200L
         private const val MAX_TAIL_BYTES = 4096
         // Throttle the per-tick diagnostic log so a 60s polling cycle
@@ -220,10 +227,10 @@ class OutOfTurnMessageQueue @Inject constructor(
         private const val LOG_TICK_INTERVAL_MS = 2_000L
         private const val TAIL_MATCH_CHARS = 512
         // Synthetic tool name used for the pre-delivery consent prompt.
-        // Distinct from `queue_self_message` (the enqueue-time tool)
+        // Distinct from `queue_terminal_input` (the enqueue-time tool)
         // so the AgentConsentManager memoisation / timed-allow keys
         // don't collide.
-        const val DELIVERY_CONSENT_TOOL_NAME = "queue_self_message:deliver"
-        private val ANSI_REGEX = Regex("\\[[0-9;?]*[a-zA-Z]")
+        const val DELIVERY_CONSENT_TOOL_NAME = "queue_terminal_input:deliver"
+        private val ANSI_REGEX = Regex("\\[[0-9;?]*[a-zA-Z]")
     }
 }

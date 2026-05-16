@@ -717,22 +717,21 @@ fun SettingsScreen(
                 onCheckedChange = viewModel::setAgentAllowFileRead,
             )
 
-            // Power-user gate for `queue_self_message` — lets agents
-            // inject follow-up user input into the very REPL session
-            // that's driving the MCP traffic, by watching the SSH
-            // session output for a prompt and typing the queued text.
-            // Off by default; this is real keystroke injection.
-            val agentAllowQueueSelfMessage by viewModel.agentAllowQueueSelfMessage.collectAsState()
+            // Power-user gate for `queue_terminal_input` — lets agents
+            // type text + ENTER into any connected SSH session at the
+            // next matching prompt. Off by default; this is real
+            // keystroke injection.
+            val agentAllowTerminalInputQueue by viewModel.agentAllowTerminalInputQueue.collectAsState()
             SettingsToggleItem(
                 icon = Icons.Filled.Hub,
-                title = "Allow agents to queue follow-up user input",
-                subtitle = if (agentAllowQueueSelfMessage) {
-                    "Enabled — `queue_self_message` watches the SSH REPL's output and types the queued text on the next prompt (per-call consent)"
+                title = "Allow agents to queue terminal input",
+                subtitle = if (agentAllowTerminalInputQueue) {
+                    "Enabled — `queue_terminal_input` watches the SSH session's output and types the queued text on the next prompt (per-call consent)"
                 } else {
-                    "Disabled — `queue_self_message` requests fail immediately, no prompt"
+                    "Disabled — `queue_terminal_input` requests fail immediately, no prompt"
                 },
-                checked = agentAllowQueueSelfMessage,
-                onCheckedChange = viewModel::setAgentAllowQueueSelfMessage,
+                checked = agentAllowTerminalInputQueue,
+                onCheckedChange = viewModel::setAgentAllowTerminalInputQueue,
             )
 
             // Endpoint URL is always the canonical port range start —

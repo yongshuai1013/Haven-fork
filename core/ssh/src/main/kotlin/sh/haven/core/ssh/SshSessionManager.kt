@@ -542,7 +542,7 @@ class SshSessionManager @Inject constructor(
      * Identify the SSH session, if any, carrying a remote port-forward
      * for [bindPort] on the loopback. By convention Haven uses 8730 for
      * the MCP reverse tunnel — i.e. the session running the Claude Code
-     * REPL on the workstation. Used by the `queue_self_message` MCP
+     * REPL on the workstation. Used by the `queue_terminal_input` MCP
      * tool to auto-detect which session to watch + type into. Returns
      * the first match (there should be at most one in practice). (#161)
      */

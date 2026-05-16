@@ -104,7 +104,7 @@ class McpServer @Inject constructor(
     private val connectionLogRepository: sh.haven.core.data.repository.ConnectionLogRepository,
     private val servedFileTracker: sh.haven.core.data.agent.ServedFileTracker,
     private val syncProfileRepository: sh.haven.core.data.repository.SyncProfileRepository,
-    private val outOfTurnMessageQueue: OutOfTurnMessageQueue,
+    private val terminalInputQueue: TerminalInputQueue,
 ) : Closeable {
 
     /**
@@ -199,7 +199,7 @@ class McpServer @Inject constructor(
         connectionLogRepository = connectionLogRepository,
         servedFileTracker = servedFileTracker,
         syncProfileRepository = syncProfileRepository,
-        outOfTurnMessageQueue = outOfTurnMessageQueue,
+        terminalInputQueue = terminalInputQueue,
     )
 
     /**
@@ -597,19 +597,20 @@ class McpServer @Inject constructor(
                 )
             }
         }
-        // queue_self_message is a keystroke-injection capability (the
-        // agent typing into the very REPL it's running in). Gated by a
-        // separate power-user toggle on top of the endpoint switch, in
-        // the same shape as serve_file's gate above. (#161)
-        if (name == "queue_self_message") {
+        // queue_terminal_input (and its deprecated alias
+        // queue_self_message) is a keystroke-injection capability —
+        // gated by a separate power-user toggle on top of the
+        // endpoint switch, in the same shape as serve_file's gate
+        // above. (#161)
+        if (name == "queue_terminal_input" || name == "queue_self_message") {
             val allowed = runBlocking {
-                preferencesRepository.agentAllowQueueSelfMessage.first()
+                preferencesRepository.agentAllowTerminalInputQueue.first()
             }
             if (!allowed) {
                 throw McpError(
                     -32011,
-                    "queue_self_message is disabled — enable in Settings → Agent endpoint → " +
-                        "Allow agents to queue follow-up user input",
+                    "queue_terminal_input is disabled — enable in Settings → Agent endpoint → " +
+                        "Allow agents to queue terminal input",
                 )
             }
         }

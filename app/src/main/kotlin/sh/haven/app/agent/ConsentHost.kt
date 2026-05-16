@@ -188,7 +188,7 @@ internal fun ConsentHost(viewModel: ConsentHostViewModel = hiltViewModel()) {
             }
             // "Allow for N min" — power-user time-windowed allow. Only
             // surfaces on requests that opt in (currently the
-            // queue_self_message pre-delivery prompt). Subsequent
+            // queue_terminal_input pre-delivery prompt). Subsequent
             // identical requests within the window short-circuit to
             // ALLOW so an agent driving the REPL doesn't trigger a
             // prompt per character.

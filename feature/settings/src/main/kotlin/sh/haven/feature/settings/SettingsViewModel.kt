@@ -166,8 +166,8 @@ class SettingsViewModel @Inject constructor(
     val agentAllowFileRead: StateFlow<Boolean> = preferencesRepository.agentAllowFileRead
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val agentAllowQueueSelfMessage: StateFlow<Boolean> =
-        preferencesRepository.agentAllowQueueSelfMessage
+    val agentAllowTerminalInputQueue: StateFlow<Boolean> =
+        preferencesRepository.agentAllowTerminalInputQueue
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
@@ -375,9 +375,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAgentAllowQueueSelfMessage(enabled: Boolean) {
+    fun setAgentAllowTerminalInputQueue(enabled: Boolean) {
         viewModelScope.launch {
-            preferencesRepository.setAgentAllowQueueSelfMessage(enabled)
+            preferencesRepository.setAgentAllowTerminalInputQueue(enabled)
         }
     }
 

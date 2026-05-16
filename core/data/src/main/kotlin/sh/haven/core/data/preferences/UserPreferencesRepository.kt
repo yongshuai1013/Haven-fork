@@ -78,13 +78,17 @@ class UserPreferencesRepository @Inject constructor(
     // off — agent-driven raw-file reads are a separate, opt-in capability
     // on top of the endpoint toggle.
     private val agentAllowFileReadKey = booleanPreferencesKey("agent_allow_file_read")
-    // Per-tool capability gate for `queue_self_message`: when off, the
-    // MCP tool fails fast with a JSON-RPC error before any consent
-    // prompt. Power-user feature — lets the agent inject follow-up
-    // user input into the very Claude Code (or other REPL) session
-    // that's driving the MCP traffic, by watching the SSH session's
-    // output for a prompt and typing the queued text. Default off.
-    private val agentAllowQueueSelfMessageKey = booleanPreferencesKey("agent_allow_queue_self_message")
+    // Per-tool capability gate for `queue_terminal_input` (and its
+    // deprecated alias `queue_self_message`): when off, the MCP tool
+    // fails fast with a JSON-RPC error before any consent prompt.
+    // Power-user feature — lets the agent inject text + ENTER into
+    // any connected SSH session's terminal when a configurable
+    // prompt pattern appears at the tail of the scrollback. Default
+    // off. The DataStore key string is the original
+    // `agent_allow_queue_self_message` so existing installs that
+    // already enabled this don't lose their setting across the
+    // queue_self_message → queue_terminal_input rename.
+    private val agentAllowTerminalInputQueueKey = booleanPreferencesKey("agent_allow_queue_self_message")
     // MCP client allowlist — clientInfo.name values the user has approved
     // via the pairing prompt on first connect. Empty by default; the
     // McpServer rejects any initialize from a name not in this set.
@@ -493,20 +497,19 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     /**
-     * Whether the MCP `queue_self_message` tool is enabled. Off by
-     * default — gives the agent a way to inject follow-up "user" input
-     * into the very Claude Code (or other REPL) session that's driving
-     * the MCP traffic, by watching the SSH terminal output for a
-     * prompt and typing the queued text. Power-user; off until the
-     * user explicitly opts in.
+     * Whether the MCP `queue_terminal_input` tool is enabled (also
+     * covers its deprecated alias `queue_self_message`). Off by
+     * default — gives the agent a way to type text + ENTER into any
+     * connected SSH session at the next matching prompt. Power-user;
+     * off until the user explicitly opts in.
      */
-    val agentAllowQueueSelfMessage: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[agentAllowQueueSelfMessageKey] ?: false
+    val agentAllowTerminalInputQueue: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[agentAllowTerminalInputQueueKey] ?: false
     }
 
-    suspend fun setAgentAllowQueueSelfMessage(enabled: Boolean) {
+    suspend fun setAgentAllowTerminalInputQueue(enabled: Boolean) {
         dataStore.edit { prefs ->
-            prefs[agentAllowQueueSelfMessageKey] = enabled
+            prefs[agentAllowTerminalInputQueueKey] = enabled
         }
     }
 

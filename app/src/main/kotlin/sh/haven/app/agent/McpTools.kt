@@ -72,7 +72,7 @@ internal class McpTools(
     private val connectionLogRepository: sh.haven.core.data.repository.ConnectionLogRepository,
     private val servedFileTracker: sh.haven.core.data.agent.ServedFileTracker,
     private val syncProfileRepository: sh.haven.core.data.repository.SyncProfileRepository,
-    private val outOfTurnMessageQueue: OutOfTurnMessageQueue,
+    private val terminalInputQueue: TerminalInputQueue,
 ) {
 
     /**
@@ -272,14 +272,15 @@ internal class McpTools(
             },
         ) { args -> saveSyncProfile(args) },
 
-        "queue_self_message" to ToolHandler(
-            description = "Power-user: queue text to be typed into a Claude Code (or other REPL) session running over the SSH session that's carrying the MCP reverse tunnel — i.e. the very session this MCP traffic is flowing through. Haven watches that session's terminal output for a prompt pattern (default: `❯\\s*\$` matching Claude Code's REPL prompt), then types the queued text + ENTER as if the user typed it. Lets an agent inject follow-up *user* input from inside its own turn — useful for slash commands like `/mcp reconnect haven` that only fire from user input. Returns immediately with a queueId; delivery happens out-of-turn whenever the next matching prompt appears (or the queue times out). Caveat: within one SSH session, only the *foreground* tmux pane receives the typed text — if multiple Claude REPLs share an SSH session via tmux panes, set sessionId explicitly and make sure the right pane is foreground. Gated by Settings → Agent endpoint → \"Allow agents to queue follow-up user input\" *and* per-call consent (it's a real keystroke-injection capability).",
+        "queue_terminal_input" to ToolHandler(
+            description = "Power-user: queue text to be typed into any connected SSH session at the next matching prompt. Haven polls the session's stdout, matches `promptPattern` against the tail (ANSI escapes stripped, regex MULTILINE), then types `text + submitKey` via the session's tty when the pattern appears. Two main use cases: (1) the agent injecting follow-up *user* input into the same Claude Code REPL it's running through — defaults are tuned for this (sessionId=MCP-reverse-tunnel session, promptPattern=`❯\\s*\$`, submitKey=`\\r`); (2) the agent driving an unrelated interactive program in another session — e.g. answering `y` to a `Continue? [y/N]` prompt in an install script. Returns immediately with a queueId; delivery happens out-of-turn whenever the prompt appears (or the queue times out). Caveat: within one SSH session, only the *foreground* tmux pane receives the typed text — for multi-pane setups, pass `sessionId` to the right session and ensure the target pane is foreground. Gated by Settings → Agent endpoint → \"Allow agents to queue terminal input\" *and* per-call consent.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
-                    put("text", JSONObject().apply { put("type", "string"); put("description", "Text to type. ENTER is appended automatically.") })
-                    put("sessionId", JSONObject().apply { put("type", "string"); put("description", "SSH session id from list_sessions. Optional — defaults to the session carrying the MCP reverse tunnel on port 8730.") })
-                    put("promptPattern", JSONObject().apply { put("type", "string"); put("description", "Regex to match at the tail of the SSH scrollback that triggers delivery. Default `❯\\s*\$` (Claude Code's empty REPL prompt). Multiline-enabled; ANSI escapes are stripped before matching.") })
+                    put("text", JSONObject().apply { put("type", "string"); put("description", "Text to type. `submitKey` is appended automatically.") })
+                    put("sessionId", JSONObject().apply { put("type", "string"); put("description", "SSH session id from list_sessions. Optional — defaults to the session carrying the MCP reverse tunnel on port 8730 (the agent's own REPL session in the common case).") })
+                    put("promptPattern", JSONObject().apply { put("type", "string"); put("description", "Regex matched against the tail of the SSH scrollback to trigger delivery. Default `❯\\s*\$` matches Claude Code's REPL prompt. For other programs, supply a pattern that matches their input prompt — e.g. `\\[y/N\\]\\s*\$` or `Password:\\s*\$`. ANSI escapes are stripped before matching; regex is MULTILINE.") })
+                    put("submitKey", JSONObject().apply { put("type", "string"); put("description", "Key bytes sent after the text. Default `\\r` (Enter as seen by TUIs in raw mode like Claude Code, vim, etc.). Use `\\n` for line-buffered programs that read stdin until newline. Use `\"\"` (empty string) to leave the text in the input buffer without submitting.") })
                     put("timeoutSeconds", JSONObject().apply { put("type", "integer"); put("description", "Give up if the prompt hasn't appeared in this many seconds. Default 60.") })
                 })
                 put("required", JSONArray().put("text"))
@@ -287,9 +288,33 @@ internal class McpTools(
             consentLevel = ConsentLevel.EVERY_CALL,
             summarise = { args ->
                 val text = args.optString("text", "").take(80)
-                "Queue \"$text\" to be typed into the SSH session's REPL on the next prompt?"
+                "Queue \"$text\" to be typed into the SSH session at the next prompt?"
             },
-        ) { args -> queueSelfMessage(args) },
+        ) { args -> queueTerminalInput(args) },
+
+        // Deprecated alias for queue_terminal_input — keeps clients that
+        // bound against the old name working for one release. Same
+        // handler, same gate, same consent shape; just routes through
+        // queueTerminalInput so the implementation only lives in one
+        // place. Drop after the next final release. (#161)
+        "queue_self_message" to ToolHandler(
+            description = "DEPRECATED: alias for `queue_terminal_input` kept for one release. Use queue_terminal_input — same arguments, same behaviour, plus a `submitKey` parameter you didn't have here.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("text", JSONObject().apply { put("type", "string") })
+                    put("sessionId", JSONObject().apply { put("type", "string") })
+                    put("promptPattern", JSONObject().apply { put("type", "string") })
+                    put("timeoutSeconds", JSONObject().apply { put("type", "integer") })
+                })
+                put("required", JSONArray().put("text"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args ->
+                val text = args.optString("text", "").take(80)
+                "Queue \"$text\" to be typed into the SSH session at the next prompt?"
+            },
+        ) { args -> queueTerminalInput(args) },
 
         "delete_sync_profile" to ToolHandler(
             description = "Delete a saved rclone sync configuration by id. The dialog's dropdown updates immediately. EVERY_CALL consent because it's destructive (the user's saved config is gone after).",
@@ -1269,7 +1294,7 @@ internal class McpTools(
     /**
      * Per-call context that handlers can read. McpServer sets
      * [currentClientHint] right before invoking [call]; handlers like
-     * `queue_self_message` consult it to thread the calling MCP
+     * `queue_terminal_input` consult it to thread the calling MCP
      * client's name through to the AgentConsentManager pre-delivery
      * prompt. Volatile because, while the JSON-RPC dispatcher is
      * sequential per connection, multiple HTTP connections can race —
@@ -1629,7 +1654,7 @@ internal class McpTools(
         syncProfileToJson(profile)
     }
 
-    private suspend fun queueSelfMessage(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun queueTerminalInput(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val text = args.optString("text").also {
             if (it.isEmpty()) throw McpError(-32602, "Missing required argument: text")
         }
@@ -1639,16 +1664,25 @@ internal class McpTools(
             ?: throw McpError(
                 -32603,
                 "No SSH session carries the MCP reverse tunnel on port $MCP_REVERSE_TUNNEL_PORT; " +
-                    "pass sessionId explicitly (list_sessions). The MCP reverse-tunnel toggle " +
-                    "on the profile must be on and the session must be connected.",
+                    "pass sessionId explicitly (list_sessions). For the auto-detection default " +
+                    "to work, an SSH profile must have the MCP reverse-tunnel toggle on and be " +
+                    "connected; for unrelated sessions just pass sessionId.",
             )
         val promptPattern = args.optString("promptPattern").ifEmpty { DEFAULT_PROMPT_PATTERN }
         val timeoutSeconds = args.optInt("timeoutSeconds", 60).coerceIn(1, 600)
-        val queueId = outOfTurnMessageQueue.enqueue(
+        // submitKey: callers send "\r" for raw-mode TUIs (Claude Code,
+        // vim, less), "\n" for line-buffered programs, or "" to leave
+        // the text unsubmitted. Default "\r" matches the most common
+        // interactive case.
+        val submitKey = if (args.has("submitKey") && !args.isNull("submitKey")) {
+            args.optString("submitKey")
+        } else "\r"
+        val queueId = terminalInputQueue.enqueue(
             sessionId = sessionId,
             text = text,
             promptPattern = promptPattern,
             timeoutSeconds = timeoutSeconds,
+            submitKey = submitKey,
             clientHint = currentClientHint,
         )
         JSONObject().apply {
@@ -1656,6 +1690,7 @@ internal class McpTools(
             put("sessionId", sessionId)
             put("promptPattern", promptPattern)
             put("timeoutSeconds", timeoutSeconds)
+            put("submitKey", submitKey)
             put("textLength", text.length)
         }
     }
@@ -3658,11 +3693,11 @@ internal class McpTools(
         /**
          * Default regex matching Claude Code's REPL prompt (a `>` near
          * the end of the scrollback, possibly with trailing whitespace).
-         * Multiline + ANSI-stripped before matching in [OutOfTurnMessageQueue].
+         * Multiline + ANSI-stripped before matching in [TerminalInputQueue].
          */
         // Claude Code's REPL prompt is `[38;5;246m❯ ` — a coloured
         // ❯ (U+276F), *not* the ASCII `>` of a shell prompt. The
-        // OutOfTurnMessageQueue strips ANSI before matching so the
+        // TerminalInputQueue strips ANSI before matching so the
         // pattern itself only needs to anchor on the glyph + trailing
         // whitespace.
         internal const val DEFAULT_PROMPT_PATTERN = "❯\\s*\$"
