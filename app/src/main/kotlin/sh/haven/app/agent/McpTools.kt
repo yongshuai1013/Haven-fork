@@ -1384,7 +1384,7 @@ internal class McpTools(
         ) { args -> setProfileRouting(args) },
 
         "create_connection" to ToolHandler(
-            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP. SSH-family fields: username (required), password (optional, stored). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
+            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), useMosh (turn an SSH profile into a Mosh profile). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -1403,6 +1403,8 @@ internal class McpTools(
                     put("rdpDomain", JSONObject().apply { put("type", "string"); put("description", "AD domain (RDP). Optional.") })
                     put("tunnelConfigId", JSONObject().apply { put("type", "string"); put("description", "Optional: route the new profile through this tunnel (from list_tunnels). Equivalent to follow-up set_profile_routing.") })
                     put("tunnelOnly", JSONObject().apply { put("type", "boolean"); put("description", "SSH only: tunnel-only mode (#150). When true, the profile brings up the SSH transport and registers port forwards but does not open a terminal. Default false. Pair with auto_reconnect for autossh-style keepalive.") })
+                    put("useMosh", JSONObject().apply { put("type", "boolean"); put("description", "SSH only: when true, the profile uses Mosh on top of the SSH bootstrap. SSH execs `mosh-server new -s`, parses MOSH CONNECT, then the UDP transport takes over. Default false.") })
+                    put("keyId", JSONObject().apply { put("type", "string"); put("description", "SSH only: id of a saved SSH key (from list_ssh_keys) to authenticate with. Mutually optional with password.") })
                     put("portKnockSequence", JSONObject().apply { put("type", "string"); put("description", "Optional port-knock sequence fired before the real connect. Format: whitespace/comma-separated 'port[/proto]' tokens — e.g. '7000 8000 9000' (all TCP) or '7000/tcp 8000/udp 9000/tcp'. Empty = disabled.") })
                     put("portKnockDelayMs", JSONObject().apply { put("type", "integer"); put("description", "Inter-knock delay in ms (default 100). Ignored when portKnockSequence is empty.") })
                 })
@@ -3963,6 +3965,8 @@ internal class McpTools(
                 username = username,
                 sshPassword = password.ifBlank { null },
                 connectionType = "SSH",
+                useMosh = args.optBoolean("useMosh", false),
+                keyId = args.optString("keyId").ifBlank { null },
                 tunnelConfigId = tunnelConfigId,
                 tunnelOnly = tunnelOnly,
                 portKnockSequence = knockSequence,
