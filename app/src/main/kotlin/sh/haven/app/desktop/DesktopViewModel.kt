@@ -6,9 +6,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -52,6 +55,12 @@ data class SshTunnelOption(
     val label: String,
     val profileId: String,
 )
+
+private sealed class DesktopStartOutcome {
+    object Ready : DesktopStartOutcome()
+    object Timeout : DesktopStartOutcome()
+    data class Error(val message: String) : DesktopStartOutcome()
+}
 
 @HiltViewModel
 class DesktopViewModel @Inject constructor(
@@ -248,22 +257,59 @@ class DesktopViewModel @Inject constructor(
                 return@launch
             }
             val port = desktopManager.getVncPort(de) ?: 5901
-            // Wait up to 8 s for the Xvnc server to start listening.
-            val ready = withContext(Dispatchers.IO) {
-                repeat(16) {
+            // Wait up to 8 s for the Xvnc server to start listening,
+            // racing the poll against the DesktopManager's own error
+            // state — if the launch throws inside DesktopManager (e.g.
+            // missing compositor binary on the Arch nested-Wayland path,
+            // GlassHaven/Haven#162 bug B), the manager records ERROR +
+            // an errorMessage and we exit the wait immediately with the
+            // diagnostic instead of running out the full timeout and
+            // leaving the user staring at a spinner. See #169.
+            val outcome = withContext(Dispatchers.IO) {
+                val deadline = System.currentTimeMillis() + 8000
+                while (System.currentTimeMillis() < deadline) {
+                    val managerInstance = desktopManager.desktops.value[de]
+                    if (managerInstance?.state == DesktopManager.DesktopState.ERROR) {
+                        return@withContext DesktopStartOutcome.Error(
+                            managerInstance.errorMessage ?: "Couldn't start ${de.label}",
+                        )
+                    }
                     try {
                         java.net.Socket("127.0.0.1", port).close()
-                        return@withContext true
+                        return@withContext DesktopStartOutcome.Ready
                     } catch (_: Exception) {
                         kotlinx.coroutines.delay(500)
                     }
                 }
-                false
+                DesktopStartOutcome.Timeout
             }
-            if (!ready) {
-                Log.e(TAG, "startDesktop: VNC port $port not listening after 8s")
-                desktopManager.stopDesktop(de)
-                return@launch
+            when (outcome) {
+                is DesktopStartOutcome.Ready -> { /* fall through to addVncSession */ }
+                is DesktopStartOutcome.Error -> {
+                    Log.e(TAG, "startDesktop: ${de.label} failed — ${outcome.message}")
+                    val activeDistro = prootManager.activeDistroId
+                    val msg = "Couldn't start ${de.label} on $activeDistro: ${outcome.message}"
+                    _userMessages.emit(msg)
+                    connectionLogRepository.logEvent(
+                        profileId = "desktop:$activeDistro:${de.spec.id}",
+                        status = ConnectionLog.Status.FAILED,
+                        details = outcome.message,
+                    )
+                    desktopManager.stopDesktop(de)
+                    return@launch
+                }
+                is DesktopStartOutcome.Timeout -> {
+                    Log.e(TAG, "startDesktop: VNC port $port not listening after 8s")
+                    val msg = "${de.label} didn't come up within 8s — check Settings → View connection log"
+                    _userMessages.emit(msg)
+                    connectionLogRepository.logEvent(
+                        profileId = "desktop:${prootManager.activeDistroId}:${de.spec.id}",
+                        status = ConnectionLog.Status.TIMEOUT,
+                        details = "VNC port $port not listening after 8s",
+                    )
+                    desktopManager.stopDesktop(de)
+                    return@launch
+                }
             }
             val pwd = prootManager.storedVncPassword
                 ?: connectionRepository.getAll()
@@ -381,6 +427,15 @@ class DesktopViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Transient user-facing messages from background tasks (desktop start
+     * failures, etc.) that need to surface as a Toast/Snackbar. Collected
+     * by DesktopScreen. SharedFlow with replay=0 so a screen rotation
+     * doesn't re-fire the same message.
+     */
+    private val _userMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val userMessages: SharedFlow<String> = _userMessages.asSharedFlow()
 
     private val _tabs = MutableStateFlow<List<DesktopTab>>(emptyList())
     val tabs: StateFlow<List<DesktopTab>> = _tabs.asStateFlow()

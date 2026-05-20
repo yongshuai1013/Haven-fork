@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import sh.haven.app.R
@@ -86,6 +87,19 @@ fun DesktopScreen(
     val anyConnected by desktopViewModel.activeTabConnected.collectAsState()
 
     LaunchedEffect(anyConnected) { onConnectedChanged(anyConnected) }
+
+    // Surface transient errors from background tasks (desktop start
+    // failures, timeouts — #169). Toast is consistent with how
+    // ConnectionsScreen renders the same class of message and works
+    // without requiring a Scaffold restructure.
+    val context = LocalContext.current
+    LaunchedEffect(desktopViewModel) {
+        desktopViewModel.userMessages.collect { message ->
+            android.widget.Toast.makeText(
+                context, message, android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 
     // Orientation is owned by DesktopViewModel — keeping the state
     // outside the inner composables sidesteps the slot-position shift
