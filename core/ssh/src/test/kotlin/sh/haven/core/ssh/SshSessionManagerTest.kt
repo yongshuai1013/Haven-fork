@@ -322,6 +322,123 @@ class SshSessionManagerTest {
         assertNotNull(manager.getSession(sshSid))
     }
 
+    // ----- Tunnel leases: parent->child cascade (#121) -----
+
+    @Test
+    fun `removeSession fires onParentGone for a lease on that session`() {
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.markTunnelOpened(sshSid, "vnc-1")
+        var fired = 0
+        manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        manager.removeSession(sshSid)
+
+        assertEquals("parent removal must notify the dependent exactly once", 1, fired)
+    }
+
+    @Test
+    fun `releaseTunnelDependent of last auto-opened dependent fires onParentGone (the #2 path)`() {
+        // Connections-list disconnect: releaseTunnelDependent tears the SSH
+        // down (tunnelOpened + no deps), which must cascade to close the tab.
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.markTunnelOpened(sshSid, "vnc-1")
+        var fired = 0
+        manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        manager.releaseTunnelDependent("vnc-1")
+
+        assertEquals(1, fired)
+        assertNull(manager.getSession(sshSid))
+    }
+
+    @Test
+    fun `reconnect-style status changes do NOT fire onParentGone`() {
+        // Only true removeSession fires the callback; an in-place status flip
+        // (what reconnect does) must leave a working tab alone.
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.markTunnelOpened(sshSid, "vnc-1")
+        var fired = 0
+        manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        manager.updateStatus(sshSid, SshSessionManager.SessionState.Status.RECONNECTING)
+        manager.updateStatus(sshSid, SshSessionManager.SessionState.Status.CONNECTED)
+
+        assertEquals("a network blip must not close the tab", 0, fired)
+        assertNotNull(manager.getSession(sshSid))
+    }
+
+    @Test
+    fun `lease close is idempotent and prevents a later parent-gone fire`() {
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.markTunnelOpened(sshSid, "vnc-1")
+        var fired = 0
+        val lease = manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        lease.close()
+        lease.close() // idempotent
+        // Closing released the sole dependent → SSH already torn down.
+        assertNull(manager.getSession(sshSid))
+        // A subsequent removeSession (e.g. a racing teardown) must not re-fire.
+        manager.removeSession(sshSid)
+        assertEquals("consumer-initiated close must not also fire onParentGone", 0, fired)
+    }
+
+    @Test
+    fun `teardownTunnelDependent fires lease even when the shared SSH survives`() {
+        // VNC reuses a user-opened SSH (tunnelOpened = false). Disconnecting
+        // the VNC from the connections list must close its tab (fire the
+        // lease) WITHOUT killing the shared SSH session (#121 shared-tunnel).
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.attachTunnelDependent(sshSid, "vnc-1") // reused — tunnelOpened stays false
+        var fired = 0
+        manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        val torn = manager.teardownTunnelDependent("vnc-1")
+
+        assertEquals("the tab lease must fire", 1, fired)
+        assertTrue("shared user SSH must survive", torn.isEmpty())
+        assertNotNull(manager.getSession(sshSid))
+    }
+
+    @Test
+    fun `teardownTunnelDependent tears down a solely-tunnel SSH and fires the lease`() {
+        val c = mockk<SshClient>(relaxed = true)
+        val sshSid = manager.registerSession("ssh-host", "SSH", c)
+        manager.markTunnelOpened(sshSid, "vnc-1")
+        var fired = 0
+        manager.acquireTunnelLease(sshSid, "vnc-1", localForwardPort = null) { fired++ }
+
+        val torn = manager.teardownTunnelDependent("vnc-1")
+
+        assertEquals(1, fired)
+        assertEquals(listOf(sshSid), torn)
+        assertNull(manager.getSession(sshSid))
+    }
+
+    @Test
+    fun `jump-host cascade fires the dependent session's lease`() {
+        // B uses A as its jump host. Removing A cascades to B (removeSession),
+        // which must fire B's lease so a tab tunneling over B closes too.
+        val ca = mockk<SshClient>(relaxed = true)
+        val cb = mockk<SshClient>(relaxed = true)
+        val a = manager.registerSession("jump", "A", ca)
+        val b = manager.registerSession("leaf", "B", cb)
+        manager.setJumpSessionId(b, a)
+        manager.markTunnelOpened(b, "vnc-1")
+        var fired = 0
+        manager.acquireTunnelLease(b, "vnc-1", localForwardPort = null) { fired++ }
+
+        manager.removeSession(a)
+
+        assertEquals(1, fired)
+        assertNull(manager.getSession(b))
+    }
+
     // --- #150 reconnect policy gating -----------------------------------
 
     @Test

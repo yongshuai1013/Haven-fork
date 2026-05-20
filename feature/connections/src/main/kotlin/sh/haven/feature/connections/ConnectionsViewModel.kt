@@ -115,6 +115,7 @@ class ConnectionsViewModel @Inject constructor(
     private val tunnelConfigRepository: sh.haven.core.data.repository.TunnelConfigRepository,
     private val certRenewalGate: CertRenewalGate,
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
+    private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
 ) : ViewModel() {
 
     /**
@@ -212,7 +213,8 @@ class ConnectionsViewModel @Inject constructor(
                 localSessionManager.sessions,
                 rcloneSessionManager.sessions,
             ) { smb, local, rclone -> arrayOf(smb, local, rclone) },
-        ) { base, extra ->
+            desktopSessionRegistry.statuses,
+        ) { base, extra, deskMap ->
             @Suppress("UNCHECKED_CAST")
             val sshMap = base[0] as Map<String, SshSessionManager.SessionState>
             @Suppress("UNCHECKED_CAST")
@@ -324,6 +326,24 @@ class ConnectionsViewModel @Inject constructor(
                 val existing = result[profileId]
                 if (existing == null || rcloneStatus.ordinal < existing.ordinal) {
                     result[profileId] = rcloneStatus
+                }
+            }
+
+            // Remote-desktop (VNC/RDP) tabs have no transport session of their
+            // own — they live as Desktop tabs in DesktopViewModel — so their
+            // connections-list row would otherwise show no status. Reflect the
+            // tab's real live state (DesktopSessionRegistry, set at the actual
+            // handshake) onto the profile row: connecting while it dials,
+            // connected once the desktop is up, cleared on teardown (#121).
+            deskMap.forEach { (profileId, status) ->
+                val deskStatus = when (status) {
+                    sh.haven.core.data.desktop.DesktopStatus.CONNECTED -> ProfileStatus.CONNECTED
+                    sh.haven.core.data.desktop.DesktopStatus.CONNECTING -> ProfileStatus.CONNECTING
+                    sh.haven.core.data.desktop.DesktopStatus.ERROR -> ProfileStatus.ERROR
+                }
+                val existing = result[profileId]
+                if (existing == null || deskStatus.ordinal < existing.ordinal) {
+                    result[profileId] = deskStatus
                 }
             }
 
@@ -3326,11 +3346,13 @@ class ConnectionsViewModel @Inject constructor(
 
         viewModelScope.launch { connectionLogRepository.logEvent(profileId, ConnectionLog.Status.DISCONNECTED, verboseLog = transportLog) }
         sessionManagerRegistry.disconnectProfile(profileId)
-        // Tear down any SSH session that was opened SOLELY as a tunnel for
-        // this profile (VNC/RDP/SMB-over-SSH-forward). Sessions the user
-        // opened directly — e.g. a terminal that the VNC profile then
-        // reused — are kept alive (#121, KoriKraut).
-        sshSessionManager.releaseTunnelDependent(profileId)
+        // Tear down this profile's tunnel-dependent resources: close its VNC/
+        // RDP Desktop tab (via the lease's parent-gone callback) AND release
+        // its SSH dependent. Closing the tab here is required because when the
+        // carrying SSH is a shared / user-opened session (e.g. a terminal the
+        // VNC reused) it legitimately survives, so the SSH-teardown cascade
+        // alone would leave the tab open over a now-detached tunnel (#121).
+        sshSessionManager.teardownTunnelDependent(profileId)
         // Drop the WireGuard / Tailscale refcount this profile may have
         // acquired via TunnelResolver. No-op if the profile didn't go
         // through a tunnel; otherwise the underlying tunnel closes only

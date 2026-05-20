@@ -3,6 +3,7 @@ package sh.haven.app.desktop
 import android.graphics.Bitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import sh.haven.core.ssh.SshSessionManager
 import sh.haven.core.vnc.VncClient
 import sh.haven.core.rdp.RdpSession
 import sh.haven.feature.vnc.CursorOverlay
@@ -50,6 +51,8 @@ sealed class DesktopTab {
         val _bandwidthSuggestion: MutableStateFlow<String?> = MutableStateFlow(null),
         val tunnelPort: Int? = null,
         val tunnelSessionId: String? = null,
+        /** Lease tying this tab to its SSH tunnel; closing it releases the tunnel. */
+        val tunnelLease: SshSessionManager.TunnelLease? = null,
         val profileId: String? = null,
         // Original connection params kept so the bandwidth-suggestion banner
         // can do a clean reconnect at the new colour depth without losing
@@ -84,6 +87,8 @@ sealed class DesktopTab {
         val _pointerPos: MutableStateFlow<Pair<Int, Int>> = MutableStateFlow(0 to 0),
         val tunnelPort: Int? = null,
         val tunnelSessionId: String? = null,
+        /** Lease tying this tab to its SSH tunnel; closing it releases the tunnel. */
+        val tunnelLease: SshSessionManager.TunnelLease? = null,
         val profileId: String? = null,
     ) : DesktopTab() {
         override val connected: StateFlow<Boolean> get() = _connected

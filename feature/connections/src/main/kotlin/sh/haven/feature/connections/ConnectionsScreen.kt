@@ -1018,7 +1018,15 @@ fun ConnectionsScreen(
                 val profileMap = connections.associateBy { it.id }
                 val dependentsByParent = connections
                     .mapNotNull { profile ->
-                        val parentId = profile.jumpProfileId ?: profile.rdpSshProfileId
+                        // Nest a profile under the SSH profile that carries its
+                        // tunnel: a jump-host chain, or a VNC/RDP/SMB-over-SSH
+                        // forward. VNC/SMB are gated by their forward flag
+                        // (vncSshForward defaults true) so a direct connection
+                        // with a stale sshProfileId isn't wrongly nested.
+                        val parentId = profile.jumpProfileId
+                            ?: profile.vncSshProfileId?.takeIf { profile.vncSshForward }
+                            ?: profile.rdpSshProfileId
+                            ?: profile.smbSshProfileId?.takeIf { profile.smbSshForward }
                         if (parentId != null && parentId in profileMap) parentId to profile else null
                     }
                     .groupBy({ it.first }, { it.second })
@@ -1342,6 +1350,13 @@ private fun onTapProfile(
         onNavigateToRclone(profile.id)
     } else if (profileStatus == ProfileStatus.CONNECTED && profile.isSmb) {
         onNavigateToSmb(profile.id)
+    } else if (profileStatus == ProfileStatus.CONNECTED && (profile.isVnc || profile.isRdp)) {
+        // Desktop already open — re-issuing connect navigates to the Desktop
+        // screen and the dedup in addVncSession/addRdpSession switches to the
+        // existing tab instead of reconnecting. (A VNC/RDP-over-SSH profile
+        // now reports CONNECTED via its tunnel dependent, so without this it
+        // would fall into the generic branch below and open a shell instead.)
+        viewModel.connect(profile, if (profile.isRdp) profile.rdpPassword.orEmpty() else "")
     } else if (profileStatus == ProfileStatus.CONNECTED) {
         viewModel.ensureShellForProfile(profile.id)
     } else if (profile.isVnc) {

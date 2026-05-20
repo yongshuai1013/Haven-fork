@@ -14,6 +14,7 @@ import sh.haven.core.ssh.sftp.SftpSession
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -109,6 +110,27 @@ class SshSessionManager @Inject constructor(
      * stays unchanged for unrelated consumers.
      */
     private val agentScrollback = ConcurrentHashMap<String, ScrollbackRing>()
+
+    /**
+     * Live tunnel leases, keyed by leaseId. A lease ties a tunnel-dependent
+     * resource (a VNC/RDP Desktop tab and its protocol client) to the SSH
+     * session that carries its forward, so teardown cascades both ways:
+     * removing the SSH session (for any reason) fires each lease's
+     * [LeaseRecord.onParentGone] so the dependent closes itself, and closing
+     * a lease releases the dependent (and tears the SSH down if it was opened
+     * solely for this tunnel). This replaces the loose profileId-string
+     * tracking that left tabs orphaned over dead pipes (#121).
+     */
+    private val leases = ConcurrentHashMap<String, LeaseRecord>()
+
+    private class LeaseRecord(
+        val leaseId: String,
+        val sessionId: String,
+        val dependentProfileId: String,
+        val localForwardPort: Int?,
+        val onParentGone: () -> Unit,
+        val closed: AtomicBoolean = AtomicBoolean(false),
+    )
 
     /** Background executor for disconnect I/O so callers on main thread don't block. */
     private val ioExecutor = Executors.newSingleThreadExecutor { r ->
@@ -503,10 +525,27 @@ class SshSessionManager @Inject constructor(
         val dependents = _sessions.value.values.filter { it.jumpSessionId == sessionId }
         _sessions.update { it - sessionId }
         agentScrollback.remove(sessionId)
+        // Fire any tunnel leases riding on this session so their dependents
+        // (VNC/RDP tabs) tear themselves down. Single-shot per lease; runs on
+        // the caller thread (the consumer re-dispatches to its own scope).
+        // Only true removal fires this — reconnect copies the entry in place
+        // and never calls removeSession, so a network blip won't close tabs.
+        fireParentGone(sessionId)
         ioExecutor.execute { tearDown(session) }
         for (dep in dependents) {
             Log.d(TAG, "Cascading disconnect from jump host $sessionId to ${dep.sessionId}")
             removeSession(dep.sessionId)
+        }
+    }
+
+    private fun fireParentGone(sessionId: String) {
+        val affected = leases.values.filter { it.sessionId == sessionId }
+        for (rec in affected) {
+            if (leases.remove(rec.leaseId) != null && rec.closed.compareAndSet(false, true)) {
+                Log.d(TAG, "Tunnel parent $sessionId gone — notifying dependent ${rec.dependentProfileId}")
+                runCatching { rec.onParentGone() }
+                    .onFailure { Log.w(TAG, "onParentGone callback for ${rec.dependentProfileId} threw", it) }
+            }
         }
     }
 
@@ -724,6 +763,89 @@ class SshSessionManager @Inject constructor(
             removeSession(sid)
         }
         return toTearDown
+    }
+
+    /** A first-class handle for a tunnel-dependent resource. See [acquireTunnelLease]. */
+    interface TunnelLease : AutoCloseable {
+        val sessionId: String
+        val dependentProfileId: String
+        /** Release this dependent. Idempotent. */
+        override fun close()
+    }
+
+    /**
+     * Acquire a lease tying a tunnel-dependent resource (a VNC/RDP tab and
+     * its client) to the SSH session [sessionId] that carries its forward.
+     *
+     * The dependent must already have been registered on the session via
+     * [markTunnelOpened] / [attachTunnelDependent] (done by the connect
+     * orchestrator, which knows whether the SSH was auto-opened or reused).
+     * The lease owns the *local port forward*, the *teardown callback*, and
+     * the *dependent release*:
+     *  - [onParentGone] fires when the SSH session is removed for any reason
+     *    (user disconnect, network-death teardown, jump-host cascade) so the
+     *    dependent closes itself. It runs on the [removeSession] caller
+     *    thread — the consumer must re-dispatch to its own scope.
+     *  - [close] (consumer-initiated: tab closed / connect failed / swipe)
+     *    removes the forward and releases the dependent, tearing the SSH down
+     *    iff it was opened solely for this tunnel.
+     *
+     * Both directions are single-shot and collision-free, so a tab-close
+     * racing an SSH teardown can't double-free (#121).
+     */
+    fun acquireTunnelLease(
+        sessionId: String,
+        dependentProfileId: String,
+        localForwardPort: Int?,
+        onParentGone: () -> Unit,
+    ): TunnelLease {
+        val rec = LeaseRecord(
+            leaseId = UUID.randomUUID().toString(),
+            sessionId = sessionId,
+            dependentProfileId = dependentProfileId,
+            localForwardPort = localForwardPort,
+            onParentGone = onParentGone,
+        )
+        leases[rec.leaseId] = rec
+        return object : TunnelLease {
+            override val sessionId = sessionId
+            override val dependentProfileId = dependentProfileId
+            override fun close() = closeLease(rec.leaseId)
+        }
+    }
+
+    /**
+     * Tear down the tunnel-dependent resources for [dependentProfileId] —
+     * used when the user disconnects that VNC/RDP/SMB profile directly from
+     * the connections list. Fires each matching lease's onParentGone (so the
+     * Desktop tab closes even when the carrying SSH is a shared / user-opened
+     * session that legitimately survives), then releases the SSH dependent
+     * (tearing the SSH down iff it was opened solely for this tunnel). Returns
+     * the SSH session ids actually torn down. (#121: the parent-gone cascade
+     * alone can't close the tab when the SSH isn't removed.)
+     */
+    fun teardownTunnelDependent(dependentProfileId: String): List<String> {
+        val matching = leases.values.filter { it.dependentProfileId == dependentProfileId }
+        for (rec in matching) {
+            if (leases.remove(rec.leaseId) != null && rec.closed.compareAndSet(false, true)) {
+                runCatching { rec.onParentGone() }
+                    .onFailure { Log.w(TAG, "onParentGone for $dependentProfileId threw", it) }
+            }
+        }
+        return releaseTunnelDependent(dependentProfileId)
+    }
+
+    /** Consumer-initiated lease release. Idempotent; does not fire [LeaseRecord.onParentGone]. */
+    private fun closeLease(leaseId: String) {
+        val rec = leases.remove(leaseId) ?: return
+        if (!rec.closed.compareAndSet(false, true)) return
+        rec.localForwardPort?.let { port ->
+            _sessions.value[rec.sessionId]?.client?.let { client ->
+                runCatching { client.delPortForwardingL("127.0.0.1", port) }
+                    .onFailure { Log.w(TAG, "Failed to remove tunnel forward $port on ${rec.sessionId}", it) }
+            }
+        }
+        releaseTunnelDependent(rec.dependentProfileId)
     }
 
     /**

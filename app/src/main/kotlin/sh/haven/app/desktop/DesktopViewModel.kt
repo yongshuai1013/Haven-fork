@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.db.entities.ConnectionProfile
+import sh.haven.core.data.desktop.DesktopStatus
 import sh.haven.core.data.preferences.UserPreferencesRepository
 import sh.haven.core.data.repository.ConnectionLogRepository
 import sh.haven.core.data.repository.ConnectionRepository
@@ -73,6 +74,7 @@ class DesktopViewModel @Inject constructor(
     private val portKnocker: PortKnocker,
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
     private val localSessionManager: LocalSessionManager,
+    private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
 ) : ViewModel() {
 
     // --- Distro / DE management (issue #162 Phase 3c) ---
@@ -652,18 +654,25 @@ class DesktopViewModel @Inject constructor(
             val label = resolveLabel(profileId) ?: "$host:$port"
             val colorTag = resolveColorTag(profileId)
             val tabId = UUID.randomUUID().toString()
-            val tab = DesktopTab.Vnc(
-                id = tabId,
-                label = label,
-                colorTag = colorTag,
-                client = VncClient(VncConfig()), // placeholder, replaced in doConnect
-                profileId = profileId,
-            )
 
-            // Hoisted out of try so the catch block can clean them up
-            // when the dial fails (#121).
+            // Per-tab live state, declared up front so the tab can be shown in
+            // a connecting state (connected=false, no frame) before the
+            // synchronous handshake runs — mirroring RDP, which previously was
+            // the only protocol to show "connecting".
+            val connected = MutableStateFlow(false)
+            val frame = MutableStateFlow<Bitmap?>(null)
+            val error = MutableStateFlow<String?>(null)
+            val cursor = MutableStateFlow<sh.haven.feature.vnc.CursorOverlay?>(null)
+            val pointerPos = MutableStateFlow(0 to 0)
+            val bandwidthSuggestion = MutableStateFlow<String?>(null)
+
+            // Hoisted out of try so the catch / onError can clean them up
+            // when the dial fails (#121). tunnelLease owns the forward +
+            // dependent release + the parent-gone teardown callback.
             var tunnelPort: Int? = null
             var tunnelSessionId: String? = null
+            var tunnelLease: SshSessionManager.TunnelLease? = null
+            var tabAdded = false
             try {
                 val actualHost: String
                 val actualPort: Int
@@ -689,6 +698,17 @@ class DesktopViewModel @Inject constructor(
                     actualHost = "127.0.0.1"
                     actualPort = lp
                     Log.d(TAG, "VNC SSH tunnel: localhost:$lp -> 127.0.0.1:$port (via $host)")
+                    // Tie this tab to the SSH session: if the SSH is torn down
+                    // for any reason (Connections-list disconnect, network
+                    // death, jump cascade), the lease fires and closes the tab
+                    // instead of leaving it over a dead pipe (#121).
+                    if (profileId != null) {
+                        tunnelLease = sshSessionManager.acquireTunnelLease(
+                            sessionId = sshSessionId,
+                            dependentProfileId = profileId,
+                            localForwardPort = lp,
+                        ) { viewModelScope.launch { closeTab(tabId) } }
+                    }
                 } else {
                     actualHost = host
                     actualPort = port
@@ -705,13 +725,6 @@ class DesktopViewModel @Inject constructor(
                         }
                     }
                 }
-
-                val connected = MutableStateFlow(false)
-                val frame = MutableStateFlow<Bitmap?>(null)
-                val error = MutableStateFlow<String?>(null)
-                val cursor = MutableStateFlow<sh.haven.feature.vnc.CursorOverlay?>(null)
-                val pointerPos = MutableStateFlow(0 to 0)
-                val bandwidthSuggestion = MutableStateFlow<String?>(null)
 
                 val config = VncConfig().apply {
                     this.colorDepth = runCatching { ColorDepth.valueOf(colorDepth) }
@@ -739,6 +752,17 @@ class DesktopViewModel @Inject constructor(
                         Log.e(TAG, "VNC error on tab $tabId", e)
                         error.value = VncViewModel.describeError(e, host, port)
                         connected.value = false
+                        desktopSessionRegistry.setStatus(profileId, DesktopStatus.ERROR)
+                        // VncClient.start() catches setup failures (e.g. the
+                        // handshake EOF when no VNC server is listening behind
+                        // the SSH forward) and routes them here instead of
+                        // throwing, so the catch block below never runs for
+                        // them — and a mid-session drop lands here too. Release
+                        // the SSH tunnel (lease) + any WG/Tailscale dependent so
+                        // nothing is left orphaned with a green dot (#121).
+                        // Idempotent, so the later disconnectTab stays safe.
+                        tunnelLease?.close()
+                        releaseSshTunnelDependent(profileId)
                     }
                     onRemoteClipboard = { text ->
                         Log.d(TAG, "VNC clipboard ($tabId): ${text.take(50)}")
@@ -746,6 +770,44 @@ class DesktopViewModel @Inject constructor(
                 }
 
                 val client = VncClient(config)
+
+                // Add the tab now (connected=false) so the Desktop screen
+                // shows a connecting state during the (synchronous) handshake,
+                // like RDP does via onConnected. The handshake below flips
+                // _connected in place. A connected tab keeps its lease so it's
+                // torn down with the SSH session; a failed handshake leaves the
+                // error visible (onError already released the lease, and that
+                // release removed the lease before any SSH teardown could fire
+                // its parent-gone callback, so the error tab isn't auto-closed).
+                val newTab = DesktopTab.Vnc(
+                    id = tabId,
+                    label = label,
+                    colorTag = colorTag,
+                    client = client,
+                    _connected = connected,
+                    _frame = frame,
+                    _error = error,
+                    _cursor = cursor,
+                    _pointerPos = pointerPos,
+                    _bandwidthSuggestion = bandwidthSuggestion,
+                    tunnelPort = tunnelPort,
+                    tunnelSessionId = tunnelSessionId,
+                    tunnelLease = tunnelLease,
+                    profileId = profileId,
+                    originalHost = host,
+                    originalPort = port,
+                    originalUsername = username,
+                    originalPassword = password,
+                    sshForward = sshForward,
+                    sshSessionId = sshSessionId,
+                    colorDepth = colorDepth,
+                )
+                _tabs.value = _tabs.value.toMutableList().apply { add(newTab) }
+                tabAdded = true
+                pauseAllExcept(_tabs.value.size - 1)
+                _activeTabIndex.value = _tabs.value.size - 1
+                desktopSessionRegistry.setStatus(profileId, DesktopStatus.CONNECTING)
+
                 val tc = tunneledConn
                 if (tc != null) {
                     client.start(TunneledSocket(tc, actualHost, actualPort), actualHost)
@@ -759,54 +821,45 @@ class DesktopViewModel @Inject constructor(
                     }
                     client.start(actualHost, actualPort)
                 }
-                connected.value = true
-
-                val connectedTab = tab.copy(
-                    client = client,
-                    _connected = connected,
-                    _frame = frame,
-                    _error = error,
-                    _cursor = cursor,
-                    _pointerPos = pointerPos,
-                    _bandwidthSuggestion = bandwidthSuggestion,
-                    tunnelPort = tunnelPort,
-                    tunnelSessionId = tunnelSessionId,
-                    originalHost = host,
-                    originalPort = port,
-                    originalUsername = username,
-                    originalPassword = password,
-                    sshForward = sshForward,
-                    sshSessionId = sshSessionId,
-                    colorDepth = colorDepth,
-                )
-
-                val tabs = _tabs.value.toMutableList()
-                tabs.add(connectedTab)
-                _tabs.value = tabs
-                pauseAllExcept(tabs.size - 1)
-                _activeTabIndex.value = tabs.size - 1
+                // start() runs the handshake synchronously and swallows setup
+                // failures into onError (above), which has flagged the error +
+                // set the registry to ERROR. Only flip to connected on success.
+                if (error.value == null) {
+                    connected.value = true
+                    desktopSessionRegistry.setStatus(profileId, DesktopStatus.CONNECTED)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "VNC connect failed", e)
-                // Connect-failure cleanup (#121, KoriKraut on v5.33.0).
-                // The successful-disconnect path runs these via
-                // disconnectTab, but on a failed dial neither runs without
-                // help here: the local port forward stays bound on the
-                // SSH client and the SSH session keeps this profile in
-                // its tunnel-dependent set, so the connections list still
-                // shows a green dot. The next retry then races against
-                // that stale state. Both calls are no-op when the value
-                // is null / unknown, so a failure before setPortForwardingL
-                // is also safe.
-                tearDownTunnel(tunnelPort, tunnelSessionId)
+                // Connect-failure cleanup (#121): release the SSH tunnel lease
+                // (removes the forward + releases the dependent, tearing down
+                // the SSH iff it was opened solely for this tunnel) and any
+                // WG/Tailscale dependent. Idempotent / no-op if the failure
+                // happened before the lease was acquired.
+                tunnelLease?.close()
                 releaseSshTunnelDependent(profileId)
-                // Add tab in error state so user sees the error
-                val errorTab = tab.copy(
-                    _error = MutableStateFlow(VncViewModel.describeError(e, host, port)),
-                )
-                val tabs = _tabs.value.toMutableList()
-                tabs.add(errorTab)
-                _tabs.value = tabs
-                _activeTabIndex.value = tabs.size - 1
+                error.value = VncViewModel.describeError(e, host, port)
+                desktopSessionRegistry.setStatus(profileId, DesktopStatus.ERROR)
+                // If the failure happened before the tab was added (e.g. tunnel
+                // setup threw), surface an error tab so the user sees why.
+                if (!tabAdded) {
+                    val errorTab = DesktopTab.Vnc(
+                        id = tabId,
+                        label = label,
+                        colorTag = colorTag,
+                        client = VncClient(VncConfig()),
+                        _connected = connected,
+                        _frame = frame,
+                        _error = error,
+                        _cursor = cursor,
+                        _pointerPos = pointerPos,
+                        _bandwidthSuggestion = bandwidthSuggestion,
+                        profileId = profileId,
+                    )
+                    val tabs = _tabs.value.toMutableList()
+                    tabs.add(errorTab)
+                    _tabs.value = tabs
+                    _activeTabIndex.value = tabs.size - 1
+                }
             }
         }
     }
@@ -843,10 +896,12 @@ class DesktopViewModel @Inject constructor(
             val colorTag = resolveColorTag(profileId)
             val tabId = UUID.randomUUID().toString()
 
-            // Hoisted out of try so the catch block can clean them up
-            // when the dial fails (#121).
+            // Hoisted out of try so the catch / onError can clean them up
+            // when the dial fails (#121). tunnelLease owns the forward +
+            // dependent release + the parent-gone teardown callback.
             var tunnelPort: Int? = null
             var tunnelSessionId: String? = null
+            var tunnelLease: SshSessionManager.TunnelLease? = null
             try {
                 val actualHost: String
                 val actualPort: Int
@@ -866,6 +921,15 @@ class DesktopViewModel @Inject constructor(
                     actualHost = "127.0.0.1"
                     actualPort = lp
                     Log.d(TAG, "RDP SSH tunnel: localhost:$lp -> $host:$port")
+                    // Tie this tab to the SSH session so it closes if the SSH
+                    // is torn down for any reason (#121).
+                    if (profileId != null) {
+                        tunnelLease = sshSessionManager.acquireTunnelLease(
+                            sessionId = sshSessionId,
+                            dependentProfileId = profileId,
+                            localForwardPort = lp,
+                        ) { viewModelScope.launch { closeTab(tabId) } }
+                    }
                 } else {
                     actualHost = host
                     actualPort = port
@@ -907,17 +971,26 @@ class DesktopViewModel @Inject constructor(
                     Log.e(TAG, "RDP error on tab $tabId", e)
                     error.value = RdpViewModel.describeError(e, host, port)
                     connected.value = false
+                    desktopSessionRegistry.setStatus(profileId, DesktopStatus.ERROR)
                     if (profileId != null) {
                         viewModelScope.launch(Dispatchers.IO) {
                             connectionLogRepository.logEvent(profileId, ConnectionLog.Status.FAILED, details = e.message)
                         }
                     }
+                    // RdpSession.start() reports connect failures via this
+                    // callback rather than throwing, so the catch block never
+                    // runs for them — release the SSH tunnel lease + any WG
+                    // dependent so nothing lingers with a green dot (#121,
+                    // same shape as the VNC path). Idempotent with disconnectTab.
+                    tunnelLease?.close()
+                    releaseSshTunnelDependent(profileId)
                 }
                 session.onConnected = { _, _ ->
                     // Real handshake complete — only now flip the tab to
                     // "connected". Before this the UI stays on a Connecting
                     // state rather than a misleading empty framebuffer.
                     connected.value = true
+                    desktopSessionRegistry.setStatus(profileId, DesktopStatus.CONNECTED)
                     if (profileId != null) {
                         viewModelScope.launch(Dispatchers.IO) {
                             val startLog = session.drainVerboseLog()
@@ -934,6 +1007,7 @@ class DesktopViewModel @Inject constructor(
                     runVncKnockIfConfigured(profileId, actualHost)
                 }
 
+                desktopSessionRegistry.setStatus(profileId, DesktopStatus.CONNECTING)
                 session.start()
                 // NB: intentionally no `connected.value = true` here — that
                 // happens in session.onConnected once the Rust worker
@@ -949,6 +1023,7 @@ class DesktopViewModel @Inject constructor(
                     _error = error,
                     tunnelPort = tunnelPort,
                     tunnelSessionId = tunnelSessionId,
+                    tunnelLease = tunnelLease,
                     profileId = profileId,
                 )
 
@@ -962,9 +1037,10 @@ class DesktopViewModel @Inject constructor(
                     connectionLogRepository.logEvent(profileId, ConnectionLog.Status.FAILED, details = e.message)
                 }
                 // Connect-failure cleanup — same reasoning as the VNC
-                // path above (#121).
-                tearDownTunnel(tunnelPort, tunnelSessionId)
+                // path above (#121): release the lease + WG dependent.
+                tunnelLease?.close()
                 releaseSshTunnelDependent(profileId)
+                desktopSessionRegistry.setStatus(profileId, DesktopStatus.ERROR)
                 // Show error in a temporary tab (no session to close)
                 val errorTab = DesktopTab.Rdp(
                     id = tabId,
@@ -1186,8 +1262,14 @@ class DesktopViewModel @Inject constructor(
             when (tab) {
                 is DesktopTab.Vnc -> {
                     tab.client.stop()
-                    tearDownTunnel(tab.tunnelPort, tab.tunnelSessionId)
+                    // SSH side via the lease (removes the forward + releases
+                    // the dependent, tearing the SSH down if it was opened
+                    // solely for this tunnel). No-op if already closed by a
+                    // parent-gone cascade. releaseSshTunnelDependent also
+                    // covers the WG/Tailscale dependent (and is idempotent).
+                    tab.tunnelLease?.close()
                     releaseSshTunnelDependent(tab.profileId)
+                    desktopSessionRegistry.clear(tab.profileId)
                 }
                 is DesktopTab.Rdp -> {
                     if (tab.profileId != null) {
@@ -1195,8 +1277,9 @@ class DesktopViewModel @Inject constructor(
                         connectionLogRepository.logEvent(tab.profileId, ConnectionLog.Status.DISCONNECTED, verboseLog = verboseLog)
                     }
                     tab.session.close()
-                    tearDownTunnel(tab.tunnelPort, tab.tunnelSessionId)
+                    tab.tunnelLease?.close()
                     releaseSshTunnelDependent(tab.profileId)
+                    desktopSessionRegistry.clear(tab.profileId)
                 }
                 is DesktopTab.Wayland -> {} // compositor lifecycle managed externally
             }
@@ -1227,15 +1310,6 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch { tunnelResolver.release(profileId) }
     }
 
-    private fun tearDownTunnel(port: Int?, sessionId: String?) {
-        if (port != null && sessionId != null) {
-            try {
-                findSshClient(sessionId)?.delPortForwardingL("127.0.0.1", port)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to remove SSH tunnel", e)
-            }
-        }
-    }
 
     private fun pauseAllExcept(activeIndex: Int) {
         _tabs.value.forEachIndexed { index, tab ->

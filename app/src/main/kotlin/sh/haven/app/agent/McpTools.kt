@@ -78,6 +78,7 @@ internal class McpTools(
     private val terminalInputQueue: TerminalInputQueue,
     private val prootInstallLogRepository: sh.haven.core.data.repository.ProotInstallLogRepository,
     private val sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository,
+    private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
 ) {
 
     /**
@@ -121,6 +122,11 @@ internal class McpTools(
             description = "List currently registered sessions across all transports (ssh, mosh, et, reticulum, rdp, smb, local) with sessionId, profileId, label, status (connecting, connected, reconnecting, disconnected, error), and transport. SSH sessions additionally include sessionManager, channel state, jump-session linkage, and active port forwards.",
             inputSchema = emptyObjectSchema(),
         ) { _ -> listSessions() },
+
+        "list_desktop_sessions" to ToolHandler(
+            description = "List open remote-desktop tabs (VNC/RDP) by connection profile, with their live status (connecting, connected, error). These are Desktop-screen tabs, not transport sessions — a VNC/RDP-over-SSH desktop has its SSH tunnel in list_sessions and its own connect state here. Use after connect_profile to confirm a desktop reached 'connected', and after disconnect_profile to confirm the tab is gone (profile absent from the list).",
+            inputSchema = emptyObjectSchema(),
+        ) { _ -> listDesktopSessions() },
 
         "list_rclone_remotes" to ToolHandler(
             description = "List rclone cloud storage remotes configured in Haven.",
@@ -1731,6 +1737,21 @@ internal class McpTools(
         }
     }
 
+    private fun listDesktopSessions(): JSONObject {
+        val statuses = desktopSessionRegistry.statuses.value
+        val arr = JSONArray()
+        for ((profileId, status) in statuses) {
+            arr.put(JSONObject().apply {
+                put("profileId", profileId)
+                put("status", status.name.lowercase())
+            })
+        }
+        return JSONObject().apply {
+            put("count", statuses.size)
+            put("desktops", arr)
+        }
+    }
+
     /** RcloneClient must be initialised before any RPC calls — idempotent. */
     private fun ensureRcloneReady() {
         rcloneClient.initialize()
@@ -2445,13 +2466,13 @@ internal class McpTools(
         // transports have sessions for this profile and only acts where
         // there's something to do, so it's safe to call unconditionally.
         sessionManagerRegistry.disconnectProfile(profileId)
-        // Match ConnectionsViewModel.disconnect — release any auto-opened
-        // SSH-tunnel dependent (#121) and the WG / Tailscale refcount
-        // (#149). Bypassing these from the MCP path was the original gap
-        // — without them, a profile disconnected through the agent path
-        // left its tunnel handle live, and live_tunnels surfaced the
-        // bogus "still depending" state.
-        sshSessionManager.releaseTunnelDependent(profileId)
+        // Match ConnectionsViewModel.disconnect — close the profile's VNC/RDP
+        // Desktop tab (via the lease) and release any auto-opened SSH-tunnel
+        // dependent (#121) plus the WG / Tailscale refcount (#149). Bypassing
+        // these from the MCP path was the original gap — without them, a
+        // profile disconnected through the agent path left its tunnel handle
+        // live, and live_tunnels surfaced the bogus "still depending" state.
+        sshSessionManager.teardownTunnelDependent(profileId)
         tunnelManager.release(profileId)
         return JSONObject().apply {
             put("profileId", profileId)
@@ -4186,10 +4207,10 @@ internal class McpTools(
         }
         val existing = connectionRepository.getById(profileId)
             ?: return JSONObject().apply { put("deleted", false); put("reason", "not found") }
-        // Tear down any live session for this profile, then drop tunnel
-        // refcount, then delete.
+        // Tear down any live session for this profile (incl. its VNC/RDP
+        // Desktop tab via the lease), then drop tunnel refcount, then delete.
         sessionManagerRegistry.disconnectProfile(profileId)
-        sshSessionManager.releaseTunnelDependent(profileId)
+        sshSessionManager.teardownTunnelDependent(profileId)
         tunnelManager.release(profileId)
         connectionRepository.delete(profileId)
         return JSONObject().apply {
