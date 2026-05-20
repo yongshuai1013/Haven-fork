@@ -545,8 +545,19 @@ class DesktopManager @Inject constructor(
             append("exec wayvnc --render-cursor 0.0.0.0 $port")
         }
 
+        // Present a non-root uid/gid (1000) instead of the usual `-0`
+        // fake-root. Sway's drop_permissions() refuses to start unless
+        // `setuid(0)` FAILS (proof that root can't be regained); under
+        // `-0` setuid(0) is a no-op success, so Sway bails with "Unable
+        // to drop root … refusing to start" (sway/main.c:170) — the #162
+        // bug-B failure. `-i 1000:1000` makes the guest a normal user so
+        // setuid(0) fails and the check passes. proot doesn't enforce DAC
+        // (the real Android app uid owns the whole rootfs), so /root + the
+        // seeded config stay readable, and the headless wlroots/pixman
+        // path needs no real privileges. Verified: Sway now boots and
+        // creates its HEADLESS-1 output.
         val prootArgs = mutableListOf(
-            prootBin, "-0", "--link2symlink",
+            prootBin, "-i", "1000:1000", "--link2symlink",
             "-r", rootfsDir.absolutePath,
             "-b", "/dev", "-b", "/proc", "-b", "/sys",
             "-b", "${context.cacheDir.absolutePath}:/tmp",
