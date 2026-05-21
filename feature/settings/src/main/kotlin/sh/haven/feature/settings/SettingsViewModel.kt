@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
@@ -20,6 +21,7 @@ import sh.haven.core.data.font.TerminalFontInstaller
 import sh.haven.core.data.preferences.NavBlockMode
 import sh.haven.core.data.preferences.ToolbarLayout
 import sh.haven.core.data.preferences.UserPreferencesRepository
+import sh.haven.core.data.repository.ConnectionRepository
 import sh.haven.core.security.BiometricAuthenticator
 import javax.inject.Inject
 
@@ -32,6 +34,7 @@ class SettingsViewModel @Inject constructor(
     private val agentAuditEventDao: AgentAuditEventDao,
     private val agentConsentManager: AgentConsentManager,
     private val terminalFontInstaller: TerminalFontInstaller,
+    private val connectionRepository: ConnectionRepository,
 ) : ViewModel() {
 
     val terminalFontPath: StateFlow<String?> = preferencesRepository.terminalFontPath
@@ -165,6 +168,20 @@ class SettingsViewModel @Inject constructor(
 
     val mcpAgentEndpointEnabled: StateFlow<Boolean> = preferencesRepository.mcpAgentEndpointEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /** SSH profiles eligible to host the dedicated MCP reverse tunnel. */
+    val sshProfiles: StateFlow<List<McpTunnelEndpointOption>> =
+        connectionRepository.observeAll()
+            .map { profiles ->
+                profiles.filter { it.isSsh }
+                    .map { McpTunnelEndpointOption(it.id, it.label) }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Currently-selected MCP reverse-tunnel endpoint profile id, or null. */
+    val mcpTunnelEndpointProfileId: StateFlow<String?> =
+        preferencesRepository.mcpTunnelEndpointProfileId
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val agentAllowFileRead: StateFlow<Boolean> = preferencesRepository.agentAllowFileRead
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -378,6 +395,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setMcpTunnelEndpointProfileId(profileId: String?) {
+        viewModelScope.launch {
+            preferencesRepository.setMcpTunnelEndpointProfileId(profileId)
+        }
+    }
+
     fun setAgentAllowFileRead(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setAgentAllowFileRead(enabled)
@@ -567,3 +590,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 }
+
+/** A selectable SSH profile for the MCP reverse-tunnel endpoint picker. */
+data class McpTunnelEndpointOption(val id: String, val label: String)

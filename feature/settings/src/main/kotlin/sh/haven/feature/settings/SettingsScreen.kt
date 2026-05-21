@@ -70,6 +70,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -757,6 +758,48 @@ fun SettingsScreen(
                 checked = agentAllowTerminalInputQueue,
                 onCheckedChange = viewModel::setAgentAllowTerminalInputQueue,
             )
+
+            // Dedicated reverse-tunnel endpoint. The MCP server only
+            // binds loopback on-device; to reach it from a laptop as the
+            // network roams, Haven brings up a headless, auto-reconnecting
+            // `-R` forward over the chosen SSH profile (decoupled from any
+            // interactive terminal session). Unset = on-device only.
+            val sshProfiles by viewModel.sshProfiles.collectAsState()
+            val mcpTunnelEndpointProfileId by viewModel.mcpTunnelEndpointProfileId.collectAsState()
+            var tunnelEndpointExpanded by remember { mutableStateOf(false) }
+            val selectedEndpointLabel = sshProfiles
+                .firstOrNull { it.id == mcpTunnelEndpointProfileId }?.label
+            Box {
+                SettingsItem(
+                    icon = Icons.Filled.Hub,
+                    title = "Reverse-tunnel endpoint",
+                    subtitle = selectedEndpointLabel?.let {
+                        "Tunnelled to \"$it\" — survives WiFi changes & app restarts"
+                    } ?: "Not set — endpoint reachable on-device only",
+                    onClick = { tunnelEndpointExpanded = true },
+                )
+                DropdownMenu(
+                    expanded = tunnelEndpointExpanded,
+                    onDismissRequest = { tunnelEndpointExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("None (on-device only)") },
+                        onClick = {
+                            viewModel.setMcpTunnelEndpointProfileId(null)
+                            tunnelEndpointExpanded = false
+                        },
+                    )
+                    sshProfiles.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.label) },
+                            onClick = {
+                                viewModel.setMcpTunnelEndpointProfileId(option.id)
+                                tunnelEndpointExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
 
             // Endpoint URL is always the canonical port range start —
             // the server binds to the first free port in 8730..8739

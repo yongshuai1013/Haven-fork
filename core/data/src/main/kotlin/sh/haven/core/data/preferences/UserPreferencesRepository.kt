@@ -94,6 +94,12 @@ class UserPreferencesRepository @Inject constructor(
     // via the pairing prompt on first connect. Empty by default; the
     // McpServer rejects any initialize from a name not in this set.
     private val mcpAllowedClientsKey = stringSetPreferencesKey("mcp_allowed_clients")
+    // Profile id of the SSH connection the MCP server tunnels its
+    // loopback listener back to (a dedicated, headless `-R` reverse
+    // forward). Null = no dedicated tunnel; the endpoint is then only
+    // reachable on-device or via a manual `adb forward`. See
+    // McpTunnelManager.
+    private val mcpTunnelEndpointProfileIdKey = stringPreferencesKey("mcp_tunnel_endpoint_profile_id")
 
     val biometricEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
         prefs[biometricEnabledKey] ?: false
@@ -459,6 +465,26 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setMcpAgentEndpointEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[mcpAgentEndpointEnabledKey] = enabled
+        }
+    }
+
+    /**
+     * Id of the SSH [sh.haven.core.data.db.entities.ConnectionProfile]
+     * that the MCP server uses for its dedicated reverse tunnel. Null
+     * (the default) means no dedicated tunnel is brought up when the MCP
+     * endpoint is enabled. See McpTunnelManager.
+     */
+    val mcpTunnelEndpointProfileId: Flow<String?> = dataStore.data.map { prefs ->
+        prefs[mcpTunnelEndpointProfileIdKey]
+    }
+
+    suspend fun setMcpTunnelEndpointProfileId(profileId: String?) {
+        dataStore.edit { prefs ->
+            if (profileId == null) {
+                prefs.remove(mcpTunnelEndpointProfileIdKey)
+            } else {
+                prefs[mcpTunnelEndpointProfileIdKey] = profileId
+            }
         }
     }
 

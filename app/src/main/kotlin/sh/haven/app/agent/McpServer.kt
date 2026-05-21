@@ -245,6 +245,7 @@ class McpServer @Inject constructor(
         prootInstallLogRepository = prootInstallLogRepository,
         sshKeyRepository = sshKeyRepository,
         desktopSessionRegistry = desktopSessionRegistry,
+        mcpPortProvider = { port },
     )
 
     /**
@@ -334,6 +335,13 @@ class McpServer @Inject constructor(
 
     // --- Socket binding ---
 
+    // Off-device reachability is provided by McpTunnelManager's dedicated
+    // SSH reverse tunnel. The roaming-proof follow-up is to also bind the
+    // listener on the stable wgbridge WireGuard interface address (a
+    // `bindWireguard()` sibling to this method, gated by an off-by-default
+    // pref + pairing token) so a WG-peer laptop reaches it directly with no
+    // reverse forward. Blocked on whether the gVisor netstack exposes TCP
+    // listen/accept — tracked in GlassHaven/Haven#176.
     private fun bindLoopback(): ServerSocket {
         val loopback = InetAddress.getByName("127.0.0.1")
         // Try preferred ports first so a client that cached an endpoint

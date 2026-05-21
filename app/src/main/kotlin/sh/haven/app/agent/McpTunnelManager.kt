@@ -1,0 +1,276 @@
+package sh.haven.app.agent
+
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import sh.haven.core.data.db.entities.ConnectionLog
+import sh.haven.core.data.db.entities.ConnectionProfile
+import sh.haven.core.data.preferences.UserPreferencesRepository
+import sh.haven.core.data.repository.ConnectionLogRepository
+import sh.haven.core.data.repository.ConnectionRepository
+import sh.haven.core.data.repository.SshKeyRepository
+import sh.haven.core.ssh.ConnectionConfig
+import sh.haven.core.ssh.HostKeyResult
+import sh.haven.core.ssh.HostKeyVerifier
+import sh.haven.core.ssh.SessionManager
+import sh.haven.core.ssh.SshClient
+import sh.haven.core.ssh.SshKeyExporter
+import sh.haven.core.ssh.SshSessionManager
+import javax.inject.Inject
+import javax.inject.Singleton
+
+private const val TAG = "McpTunnelManager"
+
+/**
+ * Brings up a dedicated, headless SSH reverse tunnel that forwards the
+ * device-local MCP HTTP listener (`127.0.0.1:<port>`) back to the
+ * laptop running the MCP client, so the endpoint stays reachable as the
+ * device's WiFi/hotspot address roams and across app restarts.
+ *
+ * This is decoupled from the user's interactive "near" terminal session
+ * (which dies on every app restart and didn't reliably re-establish its
+ * `-R`). The tunnel:
+ *  - rides its own [SshSessionManager] session marked `headless` (no
+ *    shell channel ever opened — see [SshSessionManager.registerSession]),
+ *  - uses an unlimited auto-reconnect policy that also fires on network
+ *    change, so it self-heals after roams and restarts,
+ *  - installs the `-R` forward as a **critical** port forward, so a
+ *    stale server-side bind surfaces as a failed (re)connect that retries
+ *    rather than a silently forward-less "connected" session
+ *    (`ExitOnForwardFailure` semantics — see
+ *    [SshSessionManager.applyPortForwards]).
+ *
+ * Lifecycle is bound to the MCP endpoint toggle in `HavenApp`: [start]
+ * on enable, [stop] on disable.
+ *
+ * Limitation: a headless tunnel can only authenticate non-interactively.
+ * Endpoint profiles that require a biometric/passphrase unlock or a FIDO2
+ * hardware tap are skipped (logged), since there's no UI to drive the
+ * prompt from the foreground service.
+ */
+@Singleton
+class McpTunnelManager @Inject constructor(
+    private val connectionRepository: ConnectionRepository,
+    private val sshKeyRepository: SshKeyRepository,
+    private val sshSessionManager: SshSessionManager,
+    private val preferencesRepository: UserPreferencesRepository,
+    private val hostKeyVerifier: HostKeyVerifier,
+    private val connectionLogRepository: ConnectionLogRepository,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val lock = Any()
+
+    private var job: Job? = null
+    @Volatile private var sessionId: String? = null
+    @Volatile private var currentPort: Int = 0
+
+    /**
+     * Establish (or re-establish) the reverse tunnel forwarding
+     * `127.0.0.1:[mcpPort]` on the laptop back to the device. Idempotent:
+     * a no-op if already running for the same port; restarts if the port
+     * changed (e.g. the MCP server fell back from 8730 to 8731).
+     */
+    fun start(mcpPort: Int) = synchronized(lock) {
+        if (job?.isActive == true && currentPort == mcpPort) return
+        stopLocked()
+        currentPort = mcpPort
+        job = scope.launch {
+            // Connect phase: retry with backoff until the tunnel + critical
+            // forward are up (or the config is unusable).
+            var delayMs = INITIAL_RETRY_MS
+            var established = false
+            while (isActive && !established) {
+                when (establish(mcpPort)) {
+                    Outcome.ESTABLISHED -> established = true
+                    Outcome.FATAL -> return@launch // misconfig — retrying won't help
+                    Outcome.RETRY -> {
+                        delay(delayMs)
+                        delayMs = (delayMs * 2).coerceAtMost(MAX_RETRY_MS)
+                    }
+                }
+            }
+            // Watchdog phase: a headless session has no shell channel, so the
+            // usual channel-exit reconnect trigger never fires for it. Network
+            // roams are caught by NetworkMonitor, but a silent keepalive
+            // timeout / server-side close would otherwise go unnoticed. Poll
+            // the session and kick a reconnect when the transport has dropped.
+            val sid = sessionId ?: return@launch
+            while (isActive) {
+                delay(HEALTH_CHECK_MS)
+                val s = sshSessionManager.getSession(sid) ?: return@launch
+                when (s.status) {
+                    SshSessionManager.SessionState.Status.CONNECTED ->
+                        if (!s.client.isConnected) {
+                            Log.i(TAG, "MCP tunnel transport dropped — requesting reconnect")
+                            sshSessionManager.updateStatus(
+                                sid, SshSessionManager.SessionState.Status.DISCONNECTED,
+                            )
+                            sshSessionManager.requestReconnect(sid)
+                        }
+                    SshSessionManager.SessionState.Status.DISCONNECTED,
+                    SshSessionManager.SessionState.Status.ERROR ->
+                        sshSessionManager.requestReconnect(sid)
+                    else -> { /* CONNECTING / RECONNECTING — in progress */ }
+                }
+            }
+        }
+    }
+
+    fun stop() = synchronized(lock) { stopLocked() }
+
+    private fun stopLocked() {
+        job?.cancel()
+        job = null
+        sessionId?.let { sshSessionManager.removeSession(it) }
+        sessionId = null
+        currentPort = 0
+    }
+
+    private enum class Outcome { ESTABLISHED, RETRY, FATAL }
+
+    private suspend fun establish(mcpPort: Int): Outcome {
+        val profileId = preferencesRepository.mcpTunnelEndpointProfileId.first()
+        if (profileId.isNullOrBlank()) {
+            Log.i(TAG, "No MCP tunnel endpoint configured — endpoint is on-device only")
+            return Outcome.FATAL
+        }
+        val profile = connectionRepository.getById(profileId)
+        if (profile == null) {
+            Log.w(TAG, "MCP tunnel endpoint profile $profileId not found")
+            return Outcome.FATAL
+        }
+        if (!profile.isSsh) {
+            Log.w(TAG, "MCP tunnel endpoint profile ${profile.label} is not SSH — ignoring")
+            return Outcome.FATAL
+        }
+        val auth = resolveHeadlessAuth(profile)
+        if (auth == null) {
+            Log.w(
+                TAG,
+                "MCP tunnel endpoint ${profile.label} has no non-interactive auth " +
+                    "(needs an unencrypted key or a stored password) — cannot tunnel headlessly",
+            )
+            connectionLogRepository.logEvent(
+                profile.id, ConnectionLog.Status.FAILED,
+                details = "MCP tunnel: no non-interactive auth available",
+            )
+            return Outcome.FATAL
+        }
+
+        val config = ConnectionConfig(
+            host = profile.host,
+            port = profile.port,
+            username = profile.username,
+            authMethod = auth,
+            sshOptions = ConnectionConfig.parseSshOptions(profile.sshOptions),
+            addressFamily = ConnectionConfig.AddressFamily.valueOf(profile.addressFamilyEnum.name),
+            // Unlimited self-healing: a headless tunnel that holds the MCP
+            // forward should never give up while the endpoint is enabled.
+            reconnectPolicy = ConnectionConfig.ReconnectPolicy(
+                autoReconnect = true,
+                maxAttempts = 0,
+                onNetworkChange = true,
+            ),
+        )
+
+        val client = SshClient()
+        val sid = sshSessionManager.registerSession(
+            profileId = profile.id,
+            label = "MCP tunnel: ${profile.label}",
+            client = client,
+            headless = true,
+        )
+        sessionId = sid
+        return try {
+            val hostKeyEntry = client.connect(config)
+            // Silent TOFU — same policy the reconnect path uses: accept a
+            // new host, abort on a changed key.
+            when (val r = hostKeyVerifier.verify(hostKeyEntry)) {
+                is HostKeyResult.Trusted -> { /* ok */ }
+                is HostKeyResult.NewHost -> hostKeyVerifier.accept(r.entry)
+                is HostKeyResult.KeyChanged -> {
+                    Log.w(TAG, "Host key changed for ${profile.label} — refusing MCP tunnel")
+                    cleanup(sid)
+                    return Outcome.FATAL
+                }
+            }
+            sshSessionManager.storeConnectionConfig(sid, config, SessionManager.NONE)
+            sshSessionManager.updateStatus(sid, SshSessionManager.SessionState.Status.CONNECTED)
+
+            val forward = SshSessionManager.PortForwardInfo(
+                ruleId = "mcp-reverse-tunnel",
+                type = SshSessionManager.PortForwardType.REMOTE,
+                bindAddress = "127.0.0.1",
+                bindPort = mcpPort,
+                targetHost = "127.0.0.1",
+                targetPort = mcpPort,
+                critical = true,
+            )
+            if (!sshSessionManager.applyPortForwards(sid, listOf(forward))) {
+                Log.w(TAG, "MCP -R $mcpPort failed to bind on ${profile.label} (stale bind?) — retrying")
+                cleanup(sid)
+                return Outcome.RETRY
+            }
+            Log.i(TAG, "MCP reverse tunnel up: -R $mcpPort via ${profile.label}")
+            connectionLogRepository.logEvent(
+                profile.id, ConnectionLog.Status.CONNECTED,
+                details = "MCP reverse tunnel (-R $mcpPort)",
+            )
+            Outcome.ESTABLISHED
+        } catch (e: Exception) {
+            Log.w(TAG, "MCP tunnel connect to ${profile.label} failed: ${e.message}")
+            cleanup(sid)
+            Outcome.RETRY
+        }
+    }
+
+    private fun cleanup(sid: String) {
+        sshSessionManager.removeSession(sid)
+        if (sessionId == sid) sessionId = null
+    }
+
+    /**
+     * Resolve a non-interactive [ConnectionConfig.AuthMethod] for the
+     * endpoint, or null if the profile would require a UI prompt
+     * (encrypted/biometric key, FIDO2 hardware key, or no credential at
+     * all). FIDO2 (`sk-`) and encrypted keys are excluded deliberately.
+     */
+    private suspend fun resolveHeadlessAuth(profile: ConnectionProfile): ConnectionConfig.AuthMethod? {
+        val keyId = profile.keyId
+        if (keyId != null) {
+            val key = sshKeyRepository.getById(keyId) ?: return null
+            if (key.keyType.startsWith("sk-") || key.isEncrypted) return null
+            val keyBytes = sshKeyRepository.getDecryptedKeyBytes(keyId) ?: return null
+            val certBytes = sshKeyRepository.getCertificateBytes(keyId)
+            return ConnectionConfig.AuthMethod.PrivateKey(
+                keyBytes = SshKeyExporter.toPem(keyBytes, key.keyType),
+                certificateBytes = certBytes,
+            )
+        }
+        // No explicit key — try every stored unencrypted, non-FIDO key.
+        val usableKeys = sshKeyRepository.getAllDecrypted()
+            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
+        if (usableKeys.isNotEmpty()) {
+            return ConnectionConfig.AuthMethod.PrivateKeys(
+                keys = usableKeys.map { it.label to SshKeyExporter.toPem(it.privateKeyBytes, it.keyType) },
+            )
+        }
+        val password = profile.sshPassword
+        if (!password.isNullOrEmpty()) {
+            return ConnectionConfig.AuthMethod.Password(password)
+        }
+        return null
+    }
+
+    private companion object {
+        const val INITIAL_RETRY_MS = 2_000L
+        const val MAX_RETRY_MS = 30_000L
+        const val HEALTH_CHECK_MS = 15_000L
+    }
+}

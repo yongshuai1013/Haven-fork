@@ -507,6 +507,87 @@ class SshSessionManagerTest {
         )
     }
 
+    // --- ExitOnForwardFailure: critical port forwards (MCP tunnel) -------
+
+    @Test
+    fun `applyPortForwards returns false when a critical REMOTE forward fails to bind`() {
+        val client = mockk<SshClient>(relaxed = true)
+        every { client.setPortForwardingR(any(), any(), any(), any()) } throws
+            RuntimeException("remote port forwarding failed for listen port 8730")
+        val sid = manager.registerSession("p1", "S1", client)
+
+        val ok = manager.applyPortForwards(sid, listOf(criticalRemoteForward(8730)))
+
+        assertFalse("a failed critical forward must report failure", ok)
+        // The failed forward must not be recorded as active.
+        assertTrue(manager.getSession(sid)!!.activeForwards.isEmpty())
+    }
+
+    @Test
+    fun `applyPortForwards returns true when a non-critical forward fails`() {
+        val client = mockk<SshClient>(relaxed = true)
+        every { client.setPortForwardingR(any(), any(), any(), any()) } throws
+            RuntimeException("bind failed")
+        val sid = manager.registerSession("p1", "S1", client)
+
+        val ok = manager.applyPortForwards(
+            sid,
+            listOf(criticalRemoteForward(8730).copy(critical = false)),
+        )
+
+        assertTrue("a non-critical failure keeps best-effort semantics", ok)
+    }
+
+    @Test
+    fun `applyPortForwards returns true when the critical forward binds`() {
+        val client = mockk<SshClient>(relaxed = true)
+        val sid = manager.registerSession("p1", "S1", client)
+
+        val ok = manager.applyPortForwards(sid, listOf(criticalRemoteForward(8730)))
+
+        assertTrue(ok)
+        assertEquals(1, manager.getSession(sid)!!.activeForwards.size)
+    }
+
+    @Test
+    fun `registerSession marks headless flag`() {
+        val client = mockk<SshClient>(relaxed = true)
+        val sid = manager.registerSession("p1", "MCP tunnel", client, headless = true)
+        assertTrue(manager.getSession(sid)!!.headless)
+    }
+
+    @Test
+    fun `findRemoteForwardSession skips the headless MCP tunnel and finds the interactive session`() {
+        val tunnelClient = mockk<SshClient>(relaxed = true)
+        val replClient = mockk<SshClient>(relaxed = true)
+        val tunnelSid = manager.registerSession("p-tunnel", "MCP tunnel", tunnelClient, headless = true)
+        val replSid = manager.registerSession("p-repl", "Laptop", replClient)
+        manager.applyPortForwards(tunnelSid, listOf(criticalRemoteForward(8730)))
+        manager.applyPortForwards(replSid, listOf(criticalRemoteForward(8730)))
+
+        // The interactive (non-headless) session is the typing target.
+        assertEquals(replSid, manager.findRemoteForwardSession(8730))
+    }
+
+    @Test
+    fun `findRemoteForwardSession returns null when only the headless tunnel carries the forward`() {
+        val tunnelClient = mockk<SshClient>(relaxed = true)
+        val tunnelSid = manager.registerSession("p-tunnel", "MCP tunnel", tunnelClient, headless = true)
+        manager.applyPortForwards(tunnelSid, listOf(criticalRemoteForward(8730)))
+
+        assertNull(manager.findRemoteForwardSession(8730))
+    }
+
+    private fun criticalRemoteForward(port: Int) = SshSessionManager.PortForwardInfo(
+        ruleId = "mcp-reverse-tunnel",
+        type = SshSessionManager.PortForwardType.REMOTE,
+        bindAddress = "127.0.0.1",
+        bindPort = port,
+        targetHost = "127.0.0.1",
+        targetPort = port,
+        critical = true,
+    )
+
     private fun configWithPolicy(
         autoReconnect: Boolean = true,
         maxAttempts: Int = 5,

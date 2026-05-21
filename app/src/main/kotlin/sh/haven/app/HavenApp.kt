@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.launchIn
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class HavenApp : Application(), Configuration.Provider {
 
     @Inject lateinit var mcpServer: sh.haven.app.agent.McpServer
+    @Inject lateinit var mcpTunnelManager: sh.haven.app.agent.McpTunnelManager
     @Inject lateinit var preferencesRepository: UserPreferencesRepository
     @Inject lateinit var workspaceShortcutManager: sh.haven.app.workspace.WorkspaceShortcutManager
     @Inject lateinit var workerFactory: HiltWorkerFactory
@@ -84,6 +86,12 @@ class HavenApp : Application(), Configuration.Provider {
                 if (enabled) {
                     mcpServer.start()
                     advertiseEndpointToProot()
+                    // Bring up the dedicated, headless reverse tunnel that
+                    // keeps the loopback endpoint reachable off-device as
+                    // the network roams. No-op when no endpoint profile is
+                    // configured (on-device / adb-forward only). Uses the
+                    // live bound port so an 8731+ fallback follows.
+                    mcpTunnelManager.start(mcpServer.port)
                     // Bind the MCP HTTP listener to the foreground
                     // service's lifecycle. Without this, the OS reclaims
                     // the app process within seconds of backgrounding
@@ -99,6 +107,7 @@ class HavenApp : Application(), Configuration.Provider {
                     // doesn't tear down the FGS while MCP is still on).
                     startSessionServiceIfPossible()
                 } else {
+                    mcpTunnelManager.stop()
                     mcpServer.stop()
                     removeEndpointFromProot()
                     // Stop the FGS only if nothing else is keeping it
@@ -108,6 +117,20 @@ class HavenApp : Application(), Configuration.Provider {
                     if (!sessionManagerRegistry.hasActiveSessions()) {
                         stopService(Intent(this, sh.haven.core.ssh.SshConnectionService::class.java))
                     }
+                }
+            }
+            .launchIn(appScope)
+
+        // Re-home the MCP reverse tunnel when the user changes the endpoint
+        // profile while the server is already running. drop(1) skips the
+        // initial replayed value — startup is handled by the toggle observer
+        // above, so this only reacts to genuine later changes.
+        preferencesRepository.mcpTunnelEndpointProfileId
+            .drop(1)
+            .distinctUntilChanged()
+            .onEach {
+                if (mcpServer.isRunning) {
+                    mcpTunnelManager.start(mcpServer.port)
                 }
             }
             .launchIn(appScope)

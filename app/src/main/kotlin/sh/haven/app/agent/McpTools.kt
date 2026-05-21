@@ -79,6 +79,12 @@ internal class McpTools(
     private val prootInstallLogRepository: sh.haven.core.data.repository.ProotInstallLogRepository,
     private val sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
+    /**
+     * The MCP HTTP server's live bound port. Evaluated lazily so the
+     * reverse-tunnel auto-detect follows an 8731+ fallback instead of a
+     * hardcoded 8730. Defaults to the conventional port for tests.
+     */
+    private val mcpPortProvider: () -> Int = { MCP_REVERSE_TUNNEL_PORT },
 ) {
 
     /**
@@ -572,7 +578,7 @@ internal class McpTools(
         ) { _ -> readClipboard() },
 
         "get_preference" to ToolHandler(
-            description = "Read a Haven user preference by key. Whitelisted keys: terminal_scrollback_rows, terminal_tap_to_position_cursor, terminal_font_size, terminal_color_scheme, mouse_input_enabled, mouse_drag_selects, terminal_right_click. Returns { key, value } where value's type follows the preference's type (int / boolean / string).",
+            description = "Read a Haven user preference by key. Whitelisted keys: terminal_scrollback_rows, terminal_tap_to_position_cursor, terminal_font_size, terminal_color_scheme, mouse_input_enabled, mouse_drag_selects, terminal_right_click, mcp_tunnel_endpoint_profile_id. Returns { key, value } where value's type follows the preference's type (int / boolean / string).",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -781,7 +787,7 @@ internal class McpTools(
         ) { args -> writeClipboard(args) },
 
         "set_preference" to ToolHandler(
-            description = "Write a Haven user preference. Whitelisted keys (and their types): terminal_scrollback_rows (int 100..25000), terminal_tap_to_position_cursor (bool), terminal_font_size (int 8..32), mouse_input_enabled (bool), mouse_drag_selects (bool), terminal_right_click (bool). Returns { key, value }.",
+            description = "Write a Haven user preference. Whitelisted keys (and their types): terminal_scrollback_rows (int 100..25000), terminal_tap_to_position_cursor (bool), terminal_font_size (int 8..32), mouse_input_enabled (bool), mouse_drag_selects (bool), terminal_right_click (bool), mcp_tunnel_endpoint_profile_id (string SSH profile id, empty to clear). Returns { key, value }.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -1975,11 +1981,12 @@ internal class McpTools(
             if (it.isEmpty()) throw McpError(-32602, "Missing required argument: text")
         }
         val explicitSessionId = args.optString("sessionId").ifEmpty { null }
+        val mcpPort = mcpPortProvider()
         val sessionId = explicitSessionId
-            ?: sshSessionManager.findRemoteForwardSession(MCP_REVERSE_TUNNEL_PORT)
+            ?: sshSessionManager.findRemoteForwardSession(mcpPort)
             ?: throw McpError(
                 -32603,
-                "No SSH session carries the MCP reverse tunnel on port $MCP_REVERSE_TUNNEL_PORT; " +
+                "No SSH session carries the MCP reverse tunnel on port $mcpPort; " +
                     "pass sessionId explicitly (list_sessions). For the auto-detection default " +
                     "to work, an SSH profile must have the MCP reverse-tunnel toggle on and be " +
                     "connected; for unrelated sessions just pass sessionId.",
@@ -2782,6 +2789,10 @@ internal class McpTools(
         "mouse_input_enabled",
         "mouse_drag_selects",
         "terminal_right_click",
+        // SSH profile id the MCP server tunnels its loopback listener back
+        // to (dedicated headless `-R`). Empty string clears it. See
+        // McpTunnelManager.
+        "mcp_tunnel_endpoint_profile_id",
     )
 
     private suspend fun getPreference(args: JSONObject): JSONObject {
@@ -2798,6 +2809,7 @@ internal class McpTools(
             "mouse_input_enabled" -> preferencesRepository.mouseInputEnabled.first()
             "mouse_drag_selects" -> preferencesRepository.mouseDragSelects.first()
             "terminal_right_click" -> preferencesRepository.terminalRightClick.first()
+            "mcp_tunnel_endpoint_profile_id" -> preferencesRepository.mcpTunnelEndpointProfileId.first() ?: ""
             else -> throw McpError(-32602, "Preference $key is not in the whitelist")
         }
         return JSONObject().apply {
@@ -2838,6 +2850,8 @@ internal class McpTools(
             "mouse_input_enabled" -> preferencesRepository.setMouseInputEnabled(coerceBool())
             "mouse_drag_selects" -> preferencesRepository.setMouseDragSelects(coerceBool())
             "terminal_right_click" -> preferencesRepository.setTerminalRightClick(coerceBool())
+            "mcp_tunnel_endpoint_profile_id" ->
+                preferencesRepository.setMcpTunnelEndpointProfileId((rawValue as? String)?.ifBlank { null })
         }
         return JSONObject().apply {
             put("key", key)

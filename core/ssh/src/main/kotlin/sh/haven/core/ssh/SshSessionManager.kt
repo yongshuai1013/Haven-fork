@@ -48,6 +48,14 @@ class SshSessionManager @Inject constructor(
         val targetHost: String,
         val targetPort: Int,
         val actualBoundPort: Int = bindPort,
+        /**
+         * When true, this forward is load-bearing for the session: if it
+         * fails to (re-)bind, the session must NOT be considered healthy.
+         * Used for the MCP reverse tunnel (`-R`), where a server-side
+         * stale bind would otherwise leave a silently forward-less but
+         * "CONNECTED" session. Mirrors OpenSSH `ExitOnForwardFailure`.
+         */
+        val critical: Boolean = false,
     )
 
     enum class PortForwardType { LOCAL, REMOTE, DYNAMIC }
@@ -94,6 +102,14 @@ class SshSessionManager @Inject constructor(
          * [releaseTunnelDependent].
          */
         val tunnelDependents: Set<String> = emptySet(),
+        /**
+         * True for tunnel-only sessions that intentionally have no shell
+         * (e.g. the dedicated MCP reverse tunnel). The reconnect path
+         * skips opening a shell channel for these, so a network blip
+         * re-establishes the port forwards without spawning an unwanted
+         * (and possibly server-rejected) shell. (#150 tunnel-only.)
+         */
+        val headless: Boolean = false,
     ) {
         enum class Status { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, ERROR }
     }
@@ -150,7 +166,12 @@ class SshSessionManager @Inject constructor(
     /**
      * Register a new session. Returns the generated sessionId (UUID).
      */
-    fun registerSession(profileId: String, label: String, client: SshClient): String {
+    fun registerSession(
+        profileId: String,
+        label: String,
+        client: SshClient,
+        headless: Boolean = false,
+    ): String {
         val sessionId = UUID.randomUUID().toString()
         _sessions.update { map ->
             map + (sessionId to SessionState(
@@ -159,6 +180,7 @@ class SshSessionManager @Inject constructor(
                 label = label,
                 status = SessionState.Status.CONNECTING,
                 client = client,
+                headless = headless,
             ))
         }
         return sessionId
@@ -482,18 +504,22 @@ class SshSessionManager @Inject constructor(
                     map + (sessionId to existing.copy(client = newClient))
                 }
 
-                // Open shell and reconnect terminal
-                val channel = newClient.openShellChannel()
-                attachShellChannel(sessionId, channel)
+                // Open shell and reconnect terminal — skipped for headless
+                // tunnel-only sessions (e.g. the MCP reverse tunnel), which
+                // carry port forwards and never had a shell.
+                if (_sessions.value[sessionId]?.headless != true) {
+                    val channel = newClient.openShellChannel()
+                    attachShellChannel(sessionId, channel)
 
-                // Swap channel in the terminal session and restart reader
-                val termSession = _sessions.value[sessionId]?.terminalSession
-                val sess = _sessions.value[sessionId]
-                val pendingCmds = buildPendingCommands(sessionId, sessionMgr, sess?.postLoginCommand, sess?.postLoginBeforeSessionManager ?: false)
-                if (pendingCmds.isNotEmpty()) {
-                    termSession?.setPendingCommands(pendingCmds)
+                    // Swap channel in the terminal session and restart reader
+                    val termSession = _sessions.value[sessionId]?.terminalSession
+                    val sess = _sessions.value[sessionId]
+                    val pendingCmds = buildPendingCommands(sessionId, sessionMgr, sess?.postLoginCommand, sess?.postLoginBeforeSessionManager ?: false)
+                    if (pendingCmds.isNotEmpty()) {
+                        termSession?.setPendingCommands(pendingCmds)
+                    }
+                    termSession?.reconnect(channel, newClient)
                 }
-                termSession?.reconnect(channel, newClient)
 
                 // Restore port forwards
                 val forwards = _sessions.value[sessionId]?.activeForwards.orEmpty()
@@ -503,7 +529,17 @@ class SshSessionManager @Inject constructor(
                         val existing = map[sessionId] ?: return@update map
                         map + (sessionId to existing.copy(activeForwards = emptyList()))
                     }
-                    applyPortForwards(sessionId, forwards)
+                    // ExitOnForwardFailure: if a critical forward (e.g. the
+                    // MCP -R tunnel) can't re-bind — typically because a
+                    // stale server-side bind hasn't timed out yet — tear the
+                    // transport down and let the backoff loop retry rather
+                    // than declaring a healthy-but-forward-less session.
+                    if (!applyPortForwards(sessionId, forwards)) {
+                        Log.w(TAG, "Critical port forward failed to re-bind for $sessionId — retrying")
+                        try { newClient.disconnect() } catch (_: Throwable) {}
+                        delayMs = (delayMs * 2).coerceAtMost(RECONNECT_MAX_DELAY_MS)
+                        continue
+                    }
                 }
 
                 updateStatus(sessionId, SessionState.Status.CONNECTED)
@@ -587,7 +623,10 @@ class SshSessionManager @Inject constructor(
      */
     fun findRemoteForwardSession(bindPort: Int): String? =
         _sessions.value.values.firstOrNull { state ->
-            state.activeForwards.any {
+            // Skip the dedicated headless MCP tunnel — it carries the same
+            // `-R` but has no terminal to type into. The auto-detect wants
+            // the interactive session running the agent's REPL.
+            !state.headless && state.activeForwards.any {
                 it.type == PortForwardType.REMOTE && it.bindPort == bindPort
             }
         }?.sessionId
@@ -875,9 +914,22 @@ class SshSessionManager @Inject constructor(
      * Activate port forwards on a connected session.
      * Each rule is applied independently; failures are logged but don't block others.
      */
-    fun applyPortForwards(sessionId: String, rules: List<PortForwardInfo>) {
-        val session = _sessions.value[sessionId] ?: return
+    /**
+     * Activate [rules] on [sessionId]. Returns true iff every rule the
+     * caller treats as load-bearing came up.
+     *
+     * A rule fails the call when its [PortForwardInfo.critical] flag is
+     * set and the bind throws — this is the `ExitOnForwardFailure`
+     * semantics the MCP reverse tunnel relies on, so a stale server-side
+     * `-R` bind surfaces as a failed (re)connect instead of a healthy
+     * session with no working forward. Non-critical forwards keep the
+     * previous best-effort behaviour (log and continue), so the return
+     * value is true unless a *critical* forward failed.
+     */
+    fun applyPortForwards(sessionId: String, rules: List<PortForwardInfo>): Boolean {
+        val session = _sessions.value[sessionId] ?: return false
         val activated = mutableListOf<PortForwardInfo>()
+        var criticalFailed = false
 
         for (rule in rules) {
             try {
@@ -906,6 +958,7 @@ class SshSessionManager @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to activate port forward ${rule.ruleId}: ${e.message}")
+                if (rule.critical) criticalFailed = true
             }
         }
 
@@ -913,6 +966,7 @@ class SshSessionManager @Inject constructor(
             val existing = map[sessionId] ?: return@update map
             map + (sessionId to existing.copy(activeForwards = existing.activeForwards + activated))
         }
+        return !criticalFailed
     }
 
     /**
