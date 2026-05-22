@@ -137,6 +137,9 @@ class McpToolsConsentTest {
             // the device; gate once per (client, tool) so the agent isn't
             // re-prompted each time it reopens the same device.
             "request_usb_permission",
+            // usb_attach_to_guest opens the device + exposes it to the guest;
+            // a session-scoped grant matches the permission grant above.
+            "usb_attach_to_guest",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")

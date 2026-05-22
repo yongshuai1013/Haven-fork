@@ -97,8 +97,25 @@ val buildWayvncShim by tasks.registering(Exec::class) {
     commandLine("bash", "build-wayvnc-shim.sh")
 }
 
+// Build the haven-usb guest artifacts (Slice 2: the reachability probe; Slice 3
+// adds the LD_PRELOAD/DllMap shim). Same glibc/musl cross toolchain as the
+// wayvnc shim. Source files may be absent in the release.yml `test` job (which
+// skips heavy native sources); onlyIf tolerates that.
+val buildHavenUsb by tasks.registering(Exec::class) {
+    val script = file("build-haven-usb.sh")
+    val src = file("src/main/cpp/haven-usb/haven-usb-probe.c")
+    val assetsDir = file("src/main/assets/haven-usb")
+
+    inputs.files(script, src)
+    outputs.dir(assetsDir)
+    onlyIf { script.exists() && src.exists() }
+
+    workingDir = projectDir
+    commandLine("bash", "build-haven-usb.sh")
+}
+
 tasks.named("preBuild") {
-    dependsOn(buildProot, buildWayvncShim)
+    dependsOn(buildProot, buildWayvncShim, buildHavenUsb)
 }
 
 kotlin {

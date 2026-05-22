@@ -117,6 +117,14 @@ internal class McpTools(
             workspaceRepository.getWorkspace(workspaceId)?.profile?.name
         } ?: workspaceId
 
+    /**
+     * USB proxy server (Slice 2). Constructed from the injected broker rather
+     * than DI-wired separately, so it stays out of the McpTools/McpServer
+     * constructor signature (and the test fakes). Only the usb_attach_to_guest
+     * tool drives it, so a single instance here is sufficient.
+     */
+    private val usbProxyServer by lazy { sh.haven.core.usb.UsbProxyServer(usbBroker) }
+
     /** Tool registry: name → handler. */
     private val tools: Map<String, ToolHandler> = linkedMapOf(
         "get_app_info" to ToolHandler(
@@ -1063,6 +1071,24 @@ internal class McpTools(
             consentLevel = ConsentLevel.EVERY_CALL,
             summarise = { args -> "USB bulk transfer to ${usbLabel(args.optString("deviceName"))}" },
         ) { args -> usbBulkTransfer(args) },
+
+        "usb_attach_to_guest" to ToolHandler(
+            description = "Expose a USB device to the proot Linux guest: opens it (requesting permission if needed) and binds the haven-usb proxy on an abstract LocalSocket the guest can reach, then stages the haven-usb-probe binary into the guest. Returns the socketName, the in-guest probePath, and a probeCommand you can run via run_in_proot to verify reachability. deviceName is optional when exactly one device is attached. This is the entry point for the guest-side USB shim (later slices wire LD_PRELOAD/DllMap to this socket).",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("deviceName", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "deviceName from list_usb_devices; optional if only one device is attached.")
+                    })
+                })
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                val n = args.optString("deviceName").ifBlank { "the attached USB device" }
+                "Expose ${if (n.startsWith("/dev")) usbLabel(n) else n} to the Linux guest?"
+            },
+        ) { args -> usbAttachToGuest(args) },
 
         "open_local_shell" to ToolHandler(
             description = "Open a fresh local Alpine PRoot shell session and return its sessionId. Equivalent to tapping the Terminal icon in the Connections top bar — creates the local shell profile if missing, registers a session, and connects it. The returned sessionId is immediately usable with send_terminal_input and read_terminal_scrollback. Use this when you need a clean bash REPL (e.g. when an existing session has Claude Code, vim, or another stdin-capturing process in front of it). Pass `plain: true` to bypass the user's session-manager preference (tmux / zellij / screen / byobu) and exec a bare login shell — required when the agent needs Haven's own scrollback ring to capture output, which doesn't happen when a multiplexer's status bar uses DECSTBM to reserve the bottom row. NOTE: if a live local shell already exists, this returns that sessionId regardless of `plain` (response `reused: true`); call disconnect_profile on the existing profile first if you need a fresh plain-shell respawn.",
@@ -4099,6 +4125,33 @@ internal class McpTools(
             if (result.data.isNotEmpty()) {
                 put("dataBase64", Base64.encodeToString(result.data, Base64.NO_WRAP))
             }
+        }
+    }
+
+    private suspend fun usbAttachToGuest(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val requested = args.optString("deviceName").takeIf { it.isNotBlank() }
+        val deviceName = requested ?: run {
+            val devices = usbBroker.listDevices()
+            when (devices.size) {
+                0 -> throw McpError(-32602, "No USB devices attached.")
+                1 -> devices.single().deviceName
+                else -> throw McpError(-32602, "Multiple USB devices attached — pass deviceName. Found: ${devices.joinToString { it.deviceName }}")
+            }
+        }
+        val info = try {
+            usbBroker.openDevice(deviceName)
+        } catch (e: Exception) {
+            throw McpError(-32603, "USB open failed: ${e.message}")
+        }
+        val socketName = usbProxyServer.start(deviceName)
+        val probePath = localSessionManager.prootManager.stageHavenUsbArtifacts()
+        JSONObject().apply {
+            put("device", usbDeviceJson(info))
+            put("socketName", socketName)
+            put("socketNamespace", "abstract")
+            put("probePath", probePath ?: JSONObject.NULL)
+            if (probePath != null) put("probeCommand", probePath)
+            put("note", "Proxy bound on abstract socket \\0$socketName. Run probeCommand via run_in_proot to confirm the guest can reach it.")
         }
     }
 

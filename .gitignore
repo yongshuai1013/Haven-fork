@@ -23,6 +23,9 @@ core/local/src/main/jniLibs/*/libproot*.so
 # Wayvnc capture-fallback shim — rebuilt by core/local's buildWayvncShim
 # Gradle task from wayland-android/wayvnc-shim/libhaven_wayvnc_shim.c.
 core/local/src/main/assets/wayvnc-shim/*/libhaven_wayvnc_shim.so
+# haven-usb guest artifacts — rebuilt by core/local's buildHavenUsb Gradle task
+# from core/local/src/main/cpp/haven-usb/ (the probe; later the LD_PRELOAD shim).
+core/local/src/main/assets/haven-usb/
 build-ffmpeg/build-*/
 build-ffmpeg/dl/
 build-ffmpeg/src/

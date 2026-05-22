@@ -201,6 +201,15 @@ class UsbBroker @Inject constructor(
     private fun handleFor(deviceName: String): OpenHandle =
         open[deviceName] ?: throw IOException("USB device '$deviceName' not open — call openDevice first")
 
+    /**
+     * The device + active-config descriptors as the kernel would return them
+     * (the bytes `UsbDeviceConnection.getRawDescriptors()` exposes). The proxy
+     * server hands these to the guest shim so it can synthesize the HID report
+     * descriptor / libudev attributes without a real device node.
+     */
+    fun rawDescriptors(deviceName: String): ByteArray =
+        handleFor(deviceName).connection.rawDescriptors ?: ByteArray(0)
+
     // ---- Transfers --------------------------------------------------------
 
     /**
