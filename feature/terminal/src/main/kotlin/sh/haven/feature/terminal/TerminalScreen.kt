@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -215,6 +216,12 @@ fun TerminalScreen(
     val activeTabIndex by viewModel.activeTabIndex.collectAsState()
     val ctrlActive by viewModel.ctrlActive.collectAsState()
     val altActive by viewModel.altActive.collectAsState()
+    // Push the live system light/dark mode to the ViewModel so its
+    // [terminalColorScheme] flow can resolve the auto-switch pref correctly.
+    // Must run before collecting the flow so the first emission reflects
+    // the current system theme rather than the StateFlow's `true` default.
+    val systemIsDark = isSystemInDarkTheme()
+    LaunchedEffect(systemIsDark) { viewModel.setSystemIsDark(systemIsDark) }
     val colorScheme by viewModel.terminalColorScheme.collectAsState()
     val navigateToConnections by viewModel.navigateToConnections.collectAsState()
     val newTabSessionPicker by viewModel.newTabSessionPicker.collectAsState()
@@ -931,10 +938,16 @@ fun TerminalScreen(
                         // MATERIAL_YOU: pulled from MaterialTheme above and
                         // re-applied whenever the system theme shifts (light /
                         // dark / wallpaper change), so the terminal repaints.
+                        // Pushing the 16-colour ANSI palette alongside the
+                        // defaults is what makes SGR-coloured prompts (the
+                        // dominant text on most screens) actually track the
+                        // scheme — defaults alone only cover unstyled cells.
                         val terminalFgArgb = terminalFg.toArgb()
                         val terminalBgArgb = terminalBg.toArgb()
-                        LaunchedEffect(terminalFgArgb, terminalBgArgb, activeTab.emulator) {
-                            activeTab.emulator?.setDefaultColors(
+                        val ansiPalette = remember(activeTabScheme) { activeTabScheme.ansiPaletteArgb() }
+                        LaunchedEffect(terminalFgArgb, terminalBgArgb, ansiPalette, activeTab.emulator) {
+                            activeTab.emulator?.applyColorScheme(
+                                ansiPalette,
                                 terminalFgArgb,
                                 terminalBgArgb,
                             )
@@ -942,7 +955,8 @@ fun TerminalScreen(
 
                         // Force terminal redraw on resume from background
                         androidx.lifecycle.compose.LifecycleResumeEffect(activeTab.emulator) {
-                            activeTab.emulator?.setDefaultColors(
+                            activeTab.emulator?.applyColorScheme(
+                                ansiPalette,
                                 terminalFgArgb,
                                 terminalBgArgb,
                             )
