@@ -60,6 +60,8 @@ import sh.haven.core.reticulum.ReticulumTransport
 import sh.haven.core.knock.KnockResult
 import sh.haven.core.knock.KnockSequence
 import sh.haven.core.knock.PortKnocker
+import sh.haven.core.spa.SpaConfig
+import sh.haven.core.spa.SpaResult
 import sh.haven.feature.connections.R
 import sh.haven.core.smb.SmbSessionManager
 import sh.haven.core.stepca.CertRenewalGate
@@ -113,6 +115,7 @@ class ConnectionsViewModel @Inject constructor(
     private val connectionLogRepository: ConnectionLogRepository,
     private val tunnelResolver: sh.haven.core.tunnel.TunnelResolver,
     private val portKnocker: PortKnocker,
+    private val spaSender: sh.haven.core.spa.SpaSender,
     private val tunnelConfigRepository: sh.haven.core.data.repository.TunnelConfigRepository,
     private val certRenewalGate: CertRenewalGate,
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
@@ -926,13 +929,21 @@ class ConnectionsViewModel @Inject constructor(
         profile: ConnectionProfile,
         verboseLogger: SshVerboseLogger?,
     ): (suspend () -> Unit)? {
+        val spa = parseSpaConfig(profile)
         val sequence = KnockSequence.parse(
             profile.portKnockSequence,
             delayMs = profile.portKnockDelayMs,
-        ).getOrNull() ?: return null
+        ).getOrNull()
+        if (spa == null && sequence == null) return null
         return {
-            val result = portKnocker.knock(profile.host, sequence)
-            recordKnockResult(verboseLogger, sequence, result)
+            // SPA runs first — it's the packet that opens the port. A knock
+            // sequence, if also configured, stays a legacy fallback.
+            if (spa != null) {
+                recordSpaResult(verboseLogger, spa, spaSender.send(profile.host, spa))
+            }
+            if (sequence != null) {
+                recordKnockResult(verboseLogger, sequence, portKnocker.knock(profile.host, sequence))
+            }
         }
     }
 
@@ -941,16 +952,49 @@ class ConnectionsViewModel @Inject constructor(
         profile: ConnectionProfile,
         verboseLogger: SshVerboseLogger?,
     ): (() -> Unit)? {
+        val spa = parseSpaConfig(profile)
         val sequence = KnockSequence.parse(
             profile.portKnockSequence,
             delayMs = profile.portKnockDelayMs,
-        ).getOrNull() ?: return null
+        ).getOrNull()
+        if (spa == null && sequence == null) return null
         return {
-            val result = kotlinx.coroutines.runBlocking {
-                portKnocker.knock(profile.host, sequence)
+            kotlinx.coroutines.runBlocking {
+                if (spa != null) {
+                    recordSpaResult(verboseLogger, spa, spaSender.send(profile.host, spa))
+                }
+                if (sequence != null) {
+                    recordKnockResult(verboseLogger, sequence, portKnocker.knock(profile.host, sequence))
+                }
             }
-            recordKnockResult(verboseLogger, sequence, result)
         }
+    }
+
+    /** Parse a profile's SPA fields into a [SpaConfig], or null when SPA is disabled/invalid. */
+    private fun parseSpaConfig(profile: ConnectionProfile): SpaConfig? =
+        SpaConfig.parse(
+            key = profile.spaKey,
+            keyIsBase64 = profile.spaKeyBase64,
+            hmacKey = profile.spaHmacKey,
+            hmacKeyIsBase64 = profile.spaHmacKeyBase64,
+            accessSpec = profile.spaAccessSpec,
+            allowMode = profile.spaAllowMode,
+            explicitIp = profile.spaExplicitIp,
+            spaPort = profile.spaPort,
+        ).getOrNull()
+
+    private fun recordSpaResult(
+        verboseLogger: SshVerboseLogger?,
+        config: SpaConfig,
+        result: SpaResult,
+    ) {
+        val line = if (result.ok) {
+            "[spa] ${config.accessSpec} -> sent ${result.packetLen}B in ${result.totalDurationMs}ms"
+        } else {
+            "[spa] ${config.accessSpec} -> failed after ${result.totalDurationMs}ms: ${result.error?.message}"
+        }
+        Log.d(TAG, line)
+        verboseLogger?.logInfo(line)
     }
 
     private fun recordKnockResult(
@@ -1000,6 +1044,31 @@ class ConnectionsViewModel @Inject constructor(
         } else {
             false to appContext.getString(
                 R.string.connections_knock_failed,
+                result.totalDurationMs.toInt(),
+                result.error?.message ?: "unknown",
+            )
+        }
+    }
+
+    /**
+     * One-shot SPA send against [host] using a pre-validated [config]. Used by
+     * the connection-edit dialog's "Test SPA" button. Returns `(ok, message)`
+     * for the UI; never throws.
+     */
+    suspend fun testSpa(host: String, config: SpaConfig): Pair<Boolean, String> {
+        if (host.isBlank()) {
+            return false to appContext.getString(R.string.connections_spa_host_blank)
+        }
+        val result = spaSender.send(host, config)
+        return if (result.ok) {
+            true to appContext.getString(
+                R.string.connections_spa_success,
+                result.packetLen,
+                result.totalDurationMs.toInt(),
+            )
+        } else {
+            false to appContext.getString(
+                R.string.connections_spa_failed,
                 result.totalDurationMs.toInt(),
                 result.error?.message ?: "unknown",
             )

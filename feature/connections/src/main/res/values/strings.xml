@@ -339,6 +339,29 @@
     <string name="connections_knock_success">Sent %1$d knocks in %2$d ms</string>
     <string name="connections_knock_failed">Failed after %1$d ms: %2$s</string>
 
+    <!-- Single Packet Authorization (fwknop) — per-profile SPA sent before connect. -->
+    <string name="connections_section_spa">Single Packet Authorization (fwknop)</string>
+    <string name="connections_field_spa_key">SPA key (Rijndael/AES)</string>
+    <string name="connections_field_spa_hmac_key">HMAC key (optional)</string>
+    <string name="connections_toggle_spa_key_base64">Key is base64</string>
+    <string name="connections_toggle_spa_hmac_key_base64">HMAC key is base64</string>
+    <string name="connections_field_spa_access_spec">Access (proto/port)</string>
+    <string name="connections_hint_spa_access_spec">e.g. tcp/22 or tcp/22,udp/53</string>
+    <string name="connections_field_spa_allow_mode">Allow IP</string>
+    <string name="connections_spa_allow_source">Source IP</string>
+    <string name="connections_spa_allow_resolve">Resolve public IP</string>
+    <string name="connections_spa_allow_explicit">Explicit IP</string>
+    <string name="connections_field_spa_explicit_ip">Allow IP / CIDR</string>
+    <string name="connections_field_spa_port">SPA UDP port</string>
+    <string name="connections_helper_spa_active">Sent before each direct connect. Skipped on SSH/SOCKS-tunneled paths.</string>
+    <string name="connections_helper_spa_blank">Leave key or access blank to disable.</string>
+    <string name="connections_button_test_spa">Test SPA</string>
+    <string name="connections_button_test_spa_running">Sending…</string>
+    <string name="connections_spa_invalid">Invalid SPA config: %1$s</string>
+    <string name="connections_spa_host_blank">Host is blank</string>
+    <string name="connections_spa_success">Sent %1$d-byte SPA packet in %2$d ms</string>
+    <string name="connections_spa_failed">Failed after %1$d ms: %2$s</string>
+
     <!-- Section headings in the connection edit dialog. -->
     <string name="connections_section_general">General</string>
     <string name="connections_section_local_shell">Local shell</string>

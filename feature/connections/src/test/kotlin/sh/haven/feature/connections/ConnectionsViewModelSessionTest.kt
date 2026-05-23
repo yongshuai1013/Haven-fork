@@ -148,6 +148,7 @@ class ConnectionsViewModelSessionTest {
             connectionLogRepository = mockk(relaxed = true),
             tunnelResolver = mockk(relaxed = true),
             portKnocker = mockk(relaxed = true),
+            spaSender = mockk(relaxed = true),
             tunnelConfigRepository = mockk(relaxed = true) {
                 every { observeAll() } returns flowOf(emptyList())
             },

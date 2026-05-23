@@ -75,6 +75,7 @@ internal class McpTools(
     private val tunnelManager: sh.haven.core.tunnel.TunnelManager,
     private val terminalSessionRegistry: sh.haven.feature.terminal.agent.TerminalSessionRegistry,
     private val portKnocker: sh.haven.core.knock.PortKnocker,
+    private val spaSender: sh.haven.core.spa.SpaSender,
     private val connectionLogRepository: sh.haven.core.data.repository.ConnectionLogRepository,
     private val servedFileTracker: sh.haven.core.data.agent.ServedFileTracker,
     private val syncProfileRepository: sh.haven.core.data.repository.SyncProfileRepository,
@@ -1951,6 +1952,54 @@ internal class McpTools(
             },
         ) { args -> testPortKnock(args) },
 
+        "set_spa" to ToolHandler(
+            description = "Configure fwknop Single Packet Authorization (SPA) on an existing profile — the cryptographic alternative to port knocking. Pass spaKey='' to disable. spaAccessSpec is the port(s) to open, e.g. 'tcp/22' or 'tcp/22,udp/53'. allowMode is SOURCE (default; fwknopd opens for the packet's source IP), RESOLVE (resolve public IP), or EXPLICIT (use explicitIp). Returns the updated profile summary; key material is never echoed back.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply { put("type", "string"); put("description", "Profile id from list_connections.") })
+                    put("spaKey", JSONObject().apply { put("type", "string"); put("description", "Rijndael/AES key ('' to disable SPA).") })
+                    put("spaKeyBase64", JSONObject().apply { put("type", "boolean"); put("description", "True if spaKey is base64 (fwknop --key-base64-rijndael).") })
+                    put("spaHmacKey", JSONObject().apply { put("type", "string"); put("description", "Optional HMAC-SHA256 key. '' = no HMAC.") })
+                    put("spaHmacKeyBase64", JSONObject().apply { put("type", "boolean"); put("description", "True if spaHmacKey is base64 (fwknop --key-base64-hmac).") })
+                    put("spaAccessSpec", JSONObject().apply { put("type", "string"); put("description", "proto/port token(s), e.g. 'tcp/22'.") })
+                    put("allowMode", JSONObject().apply { put("type", "string"); put("description", "SOURCE | RESOLVE | EXPLICIT. Default SOURCE.") })
+                    put("explicitIp", JSONObject().apply { put("type", "string"); put("description", "Allow-IP/CIDR for EXPLICIT mode.") })
+                    put("spaPort", JSONObject().apply { put("type", "integer"); put("description", "Destination UDP port (default 62201).") })
+                })
+                put("required", JSONArray().put("profileId").put("spaKey"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args ->
+                val target = profileLabel(args.optString("profileId"))
+                if (args.optString("spaKey").isBlank()) "Disable SPA on \"$target\"?"
+                else "Set SPA (${args.optString("spaAccessSpec").ifBlank { "tcp/?" }}) on \"$target\"?"
+            },
+        ) { args -> setSpa(args) },
+
+        "test_spa" to ToolHandler(
+            description = "Build and send one fwknop SPA packet to a host without committing a profile or connecting. Pass the key/access directly. Returns ok/bytesSent/spaPort/error so an agent can verify a fwknopd config end-to-end. Key material is never echoed back.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("host", JSONObject().apply { put("type", "string"); put("description", "Hostname or IP literal to send the SPA packet to.") })
+                    put("spaKey", JSONObject().apply { put("type", "string"); put("description", "Rijndael/AES key.") })
+                    put("spaKeyBase64", JSONObject().apply { put("type", "boolean"); put("description", "True if spaKey is base64.") })
+                    put("spaHmacKey", JSONObject().apply { put("type", "string"); put("description", "Optional HMAC-SHA256 key.") })
+                    put("spaHmacKeyBase64", JSONObject().apply { put("type", "boolean"); put("description", "True if spaHmacKey is base64.") })
+                    put("spaAccessSpec", JSONObject().apply { put("type", "string"); put("description", "proto/port token(s), e.g. 'tcp/22'.") })
+                    put("allowMode", JSONObject().apply { put("type", "string"); put("description", "SOURCE | RESOLVE | EXPLICIT. Default SOURCE.") })
+                    put("explicitIp", JSONObject().apply { put("type", "string"); put("description", "Allow-IP/CIDR for EXPLICIT mode.") })
+                    put("spaPort", JSONObject().apply { put("type", "integer"); put("description", "Destination UDP port (default 62201).") })
+                })
+                put("required", JSONArray().put("host").put("spaKey").put("spaAccessSpec"))
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                "Send test SPA (${args.optString("spaAccessSpec")}) to ${args.optString("host")}?"
+            },
+        ) { args -> testSpa(args) },
+
         "get_connection_log" to ToolHandler(
             description = "Read the most recent ConnectionLog entries for a profile. Use this to verify post-hoc what happened during a connect — including knock results (look for '[knock]' lines in verboseLog), TLS handshakes, and authentication. limit defaults to 10.",
             inputSchema = JSONObject().apply {
@@ -2209,6 +2258,13 @@ internal class McpTools(
         if (!p.portKnockSequence.isNullOrEmpty()) {
             put("portKnockSequence", p.portKnockSequence)
             put("portKnockDelayMs", p.portKnockDelayMs)
+        }
+        // SPA presence only — never surface the key/HMAC-key material.
+        if (!p.spaKey.isNullOrEmpty() && !p.spaAccessSpec.isNullOrEmpty()) {
+            put("spaEnabled", true)
+            put("spaAccessSpec", p.spaAccessSpec)
+            put("spaAllowMode", p.spaAllowMode)
+            put("spaPort", p.spaPort)
         }
     }
 
@@ -4980,6 +5036,78 @@ internal class McpTools(
             put("ok", result.ok)
             put("sentSteps", result.sentSteps)
             put("totalSteps", seq.steps.size)
+            put("durationMs", result.totalDurationMs)
+            put("error", result.error?.message ?: JSONObject.NULL)
+        }
+    }
+
+    private suspend fun setSpa(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifBlank {
+            throw IllegalArgumentException("profileId required")
+        }
+        val existing = connectionRepository.getById(profileId)
+            ?: throw IllegalArgumentException("profile $profileId not found")
+        val rawKey = args.optString("spaKey")
+        val accessSpec = if (args.has("spaAccessSpec")) args.optString("spaAccessSpec") else existing.spaAccessSpec
+        // Validate the resulting config (unless disabling).
+        val parsed = sh.haven.core.spa.SpaConfig.parse(
+            key = rawKey,
+            keyIsBase64 = args.optBoolean("spaKeyBase64", existing.spaKeyBase64),
+            hmacKey = if (args.has("spaHmacKey")) args.optString("spaHmacKey") else existing.spaHmacKey,
+            hmacKeyIsBase64 = args.optBoolean("spaHmacKeyBase64", existing.spaHmacKeyBase64),
+            accessSpec = accessSpec,
+            allowMode = if (args.has("allowMode")) args.optString("allowMode") else existing.spaAllowMode,
+            explicitIp = if (args.has("explicitIp")) args.optString("explicitIp") else existing.spaExplicitIp,
+            spaPort = if (args.has("spaPort")) args.optInt("spaPort", existing.spaPort) else existing.spaPort,
+        ).getOrElse { throw IllegalArgumentException("spa: ${it.message}") }
+        val updated = if (parsed == null) {
+            existing.copy(spaKey = null, spaAccessSpec = null)
+        } else {
+            existing.copy(
+                spaKey = rawKey.trim(),
+                spaKeyBase64 = parsed.keyIsBase64,
+                spaHmacKey = parsed.hmacKey,
+                spaHmacKeyBase64 = parsed.hmacKeyIsBase64,
+                spaAccessSpec = parsed.accessSpec,
+                spaAllowMode = parsed.allowMode.name,
+                spaExplicitIp = parsed.explicitIp,
+                spaPort = parsed.spaPort,
+            )
+        }
+        connectionRepository.save(updated)
+        return JSONObject().apply {
+            put("id", updated.id)
+            put("label", updated.label)
+            put("spaEnabled", parsed != null)
+            put("spaAccessSpec", updated.spaAccessSpec ?: JSONObject.NULL)
+            put("spaAllowMode", updated.spaAllowMode)
+            put("spaPort", updated.spaPort)
+            put("hasHmacKey", !updated.spaHmacKey.isNullOrEmpty())
+        }
+    }
+
+    private suspend fun testSpa(args: JSONObject): JSONObject {
+        val host = args.optString("host").ifBlank {
+            throw IllegalArgumentException("host required")
+        }
+        val config = sh.haven.core.spa.SpaConfig.parse(
+            key = args.optString("spaKey"),
+            keyIsBase64 = args.optBoolean("spaKeyBase64", false),
+            hmacKey = args.optString("spaHmacKey").ifBlank { null },
+            hmacKeyIsBase64 = args.optBoolean("spaHmacKeyBase64", false),
+            accessSpec = args.optString("spaAccessSpec"),
+            allowMode = args.optString("allowMode").ifBlank { "SOURCE" },
+            explicitIp = args.optString("explicitIp").ifBlank { null },
+            spaPort = if (args.has("spaPort")) args.optInt("spaPort", 62201) else 62201,
+        ).getOrElse { throw IllegalArgumentException("spa: ${it.message}") }
+            ?: throw IllegalArgumentException("spaKey and spaAccessSpec are required")
+        val result = spaSender.send(host, config)
+        return JSONObject().apply {
+            put("host", host)
+            put("accessSpec", config.accessSpec)
+            put("spaPort", config.spaPort)
+            put("ok", result.ok)
+            put("bytesSent", result.packetLen)
             put("durationMs", result.totalDurationMs)
             put("error", result.error?.message ?: JSONObject.NULL)
         }

@@ -14,8 +14,8 @@ android {
         applicationId = "sh.haven.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 437
-        versionName = "5.50.0"
+        versionCode = 438
+        versionName = "5.51.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -134,6 +134,7 @@ dependencies {
     implementation(project(":core:stepca"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:knock"))
+    implementation(project(":core:spa"))
 
     implementation(project(":feature:connections"))
     implementation(project(":feature:terminal"))

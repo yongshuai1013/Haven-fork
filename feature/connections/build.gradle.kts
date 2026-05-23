@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:knock"))
+    implementation(project(":core:spa"))
     implementation(project(":feature:tunnel"))
     implementation(project(":core:reticulum"))
     implementation(project(":core:mosh"))

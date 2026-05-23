@@ -75,6 +75,8 @@ class ConnectionRepository @Inject constructor(
         vncPassword = profile.vncPassword?.let { CredentialEncryption.encrypt(context, it) },
         rdpPassword = profile.rdpPassword?.let { CredentialEncryption.encrypt(context, it) },
         smbPassword = profile.smbPassword?.let { CredentialEncryption.encrypt(context, it) },
+        spaKey = profile.spaKey?.let { CredentialEncryption.encrypt(context, it) },
+        spaHmacKey = profile.spaHmacKey?.let { CredentialEncryption.encrypt(context, it) },
     )
 
     private fun decryptPasswords(profile: ConnectionProfile): ConnectionProfile = profile.copy(
@@ -82,5 +84,7 @@ class ConnectionRepository @Inject constructor(
         vncPassword = profile.vncPassword?.let { CredentialEncryption.decrypt(context, it) },
         rdpPassword = profile.rdpPassword?.let { CredentialEncryption.decrypt(context, it) },
         smbPassword = profile.smbPassword?.let { CredentialEncryption.decrypt(context, it) },
+        spaKey = profile.spaKey?.let { CredentialEncryption.decrypt(context, it) },
+        spaHmacKey = profile.spaHmacKey?.let { CredentialEncryption.decrypt(context, it) },
     )
 }

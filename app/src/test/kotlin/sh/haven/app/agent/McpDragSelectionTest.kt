@@ -118,6 +118,7 @@ class McpDragSelectionTest {
             tunnelManager = mockk<sh.haven.core.tunnel.TunnelManager>(relaxed = true),
             terminalSessionRegistry = registry,
             portKnocker = mockk<sh.haven.core.knock.PortKnocker>(relaxed = true),
+            spaSender = mockk<sh.haven.core.spa.SpaSender>(relaxed = true),
             connectionLogRepository = mockk<sh.haven.core.data.repository.ConnectionLogRepository>(relaxed = true),
             servedFileTracker = sh.haven.core.data.agent.ServedFileTracker(),
             syncProfileRepository = mockk<sh.haven.core.data.repository.SyncProfileRepository>(relaxed = true),

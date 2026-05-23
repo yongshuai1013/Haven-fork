@@ -123,6 +123,14 @@ class BackupService @Inject constructor(
                 put("terminalColorScheme", p.terminalColorScheme ?: JSONObject.NULL)
                 put("portKnockSequence", p.portKnockSequence ?: JSONObject.NULL)
                 put("portKnockDelayMs", p.portKnockDelayMs)
+                put("spaKey", p.spaKey ?: JSONObject.NULL)
+                put("spaKeyBase64", p.spaKeyBase64)
+                put("spaHmacKey", p.spaHmacKey ?: JSONObject.NULL)
+                put("spaHmacKeyBase64", p.spaHmacKeyBase64)
+                put("spaAccessSpec", p.spaAccessSpec ?: JSONObject.NULL)
+                put("spaAllowMode", p.spaAllowMode)
+                put("spaExplicitIp", p.spaExplicitIp ?: JSONObject.NULL)
+                put("spaPort", p.spaPort)
             })
         }
         json.put("connections", connections)
@@ -379,6 +387,14 @@ class BackupService @Inject constructor(
                             terminalColorScheme = c.optStringOrNull("terminalColorScheme"),
                             portKnockSequence = c.optStringOrNull("portKnockSequence"),
                             portKnockDelayMs = c.optInt("portKnockDelayMs", 100),
+                            spaKey = c.optStringOrNull("spaKey"),
+                            spaKeyBase64 = c.optBoolean("spaKeyBase64", false),
+                            spaHmacKey = c.optStringOrNull("spaHmacKey"),
+                            spaHmacKeyBase64 = c.optBoolean("spaHmacKeyBase64", false),
+                            spaAccessSpec = c.optStringOrNull("spaAccessSpec"),
+                            spaAllowMode = c.optString("spaAllowMode", "SOURCE"),
+                            spaExplicitIp = c.optStringOrNull("spaExplicitIp"),
+                            spaPort = c.optInt("spaPort", 62201),
                         ),
                     )
                     count++

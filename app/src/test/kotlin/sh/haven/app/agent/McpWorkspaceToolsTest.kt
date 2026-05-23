@@ -79,6 +79,7 @@ class McpWorkspaceToolsTest {
             tunnelManager = mockk<sh.haven.core.tunnel.TunnelManager>(relaxed = true),
             terminalSessionRegistry = sh.haven.feature.terminal.agent.TerminalSessionRegistry(),
             portKnocker = mockk<sh.haven.core.knock.PortKnocker>(relaxed = true),
+            spaSender = mockk<sh.haven.core.spa.SpaSender>(relaxed = true),
             connectionLogRepository = mockk<sh.haven.core.data.repository.ConnectionLogRepository>(relaxed = true),
             servedFileTracker = mockk<sh.haven.core.data.agent.ServedFileTracker>(relaxed = true),
             syncProfileRepository = mockk<sh.haven.core.data.repository.SyncProfileRepository>(relaxed = true),

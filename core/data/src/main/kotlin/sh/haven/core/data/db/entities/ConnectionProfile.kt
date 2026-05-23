@@ -207,6 +207,30 @@ data class ConnectionProfile(
      * mis-order the packets; too long and `seq_timeout` expires.
      */
     val portKnockDelayMs: Int = 100,
+    /**
+     * fwknop Single Packet Authorization (#156) — the cryptographic
+     * alternative to port knocking. When [spaKey] and [spaAccessSpec] are
+     * both set, Haven sends one AES-encrypted, HMAC-authenticated UDP packet
+     * before the real connect (same `preConnect` hook as the knock). Parsed
+     * by `SpaConfig.parse`; empty [spaKey]/[spaAccessSpec] = SPA disabled.
+     *
+     * [spaKey] is the Rijndael/AES key (encrypted at rest like passwords).
+     */
+    val spaKey: String? = null,
+    /** When true, [spaKey] is base64 (fwknop `--key-base64-rijndael`); else a passphrase. */
+    val spaKeyBase64: Boolean = false,
+    /** Optional HMAC-SHA256 key (encrypt-then-MAC). Empty/null = legacy no-HMAC mode. Encrypted at rest. */
+    val spaHmacKey: String? = null,
+    /** When true, [spaHmacKey] is base64 (fwknop `--key-base64-hmac`); else a passphrase. */
+    val spaHmacKeyBase64: Boolean = false,
+    /** Access request after the allow-IP: `proto/port` token(s), e.g. `"tcp/22"`. */
+    val spaAccessSpec: String? = null,
+    /** Allow-IP strategy: `SOURCE` (0.0.0.0, default), `RESOLVE` (public IP), or `EXPLICIT`. */
+    val spaAllowMode: String = "SOURCE",
+    /** Fixed allow-IP/CIDR when [spaAllowMode] is `EXPLICIT`. */
+    val spaExplicitIp: String? = null,
+    /** Destination UDP port for the SPA packet (fwknopd default 62201). */
+    val spaPort: Int = 62201,
 ) {
     enum class AuthType {
         PASSWORD,

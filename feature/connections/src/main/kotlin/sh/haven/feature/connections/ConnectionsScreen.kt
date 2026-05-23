@@ -458,6 +458,9 @@ fun ConnectionsScreen(
             onTestKnock = { host, sequence, delayMs ->
                 viewModel.testKnock(host, sequence, delayMs)
             },
+            onTestSpa = { host, config ->
+                viewModel.testSpa(host, config)
+            },
             onDismiss = { showAddDialog = false },
             onSave = { profile, cfTunnel, mcpTunnel ->
                 viewModel.saveProfileWithEmbeddedCloudflareTunnel(profile, cfTunnel)
@@ -580,6 +583,9 @@ fun ConnectionsScreen(
             },
             onTestKnock = { host, sequence, delayMs ->
                 viewModel.testKnock(host, sequence, delayMs)
+            },
+            onTestSpa = { host, config ->
+                viewModel.testSpa(host, config)
             },
             onDismiss = { editingProfileId = null },
             onSave = { updated, cfTunnel, mcpTunnel ->

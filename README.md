@@ -11,7 +11,7 @@
 > *"Haven is an interesting vibe coding experiment. Let's see what comes out of it."* — DBP
 
 <p align="center">
-  <a href="https://github.com/GlassHaven/Haven/releases/latest"><img src="https://img.shields.io/badge/release-v5.50.0-blue?style=flat-square" alt="Release" /></a>
+  <a href="https://github.com/GlassHaven/Haven/releases/latest"><img src="https://img.shields.io/badge/release-v5.51.0-blue?style=flat-square" alt="Release" /></a>
   <a href="https://f-droid.org/en/packages/sh.haven.app"><img src="https://img.shields.io/f-droid/v/sh.haven.app?style=flat-square" alt="F-Droid" /></a>
   <a href="https://github.com/GlassHaven/Haven/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/GlassHaven/Haven/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square" alt="License" /></a>
@@ -51,7 +51,7 @@
 - **Files** — Unified browser for SFTP/SCP, SMB, and 60+ cloud providers. Multi-select, built-in editor, image tools, chmod, cross-filesystem copy/move.
 - **Media** — Transcode and stream on-device with FFmpeg 8.0; HLS streaming to the LAN; DLNA server for cloud media.
 - **Keys** — On-device Ed25519/RSA/ECDSA generation, FIDO2/SK hardware keys (NFC + USB), deploy-key helper.
-- **Connections** — Host-key TOFU, port forwarding (-L/-R/-D/-J), SOCKS/HTTP proxies, Tor, ProxyJump, **per-app WireGuard and Tailscale tunnels** (userspace, no system VPN slot — each profile can route through its own tunnel without affecting other apps), and **port knocking** — fire a TCP/UDP sequence at the remote firewall before the real connect, with a per-profile field and an in-dialog "Test knock" button.
+- **Connections** — Host-key TOFU, port forwarding (-L/-R/-D/-J), SOCKS/HTTP proxies, Tor, ProxyJump, **per-app WireGuard and Tailscale tunnels** (userspace, no system VPN slot — each profile can route through its own tunnel without affecting other apps), and **port knocking / Single Packet Authorization** — fire a TCP/UDP knock sequence, or send a native fwknop SPA packet (AES-256-CBC + HMAC-SHA256, interoperable with `fwknopd`), at the remote firewall before the real connect, with per-profile fields and in-dialog "Test knock" / "Test SPA" buttons.
 - **Local shell** — a Linux userland via PRoot (no root, any Android 8+ device): Alpine, Debian, Arch, or Void, each with its native package manager, side-by-side.
 - **USB to the guest** — broker an attached USB/OTG device through Android and re-expose it, no root: as MCP tools for the agent (enumerate + raw control/bulk transfers), or — with a Settings opt-in — into the Linux guest as a `/dev/hidraw*` node that unmodified native (`LD_PRELOAD`) and Mono/.NET HidSharp (DllMap) apps can use. HID-focused today.
 - **Reticulum** — rnsh over Reticulum mesh networks, pure Kotlin.

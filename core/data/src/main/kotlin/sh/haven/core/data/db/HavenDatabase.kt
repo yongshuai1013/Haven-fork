@@ -38,7 +38,7 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         ProotInstallLog::class,
         TotpSecret::class,
     ],
-    version = 57,
+    version = 58,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -918,6 +918,22 @@ abstract class HavenDatabase : RoomDatabase() {
                 addColumnIfMissing(
                     db, "connection_profiles", "totpConfirmBeforeSend", "INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+
+        // #156: fwknop Single Packet Authorization. Per-profile SPA key/HMAC-key
+        // (stored encrypted by ConnectionRepository), access spec, allow-IP mode,
+        // explicit IP, and SPA UDP port. Empty key/access spec = SPA disabled.
+        val MIGRATION_57_58 = object : Migration(57, 58) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "connection_profiles", "spaKey", "TEXT DEFAULT NULL")
+                addColumnIfMissing(db, "connection_profiles", "spaKeyBase64", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "connection_profiles", "spaHmacKey", "TEXT DEFAULT NULL")
+                addColumnIfMissing(db, "connection_profiles", "spaHmacKeyBase64", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "connection_profiles", "spaAccessSpec", "TEXT DEFAULT NULL")
+                addColumnIfMissing(db, "connection_profiles", "spaAllowMode", "TEXT NOT NULL DEFAULT 'SOURCE'")
+                addColumnIfMissing(db, "connection_profiles", "spaExplicitIp", "TEXT DEFAULT NULL")
+                addColumnIfMissing(db, "connection_profiles", "spaPort", "INTEGER NOT NULL DEFAULT 62201")
             }
         }
 

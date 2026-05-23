@@ -70,6 +70,7 @@ class McpToolsConsentTest {
             tunnelManager = mockk<sh.haven.core.tunnel.TunnelManager>(relaxed = true),
             terminalSessionRegistry = sh.haven.feature.terminal.agent.TerminalSessionRegistry(),
             portKnocker = mockk<sh.haven.core.knock.PortKnocker>(relaxed = true),
+            spaSender = mockk<sh.haven.core.spa.SpaSender>(relaxed = true),
             connectionLogRepository = mockk<sh.haven.core.data.repository.ConnectionLogRepository>(relaxed = true),
             servedFileTracker = sh.haven.core.data.agent.ServedFileTracker(),
             syncProfileRepository = mockk<sh.haven.core.data.repository.SyncProfileRepository>(relaxed = true),
@@ -140,6 +141,9 @@ class McpToolsConsentTest {
             // usb_attach_to_guest opens the device + exposes it to the guest;
             // a session-scoped grant matches the permission grant above.
             "usb_attach_to_guest",
+            // test_spa sends a single SPA packet; one grant per (client, tool)
+            // mirrors test_port_knock.
+            "test_spa",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")
@@ -169,6 +173,8 @@ class McpToolsConsentTest {
             // Raw USB I/O to a device — re-confirm every transfer.
             "usb_control_transfer",
             "usb_bulk_transfer",
+            // set_spa writes SPA key material onto a profile.
+            "set_spa",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")

@@ -1,0 +1,4 @@
+Single Packet Authorization (fwknop) — stronger than port knocking
+
+- New per-profile SPA option, the cryptographic alternative to port knocking (#156): instead of an observable knock sequence, Haven sends one AES-256-CBC encrypted, HMAC-SHA256 authenticated UDP packet before connecting — a passive observer can't read or replay it. Native Kotlin, no fwknop binary, verified byte-for-byte against fwknop 2.6.11 and accepted by a live fwknopd.
+- Set the Rijndael key + HMAC key (passphrase or base64), the access spec (e.g. tcp/22), and allow-IP mode: Source IP (default, ideal for mobile), Resolve public IP, or Explicit. In-dialog "Test SPA" button; set_spa/test_spa MCP tools. Keys stored encrypted at rest.

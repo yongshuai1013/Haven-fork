@@ -104,6 +104,7 @@ include(":core:security")
 include(":core:data")
 include(":core:tunnel")
 include(":core:knock")
+include(":core:spa")
 include(":core:stepca")
 
 include(":feature:connections")
