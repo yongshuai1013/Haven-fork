@@ -289,6 +289,9 @@ private fun AppWindowContent(media: PresentedMedia, onDismiss: () -> Unit) {
             onKeyDown = { sym -> controller.key(sym, true) },
             onKeyUp = { sym -> controller.key(sym, false) },
             onDisconnect = onDismiss,
+            // App windows expect ordinary 2-finger pinch-to-zoom (the desktop
+            // viewer reserves 2 fingers for remote scroll, zoom on 3).
+            twoFingerZoom = true,
         )
     }
 }

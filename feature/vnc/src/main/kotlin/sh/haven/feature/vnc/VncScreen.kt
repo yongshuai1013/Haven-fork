@@ -146,6 +146,8 @@ fun VncSessionContent(
     onCycleOrientation: () -> Unit = {},
     onRetry: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    /** See [VncViewer]: 2-finger pinch-zoom for single-app windows. */
+    twoFingerZoom: Boolean = false,
 ) {
     val connectedState by connected.collectAsState()
     val frameState by frame.collectAsState()
@@ -211,6 +213,7 @@ fun VncSessionContent(
             onDismissBandwidthSuggestion = onDismissBandwidthSuggestion,
             currentOrientation = currentOrientation,
             onCycleOrientation = onCycleOrientation,
+            twoFingerZoom = twoFingerZoom,
         )
     } else {
         VncPlaceholder(
@@ -382,8 +385,19 @@ private fun VncViewer(
     onDismissBandwidthSuggestion: (() -> Unit)? = null,
     currentOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
     onCycleOrientation: () -> Unit = {},
+    /**
+     * Local-viewport zoom/pan on TWO fingers instead of the default three.
+     * For single-app windows (present_app) where users expect ordinary
+     * pinch-to-zoom; the two-finger remote scroll-wheel is then unavailable.
+     * The full desktop viewer leaves this false (2 fingers = remote scroll,
+     * 3 fingers = local zoom/pan).
+     */
+    twoFingerZoom: Boolean = false,
 ) {
     val orientationMode = OrientationMode.fromActivityValue(currentOrientation)
+    // Finger count that switches a multi-touch gesture from remote
+    // scroll-wheel to local viewport pinch-zoom + pan.
+    val zoomPanMinFingers = if (twoFingerZoom) 2 else 3
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     val imageBitmap = remember(frame) { frame.asImageBitmap() }
     val cursorImage = remember(cursor?.bitmap) { cursor?.bitmap?.asImageBitmap() }
@@ -596,15 +610,17 @@ private fun VncViewer(
                                 // a real pan/zoom delta — which made the
                                 // viewport visibly jump as fingers lifted.
                                 if (gestureStarted && count == prevCount) {
-                                    // Routing: 3+ fingers operate on the local
-                                    // viewport (pan + pinch-zoom); 2 fingers
+                                    // Routing: at/above [zoomPanMinFingers] the
+                                    // gesture operates on the local viewport
+                                    // (pan + pinch-zoom); below it, two fingers
                                     // emit remote scroll-wheel events only.
-                                    // Locked by totalFingers so lifting back to
-                                    // 2 mid-gesture doesn't re-purpose the
-                                    // gesture. This avoids the previous clash
-                                    // where two-finger drag both panned the
-                                    // viewport AND sent scroll wheel.
-                                    if (totalFingers >= 3) {
+                                    // Default threshold is 3 (desktop: keep
+                                    // 2-finger remote scroll); app windows pass
+                                    // twoFingerZoom=true to drop it to 2 for
+                                    // ordinary pinch-to-zoom. Locked by
+                                    // totalFingers so lifting a finger
+                                    // mid-gesture doesn't re-purpose it.
+                                    if (totalFingers >= zoomPanMinFingers) {
                                         if (prevSpan > 0f && span > 0f) {
                                             val requestedScale = span / prevSpan
                                             val newZoom = (zoom * requestedScale).coerceIn(0.5f, 5f)
@@ -628,6 +644,25 @@ private fun VncViewer(
                                         val dy = centroid.y - prevCentroid.y
                                         panX += dx
                                         panY += dy
+                                        // Clamp pan so a corner of the (scaled)
+                                        // content can't be dragged inside the
+                                        // viewport, leaving empty space. The
+                                        // base content is the frame fit-inside
+                                        // viewSize; scaled by zoom about centre,
+                                        // its half-overflow past each edge is
+                                        // the max pan. App-window mode only —
+                                        // the desktop viewer keeps free pan +
+                                        // its touchpad mario-camera behaviour.
+                                        if (twoFingerZoom && viewSize.width > 0 && viewSize.height > 0) {
+                                            val fit = minOf(
+                                                viewSize.width.toFloat() / frame.width,
+                                                viewSize.height.toFloat() / frame.height,
+                                            )
+                                            val maxPanX = maxOf(0f, (frame.width * fit * zoom - viewSize.width) / 2f)
+                                            val maxPanY = maxOf(0f, (frame.height * fit * zoom - viewSize.height) / 2f)
+                                            panX = panX.coerceIn(-maxPanX, maxPanX)
+                                            panY = panY.coerceIn(-maxPanY, maxPanY)
+                                        }
                                     } else {
                                         cumulativeScrollY += centroid.y - prevCentroid.y
                                         if (abs(cumulativeScrollY) > 40f) {
