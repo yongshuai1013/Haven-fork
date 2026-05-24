@@ -85,6 +85,7 @@ internal class McpTools(
     private val totpSecretRepository: sh.haven.core.data.repository.TotpSecretRepository,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
     private val usbBroker: sh.haven.core.usb.UsbBroker,
+    private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
     /**
      * The MCP HTTP server's live bound port. Evaluated lazily so the
      * reverse-tunnel auto-detect follows an 8731+ fallback instead of a
@@ -443,6 +444,33 @@ internal class McpTools(
             },
             consentLevel = ConsentLevel.NEVER,
         ) { args -> playFile(args) },
+
+        "present_media" to ToolHandler(
+            description = "Show the user an image — or play a short sound — inline in Haven. A bottom sheet floats over whatever screen the user is on, rendering the image (or an audio card with a play button) plus an optional caption. This is the \"here, look at / listen to this\" channel: use it when you have generated or fetched something visual or audible you want the user to perceive directly, rather than describing it or writing it to a file and asking them to open it. Pass the media as base64 in `dataBase64`. `mimeType` is auto-detected from the bytes for common image formats (PNG/JPEG/GIF/WebP) but should be set explicitly for audio (e.g. 'audio/mpeg', 'audio/wav', 'audio/ogg'). Only image/* and audio/* are supported. The call returns immediately ({ presented, kind, bytes, mimeType }); the user dismisses the sheet at their leisure. Max payload 8 MiB.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("dataBase64", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Base64-encoded image or audio bytes to show the user.")
+                    })
+                    put("mimeType", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "MIME type, e.g. 'image/png' or 'audio/mpeg'. Optional for images (sniffed from the bytes); recommended for audio.")
+                    })
+                    put("caption", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Optional one-line caption shown above the media.")
+                    })
+                    put("autoPlay", JSONObject().apply {
+                        put("type", "boolean")
+                        put("description", "Audio only: start playback as soon as the sheet appears. Defaults to false.")
+                    })
+                })
+                put("required", JSONArray().put("dataBase64"))
+            },
+            consentLevel = ConsentLevel.NEVER,
+        ) { args -> presentMedia(args) },
 
         "open_convert_dialog_with_args" to ToolHandler(
             description = "Stage a conversion in the SFTP screen's convert dialog with the given container / codec defaults. Switches to the SFTP tab and opens the dialog; the user reviews and taps Convert to actually run ffmpeg. Tap-equivalent — the agent suggests, the user confirms. Use convert_file (EVERY_CALL consent) to skip the dialog and run the conversion directly.",
@@ -3006,6 +3034,96 @@ internal class McpTools(
         }
     }
 
+    /**
+     * Push an image or sound for the user to see/hear inline. Decodes the
+     * base64 payload, writes it to a cache file (so the overlay's image
+     * decoder / [android.media.MediaPlayer] can read a real file handle),
+     * and hands it to [presentationManager] — which the top-of-tree
+     * `PresentationHost` renders as a dismissible bottom sheet. Fire and
+     * forget: returns as soon as the item is queued, never waits on the
+     * user. See [AgentPresentationManager].
+     */
+    private fun presentMedia(args: JSONObject): JSONObject {
+        val dataB64 = args.optString("dataBase64").ifEmpty {
+            throw McpError(-32602, "Missing required argument: dataBase64")
+        }
+        val caption = args.optString("caption", "").ifEmpty { null }
+        val explicitMime = args.optString("mimeType", "").ifEmpty { null }
+        val autoPlay = args.optBoolean("autoPlay", false)
+
+        val bytes = try {
+            Base64.decode(dataB64, Base64.DEFAULT)
+        } catch (e: IllegalArgumentException) {
+            throw McpError(-32602, "dataBase64 is not valid base64: ${e.message}")
+        }
+        if (bytes.isEmpty()) throw McpError(-32602, "dataBase64 decoded to zero bytes")
+        if (bytes.size > MAX_PRESENT_BYTES) {
+            throw McpError(
+                -32602,
+                "Payload is ${bytes.size} bytes; present_media caps at $MAX_PRESENT_BYTES (8 MiB). " +
+                    "Serve large media via serve_file and play_file instead.",
+            )
+        }
+
+        // Trust an explicit image/* or audio/* MIME; otherwise sniff the
+        // bytes for a known image signature. We can't sniff audio reliably
+        // enough to bet on, so audio requires an explicit mimeType.
+        val mime = explicitMime ?: sniffImageMime(bytes)
+            ?: throw McpError(
+                -32602,
+                "Could not determine media type from the bytes — pass mimeType " +
+                    "(e.g. 'image/png' or 'audio/mpeg').",
+            )
+        val kind = when {
+            mime.startsWith("image/") -> sh.haven.core.data.agent.PresentedMediaKind.IMAGE
+            mime.startsWith("audio/") -> sh.haven.core.data.agent.PresentedMediaKind.AUDIO
+            else -> throw McpError(
+                -32602,
+                "present_media supports image/* and audio/* only; got '$mime'.",
+            )
+        }
+
+        val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
+            ?: if (kind == sh.haven.core.data.agent.PresentedMediaKind.IMAGE) "img" else "snd"
+        val file = File(context.cacheDir, "haven-present-${System.currentTimeMillis()}.$ext")
+        file.writeBytes(bytes)
+
+        val id = presentationManager.present(
+            kind = kind,
+            filePath = file.absolutePath,
+            mimeType = mime,
+            caption = caption,
+            autoPlay = autoPlay,
+        )
+        return JSONObject().apply {
+            put("presented", true)
+            put("id", id)
+            put("kind", kind.name.lowercase())
+            put("bytes", bytes.size)
+            put("mimeType", mime)
+        }
+    }
+
+    /**
+     * Best-effort image-format detection from leading magic bytes, so
+     * [presentMedia] can accept a raw image payload without an explicit
+     * mimeType. Returns null for anything it doesn't recognise (including
+     * all audio).
+     */
+    private fun sniffImageMime(b: ByteArray): String? = when {
+        b.size >= 8 && b[0] == 0x89.toByte() && b[1] == 0x50.toByte() &&
+            b[2] == 0x4E.toByte() && b[3] == 0x47.toByte() -> "image/png"
+        b.size >= 3 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() &&
+            b[2] == 0xFF.toByte() -> "image/jpeg"
+        b.size >= 6 && b[0] == 0x47.toByte() && b[1] == 0x49.toByte() &&
+            b[2] == 0x46.toByte() -> "image/gif" // "GIF"
+        b.size >= 12 && b[0] == 0x52.toByte() && b[1] == 0x49.toByte() &&
+            b[2] == 0x46.toByte() && b[3] == 0x46.toByte() &&
+            b[8] == 0x57.toByte() && b[9] == 0x45.toByte() &&
+            b[10] == 0x42.toByte() && b[11] == 0x50.toByte() -> "image/webp" // "RIFF"…"WEBP"
+        else -> null
+    }
+
     private fun readTerminalScrollback(args: JSONObject): JSONObject {
         val sessionId = args.optString("sessionId").ifEmpty {
             throw McpError(-32602, "Missing required argument: sessionId")
@@ -5185,6 +5303,14 @@ internal class McpTools(
          * with `feature/connections`'s MCP_REVERSE_TUNNEL_PORT (`#161`).
          */
         internal const val MCP_REVERSE_TUNNEL_PORT = 8730
+
+        /**
+         * Upper bound on a [presentMedia] payload (8 MiB). present_media
+         * holds the bytes in a cache file and decodes them on the UI side;
+         * anything larger should go through serve_file/play_file instead
+         * of inline base64 over JSON-RPC.
+         */
+        private const val MAX_PRESENT_BYTES = 8 * 1024 * 1024
 
         /**
          * Best-effort fallback regex matching the trailing

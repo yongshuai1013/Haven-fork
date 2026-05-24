@@ -220,6 +220,9 @@ class MainActivity : AppCompatActivity() {
                     // agent's consent prompt is unmissable. No-op when
                     // there are no pending requests.
                     ConsentHost()
+                    // Same top-of-tree pattern: an agent-pushed image or
+                    // sound (present_media) floats over the active screen.
+                    sh.haven.app.agent.PresentationHost()
                     // Same pattern for BIOMETRIC_PROTECTED keystore
                     // fetches — the gate publishes; this host renders
                     // BiometricPrompt; the result resumes the
