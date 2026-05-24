@@ -3189,6 +3189,16 @@ internal class McpTools(
                 sessionId = session.sessionId,
                 caption = caption ?: "App: $command",
             )
+            // Record the launch so the user can restart this window from
+            // Desktop settings later. Fire-and-forget — never fail the tool
+            // because persistence hiccuped.
+            runCatching {
+                preferencesRepository.upsertAppWindowDef(
+                    label = caption ?: command,
+                    command = command,
+                    createdBy = sh.haven.core.data.preferences.AppWindowOrigin.AGENT,
+                )
+            }
             return JSONObject().apply {
                 put("presented", true)
                 put("sessionId", session.sessionId)

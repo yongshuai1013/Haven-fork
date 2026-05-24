@@ -65,6 +65,7 @@ import sh.haven.core.local.proot.Compatibility
 import sh.haven.core.local.proot.Distro
 import sh.haven.core.local.proot.DistroCatalog
 import sh.haven.core.local.proot.PackageFamily
+import sh.haven.core.data.preferences.AppWindowDef
 import sh.haven.feature.connections.R
 
 /**
@@ -95,6 +96,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     var setupDesktopDe by remember {
         mutableStateOf<ProotManager.DesktopEnvironment?>(null)
     }
+    var showAddAppDialog by remember { mutableStateOf(false) }
+    val appWindowDefs by viewModel.appWindowDefs.collectAsState()
 
     Column(
         modifier = Modifier
@@ -121,6 +124,23 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             onUninstall = { viewModel.uninstallDesktop(it) },
             onRetryRootfs = { viewModel.retryRootfsInstall() },
         )
+
+        AppWindowsSection(
+            defs = appWindowDefs,
+            onLaunch = { viewModel.launchAppWindow(it) },
+            onDelete = { viewModel.deleteAppWindow(it.id) },
+            onAdd = { showAddAppDialog = true },
+        )
+    }
+
+    if (showAddAppDialog) {
+        AddAppWindowDialog(
+            onAdd = { label, command ->
+                viewModel.addAppWindow(label, command)
+                showAddAppDialog = false
+            },
+            onDismiss = { showAddAppDialog = false },
+        )
     }
 
     setupDesktopDe?.let { de ->
@@ -146,6 +166,122 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             },
         )
     }
+}
+
+/**
+ * "App windows" section: the user-facing half of the agent's `present_app`.
+ * Lists saved single-app windows (user-defined + ones the assistant
+ * launched) with Launch/delete, and an add button. Launching opens the same
+ * present_media overlay the assistant uses.
+ */
+@Composable
+private fun AppWindowsSection(
+    defs: List<AppWindowDef>,
+    onLaunch: (AppWindowDef) -> Unit,
+    onDelete: (AppWindowDef) -> Unit,
+    onAdd: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Application windows", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Launch a single application in a floating window over the current " +
+                    "screen. Apps run in the active Linux distro and must be installed there.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            if (defs.isEmpty()) {
+                Text(
+                    "No application windows yet. Add one to launch an app in a floating window.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                defs.forEach { def ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                def.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                            )
+                            Text(
+                                def.command,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                            )
+                        }
+                        IconButton(onClick = { onLaunch(def) }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Launch ${def.label}")
+                        }
+                        IconButton(onClick = { onDelete(def) }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete ${def.label}")
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onAdd) { Text("Add app window") }
+        }
+    }
+}
+
+@Composable
+private fun AddAppWindowDialog(
+    onAdd: (label: String, command: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var label by remember { mutableStateOf("") }
+    var command by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add app window") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text("Label") },
+                    placeholder = { Text("e.g. Image viewer") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = command,
+                    onValueChange = { command = it },
+                    label = { Text("Command") },
+                    placeholder = { Text("e.g. imv /root/board.png") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(label.trim(), command.trim()) },
+                enabled = command.isNotBlank(),
+            ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable

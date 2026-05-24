@@ -15,12 +15,15 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.db.entities.ConnectionProfile
 import sh.haven.core.data.desktop.DesktopStatus
+import sh.haven.core.data.preferences.AppWindowDef
+import sh.haven.core.data.preferences.AppWindowOrigin
 import sh.haven.core.data.preferences.UserPreferencesRepository
 import sh.haven.core.data.repository.ConnectionLogRepository
 import sh.haven.core.data.repository.ConnectionRepository
@@ -75,6 +78,7 @@ class DesktopViewModel @Inject constructor(
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
     private val localSessionManager: LocalSessionManager,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
+    private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
 ) : ViewModel() {
 
     // --- Distro / DE management (issue #162 Phase 3c) ---
@@ -350,6 +354,52 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             desktopManager.stopDesktop(de)
         }
+    }
+
+    // --- Saved app windows (single-app cage kiosks; see AppWindowDefList) ---
+    // The user-facing half of the agent's present_app: define + launch app
+    // windows, and restart ones the agent launched. Both land in the same
+    // present_media overlay, so this mirrors McpTools.presentApp.
+
+    /** Saved app windows, most-recently-used first, for the Desktop settings list. */
+    val appWindowDefs: StateFlow<List<AppWindowDef>> =
+        preferencesRepository.appWindowDefs
+            .map { list -> list.items.sortedByDescending { it.lastUsed } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Launch a saved app window into the present_media overlay — the same
+     * surface the agent's `present_app` uses. Mirrors `McpTools.presentApp`:
+     * start the cage kiosk, and on RUNNING enqueue the overlay item + bump
+     * `lastUsed`; otherwise surface the error as a transient message.
+     */
+    fun launchAppWindow(def: AppWindowDef) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val session = desktopManager.startAppWindow(def.command)
+            if (session.state == DesktopManager.DesktopState.RUNNING) {
+                presentationManager.presentAppWindow(
+                    host = "127.0.0.1",
+                    port = session.vncPort,
+                    sessionId = session.sessionId,
+                    caption = def.label,
+                )
+                preferencesRepository.upsertAppWindowDef(def.label, def.command, def.createdBy)
+            } else {
+                _userMessages.emit(
+                    "Couldn't launch ${def.label}: ${session.errorMessage ?: "failed to start"}",
+                )
+            }
+        }
+    }
+
+    fun addAppWindow(label: String, command: String) {
+        viewModelScope.launch {
+            preferencesRepository.upsertAppWindowDef(label, command, AppWindowOrigin.USER)
+        }
+    }
+
+    fun deleteAppWindow(id: String) {
+        viewModelScope.launch { preferencesRepository.deleteAppWindowDef(id) }
     }
 
     /**

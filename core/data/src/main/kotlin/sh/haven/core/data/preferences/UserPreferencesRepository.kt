@@ -37,6 +37,7 @@ class UserPreferencesRepository @Inject constructor(
     private val toolbarRow2Key = stringPreferencesKey("toolbar_row2") // legacy
     private val toolbarLayoutKey = stringPreferencesKey("toolbar_layout")
     private val toolbarMinButtonWidthKey = intPreferencesKey("toolbar_min_button_width")
+    private val appWindowDefsKey = stringPreferencesKey("app_window_defs")
     private val navBlockModeKey = stringPreferencesKey("nav_block_mode")
     private val sessionCommandOverrideKey = stringPreferencesKey("session_command_override")
     private val sftpSortModeKey = stringPreferencesKey("sftp_sort_mode")
@@ -816,6 +817,58 @@ class UserPreferencesRepository @Inject constructor(
             prefs.remove(toolbarRow1Key)
             prefs.remove(toolbarRow2Key)
             prefs.remove(toolbarRowsKey)
+        }
+    }
+
+    // --- Saved app windows (single-app cage kiosks; see AppWindowDefList) ---
+    // Shared by the Desktop-settings UI (user-defined) and McpTools.present_app
+    // (records the agent's launches so they're restartable). Both already
+    // inject this repository, so a DataStore-JSON list keeps it in one place.
+
+    val appWindowDefs: Flow<AppWindowDefList> = dataStore.data.map { prefs ->
+        prefs[appWindowDefsKey]?.let { AppWindowDefList.fromJson(it) } ?: AppWindowDefList.EMPTY
+    }
+
+    /**
+     * Add a saved app window, or — if one with the same [command] exists —
+     * bump its `lastUsed` (and refresh its label when [label] is non-blank).
+     * The existing entry's [AppWindowOrigin] is preserved, so re-launching a
+     * user entry doesn't demote it to "agent" and vice-versa. Read-modify-
+     * write inside a single `edit` so concurrent upserts don't clobber.
+     */
+    suspend fun upsertAppWindowDef(
+        label: String,
+        command: String,
+        createdBy: AppWindowOrigin,
+    ) {
+        dataStore.edit { prefs ->
+            val current = prefs[appWindowDefsKey]?.let { AppWindowDefList.fromJson(it) }
+                ?: AppWindowDefList.EMPTY
+            val now = System.currentTimeMillis()
+            val items = if (current.items.any { it.command == command }) {
+                current.items.map {
+                    if (it.command == command) {
+                        it.copy(lastUsed = now, label = label.ifBlank { it.label })
+                    } else it
+                }
+            } else {
+                current.items + AppWindowDef(
+                    label = label.ifBlank { command },
+                    command = command,
+                    createdBy = createdBy,
+                    lastUsed = now,
+                )
+            }
+            prefs[appWindowDefsKey] = AppWindowDefList(items).toJson()
+        }
+    }
+
+    suspend fun deleteAppWindowDef(id: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[appWindowDefsKey]?.let { AppWindowDefList.fromJson(it) }
+                ?: AppWindowDefList.EMPTY
+            prefs[appWindowDefsKey] =
+                AppWindowDefList(current.items.filterNot { it.id == id }).toJson()
         }
     }
 
