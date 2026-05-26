@@ -862,11 +862,16 @@ fun TerminalScreen(
 
                     val isMouseMode by activeTab.mouseMode.collectAsState()
                     val isBracketPaste by activeTab.bracketPasteMode.collectAsState()
+                    val isAltScreen by activeTab.altScreen.collectAsState()
 
                     // Build gesture callback when mouse mode is active.
-                    // Taps and long-presses are gated by mouseInputEnabled;
-                    // scroll wheel always works when the TUI requests mouse mode.
-                    val gestureCallback = remember(activeTab, isMouseMode, mouseInputEnabled, mouseDragSelects, terminalRightClick) {
+                    // Taps and long-presses are gated by mouseInputEnabled.
+                    // Scroll: on the alternate screen (vim/less/htop) forward a
+                    // wheel event to the app; on the normal screen let the swipe
+                    // scroll Haven's own scrollback even while mouse reporting is
+                    // on — matching xterm/gnome-terminal, so history stays
+                    // reachable by touch. (#175)
+                    val gestureCallback = remember(activeTab, isMouseMode, isAltScreen, mouseInputEnabled, mouseDragSelects, terminalRightClick) {
                         if (isMouseMode) object : org.connectbot.terminal.TerminalGestureCallback {
                             override fun onTap(col: Int, row: Int): Boolean {
                                 if (!mouseInputEnabled) return false
@@ -882,8 +887,12 @@ fun TerminalScreen(
                                 return true // suppress text selection
                             }
                             override fun onScroll(col: Int, row: Int, scrollUp: Boolean): Boolean {
+                                // Normal screen: don't claim the swipe — fall
+                                // through to Haven's local scrollback so history
+                                // stays reachable even with mouse reporting on. (#175)
+                                if (!isAltScreen) return false
                                 activeTab.sendInput(sgrMouseWheel(scrollUp, col + 1, row + 1))
-                                return true // suppress scrollback
+                                return true // alt screen: forward wheel to the app
                             }
                             override fun onMouseDrag(
                                 col: Int,

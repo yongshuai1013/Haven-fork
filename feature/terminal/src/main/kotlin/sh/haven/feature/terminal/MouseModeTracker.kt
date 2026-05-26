@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * Tracks:
  * - Mouse modes 1000 (basic), 1002 (button-event), 1003 (any-event)
  * - Bracketed paste mode 2004
+ * - Alternate screen buffer 1049 / 1047 / 47 (vim, less, htop, …) — used to
+ *   decide whether a touch swipe should scroll Haven's local scrollback
+ *   (normal screen) or forward a wheel event to the app (alt screen). (#175)
  *
  * Pattern: ESC [ ? <digits> h  (enable)
  *          ESC [ ? <digits> l  (disable)
@@ -43,9 +46,16 @@ class MouseModeTracker {
     private val _bracketPasteMode = MutableStateFlow(false)
     val bracketPasteMode: StateFlow<Boolean> = _bracketPasteMode.asStateFlow()
 
+    private val activeAltModes = mutableSetOf<Int>()
+    private val _altScreen = MutableStateFlow(false)
+
+    /** True while the remote is on the alternate screen buffer (vim/less/…). (#175) */
+    val altScreen: StateFlow<Boolean> = _altScreen.asStateFlow()
+
     companion object {
         private val MOUSE_MODES = setOf(1000, 1002, 1003)
         private const val BRACKET_PASTE_MODE = 2004
+        private val ALT_SCREEN_MODES = setOf(1049, 1047, 47)
     }
 
     /**
@@ -122,6 +132,10 @@ class MouseModeTracker {
             }
             BRACKET_PASTE_MODE -> {
                 _bracketPasteMode.value = enable
+            }
+            in ALT_SCREEN_MODES -> {
+                if (enable) activeAltModes.add(mode) else activeAltModes.remove(mode)
+                _altScreen.value = activeAltModes.isNotEmpty()
             }
         }
     }
