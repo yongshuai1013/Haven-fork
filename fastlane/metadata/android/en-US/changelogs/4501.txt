@@ -5,3 +5,4 @@ App windows: run several at once, edit, and background to an edge icon.
 - Background a window (tap outside it, or the minimize icon) to keep it running while you do something else; the icon shows a live preview.
 - Edit a saved app window's label and command from Desktop settings.
 - The window controls (minimize, picture-in-picture, close) are now icons in the viewer's own toolbar instead of a separate button row.
+- Keyboard toolbar: the Home and End cursor keys are now icons, so the cursor block's columns line up evenly.

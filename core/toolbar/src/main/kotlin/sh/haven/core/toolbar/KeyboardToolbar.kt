@@ -27,7 +27,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.ButtonDefaults
@@ -485,8 +487,8 @@ private fun AlignedToolbarContent(
                     ToolbarKey.ARROW_UP -> ToolbarArrowButton("↑") { cb.onDispatchKey(0, VTERM_KEY_UP) }
                     ToolbarKey.ARROW_DOWN -> ToolbarArrowButton("↓") { cb.onDispatchKey(0, VTERM_KEY_DOWN) }
                     ToolbarKey.ARROW_RIGHT -> ToolbarArrowButton("→") { cb.onDispatchKey(0, VTERM_KEY_RIGHT) }
-                    ToolbarKey.HOME -> ToolbarTextButton("Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
-                    ToolbarKey.END -> ToolbarTextButton("End") { cb.onDispatchKey(0, VTERM_KEY_END) }
+                    ToolbarKey.HOME -> ToolbarIconNavButton(Icons.Filled.FirstPage, "Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
+                    ToolbarKey.END -> ToolbarIconNavButton(Icons.Filled.LastPage, "End") { cb.onDispatchKey(0, VTERM_KEY_END) }
                     ToolbarKey.PGUP -> ToolbarTextButton("PgUp") { cb.onDispatchKey(0, VTERM_KEY_PAGEUP) }
                     ToolbarKey.PGDN -> ToolbarTextButton("PgDn") { cb.onDispatchKey(0, VTERM_KEY_PAGEDOWN) }
                     else -> {}
@@ -585,8 +587,8 @@ private fun NavBuiltInKey(
         ToolbarKey.ARROW_UP -> ToolbarArrowButton("\u2191") { cb.onDispatchKey(0, VTERM_KEY_UP) }
         ToolbarKey.ARROW_DOWN -> ToolbarArrowButton("\u2193") { cb.onDispatchKey(0, VTERM_KEY_DOWN) }
         ToolbarKey.ARROW_RIGHT -> ToolbarArrowButton("\u2192") { cb.onDispatchKey(0, VTERM_KEY_RIGHT) }
-        ToolbarKey.HOME -> ToolbarTextButton("Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
-        ToolbarKey.END -> ToolbarTextButton("End") { cb.onDispatchKey(0, VTERM_KEY_END) }
+        ToolbarKey.HOME -> ToolbarIconNavButton(Icons.Filled.FirstPage, "Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
+        ToolbarKey.END -> ToolbarIconNavButton(Icons.Filled.LastPage, "End") { cb.onDispatchKey(0, VTERM_KEY_END) }
         ToolbarKey.PGUP -> ToolbarTextButton("PgUp") { cb.onDispatchKey(0, VTERM_KEY_PAGEUP) }
         ToolbarKey.PGDN -> ToolbarTextButton("PgDn") { cb.onDispatchKey(0, VTERM_KEY_PAGEDOWN) }
         else -> Spacer(Modifier.width(NAV_CELL_WIDTH))
@@ -869,8 +871,8 @@ private fun BuiltInKey(
         ToolbarKey.ARROW_UP -> ToolbarArrowButton("\u2191") { cb.onDispatchKey(0, VTERM_KEY_UP) }
         ToolbarKey.ARROW_DOWN -> ToolbarArrowButton("\u2193") { cb.onDispatchKey(0, VTERM_KEY_DOWN) }
         ToolbarKey.ARROW_RIGHT -> ToolbarArrowButton("\u2192") { cb.onDispatchKey(0, VTERM_KEY_RIGHT) }
-        ToolbarKey.HOME -> ToolbarTextButton("Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
-        ToolbarKey.END -> ToolbarTextButton("End") { cb.onDispatchKey(0, VTERM_KEY_END) }
+        ToolbarKey.HOME -> ToolbarIconNavButton(Icons.Filled.FirstPage, "Home") { cb.onDispatchKey(0, VTERM_KEY_HOME) }
+        ToolbarKey.END -> ToolbarIconNavButton(Icons.Filled.LastPage, "End") { cb.onDispatchKey(0, VTERM_KEY_END) }
         ToolbarKey.PGUP -> ToolbarTextButton("PgUp") { cb.onDispatchKey(0, VTERM_KEY_PAGEUP) }
         ToolbarKey.PGDN -> ToolbarTextButton("PgDn") { cb.onDispatchKey(0, VTERM_KEY_PAGEDOWN) }
         ToolbarKey.INSERT -> ToolbarTextButton("Ins") { cb.onDispatchKey(0, VTERM_KEY_INS) }
@@ -1047,6 +1049,8 @@ private fun keyIcon(key: ToolbarKey): ImageVector? = when (key) {
     ToolbarKey.KEYBOARD -> Icons.Filled.Keyboard
     ToolbarKey.ATTACH -> Icons.Filled.AttachFile
     ToolbarKey.VOICE_KEYBOARD -> Icons.Filled.Lock
+    ToolbarKey.HOME -> Icons.Filled.FirstPage
+    ToolbarKey.END -> Icons.Filled.LastPage
     else -> null
 }
 
@@ -1054,11 +1058,11 @@ private fun keyIcon(key: ToolbarKey): ImageVector? = when (key) {
  * The visual style of a key — icon vs glyph-text vs plain-text — decided once and
  * shared by the live render and reorder/edit mode so a key looks identical in both.
  * The glyph/icon choices mirror the live [RenderItem] leaves verbatim:
- *  - icon keys (Keyboard/Attach/Voice) → [keyIcon];
+ *  - icon keys (Keyboard/Attach/Voice/Home/End) → [keyIcon];
  *  - Enter "⏎" and the arrows → the larger 16sp bold glyph;
  *  - single-char symbols → bold glyph (matches [SymbolButton]'s length<=1 rule);
  *  - Snippets → its "✂" glyph (plain weight, as live);
- *  - everything else (Esc/Tab/Paste/Home/PgUp/Fn/Ins/Del/Shift/Ctrl/Alt/Raw) → 12sp text.
+ *  - everything else (Esc/Tab/Paste/PgUp/Fn/Ins/Del/Shift/Ctrl/Alt/Raw) → 12sp text.
  */
 private sealed interface KeyVisual {
     data class IconV(val icon: ImageVector, val desc: String?) : KeyVisual
@@ -1071,6 +1075,8 @@ private fun toolbarKeyVisual(item: ToolbarItem): KeyVisual = when (item) {
         ToolbarKey.KEYBOARD -> KeyVisual.IconV(Icons.Filled.Keyboard, null)
         ToolbarKey.ATTACH -> KeyVisual.IconV(Icons.Filled.AttachFile, null)
         ToolbarKey.VOICE_KEYBOARD -> KeyVisual.IconV(Icons.Filled.Lock, null)
+        ToolbarKey.HOME -> KeyVisual.IconV(Icons.Filled.FirstPage, "Home")
+        ToolbarKey.END -> KeyVisual.IconV(Icons.Filled.LastPage, "End")
         ToolbarKey.ENTER_KEY -> KeyVisual.TextV("⏎", glyph = true) // ⏎
         ToolbarKey.ARROW_LEFT -> KeyVisual.TextV("←", glyph = true)
         ToolbarKey.ARROW_UP -> KeyVisual.TextV("↑", glyph = true)
@@ -1094,6 +1100,19 @@ private fun ToolbarKeyContent(v: KeyVisual) = when (v) {
 private fun ToolbarArrowButton(label: String, onClick: () -> Unit) {
     ToolbarKeyButton(onClick = onClick, repeating = true) {
         ToolbarKeyText(label, glyph = true)
+    }
+}
+
+/**
+ * Icon-rendered nav key (Home/End) with key repeat — same 18dp icon as the
+ * other icon keys, so it occupies the same narrow cell width as the arrows and
+ * keeps the cursor block's columns symmetric (the "Home" text label was wider
+ * than "End", leaving the left column fatter than the right).
+ */
+@Composable
+private fun ToolbarIconNavButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    ToolbarKeyButton(onClick = onClick, repeating = true) {
+        ToolbarKeyIcon(icon, description)
     }
 }
 
@@ -1920,20 +1939,26 @@ private fun ReorderNavCell(key: ToolbarKey) {
         ToolbarKey.ARROW_RIGHT -> "\u2192"
         else -> key.label
     }
+    // Home/End render as icons here too, so the chip matches the live key.
+    val icon = keyIcon(key)
     NavCell {
         FilledTonalButton(
             onClick = {},
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(0.dp),
         ) {
-            Text(
-                label,
-                fontSize = if (isArrow) 16.sp else 11.sp,
-                lineHeight = if (isArrow) 16.sp else 11.sp,
-                fontWeight = if (isArrow) {
-                    androidx.compose.ui.text.font.FontWeight.Bold
-                } else null,
-            )
+            if (icon != null) {
+                ToolbarKeyIcon(icon, key.label)
+            } else {
+                Text(
+                    label,
+                    fontSize = if (isArrow) 16.sp else 11.sp,
+                    lineHeight = if (isArrow) 16.sp else 11.sp,
+                    fontWeight = if (isArrow) {
+                        androidx.compose.ui.text.font.FontWeight.Bold
+                    } else null,
+                )
+            }
         }
     }
 }
