@@ -1,0 +1,6 @@
+Application windows — run a single Linux GUI app inside Haven.
+
+- New "Application windows" on the Desktop tab: launch one GUI app (e.g. an image viewer, media player, editor) from the active Linux distro in a floating window over whatever you're doing. Add and re-launch your own app commands ("Add app window"); pinch-zoom, pan, drag and fullscreen all work.
+- Picture-in-Picture: pop the app window out as a floating PiP so it stays visible while you use other apps.
+- New "Cage (single-app kiosk)" desktop option backing the above (installs cage + wayvnc).
+- Agent endpoint (MCP): new present_app and present_media tools so an assistant can show you a live app window, or push an image/sound to an inline overlay.
