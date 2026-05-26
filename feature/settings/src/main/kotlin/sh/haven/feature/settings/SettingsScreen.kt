@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -124,6 +125,7 @@ import androidx.compose.ui.text.input.PlatformImeOptions
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -2292,6 +2294,7 @@ private fun ToolbarSimpleEditor(
                         label = key.label,
                         assignment = assignments[key] ?: KeyAssignment.OFF,
                         onAssign = { assignments = assignments + (key to it) },
+                        chipMinWidth = minWidthSlider.roundToInt().dp,
                     )
                 }
 
@@ -2308,6 +2311,7 @@ private fun ToolbarSimpleEditor(
                         label = key.label,
                         assignment = assignments[key] ?: KeyAssignment.OFF,
                         onAssign = { assignments = assignments + (key to it) },
+                        chipMinWidth = minWidthSlider.roundToInt().dp,
                     )
                 }
 
@@ -2329,6 +2333,7 @@ private fun ToolbarSimpleEditor(
                             showCustomKeyDialog = true
                         },
                         onDelete = { customKeys.removeAt(index) },
+                        chipMinWidth = minWidthSlider.roundToInt().dp,
                     )
                 }
 
@@ -2398,6 +2403,7 @@ private fun CustomKeyRow(
     onAssign: (KeyAssignment) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    chipMinWidth: Dp = 0.dp,
 ) {
     Row(
         modifier = Modifier
@@ -2421,14 +2427,16 @@ private fun CustomKeyRow(
                 selected = state.row == option,
                 onClick = { onAssign(option) },
                 label = {
-                    Text(
-                        when (option) {
-                            KeyAssignment.ROW1 -> stringResource(R.string.settings_toolbar_row1)
-                            KeyAssignment.ROW2 -> stringResource(R.string.settings_toolbar_row2)
-                            KeyAssignment.OFF -> stringResource(R.string.settings_toolbar_off)
-                        },
-                        fontSize = 11.sp,
-                    )
+                    Box(modifier = Modifier.widthIn(min = chipMinWidth), contentAlignment = Alignment.Center) {
+                        Text(
+                            when (option) {
+                                KeyAssignment.ROW1 -> stringResource(R.string.settings_toolbar_row1)
+                                KeyAssignment.ROW2 -> stringResource(R.string.settings_toolbar_row2)
+                                KeyAssignment.OFF -> stringResource(R.string.settings_toolbar_off)
+                            },
+                            fontSize = 11.sp,
+                        )
+                    }
                 },
                 modifier = Modifier.padding(horizontal = 1.dp),
             )
@@ -2674,6 +2682,7 @@ private fun ToolbarKeyRow(
     label: String,
     assignment: KeyAssignment,
     onAssign: (KeyAssignment) -> Unit,
+    chipMinWidth: Dp = 0.dp,
 ) {
     Row(
         modifier = Modifier
@@ -2691,14 +2700,18 @@ private fun ToolbarKeyRow(
                 selected = assignment == option,
                 onClick = { onAssign(option) },
                 label = {
-                    Text(
-                        when (option) {
-                            KeyAssignment.ROW1 -> stringResource(R.string.settings_toolbar_row1)
-                            KeyAssignment.ROW2 -> stringResource(R.string.settings_toolbar_row2)
-                            KeyAssignment.OFF -> stringResource(R.string.settings_toolbar_off)
-                        },
-                        fontSize = 11.sp,
-                    )
+                    // Centre the label so the chip previews the key width as it
+                    // grows with the "minimum key width" slider.
+                    Box(modifier = Modifier.widthIn(min = chipMinWidth), contentAlignment = Alignment.Center) {
+                        Text(
+                            when (option) {
+                                KeyAssignment.ROW1 -> stringResource(R.string.settings_toolbar_row1)
+                                KeyAssignment.ROW2 -> stringResource(R.string.settings_toolbar_row2)
+                                KeyAssignment.OFF -> stringResource(R.string.settings_toolbar_off)
+                            },
+                            fontSize = 11.sp,
+                        )
+                    }
                 },
                 modifier = Modifier.padding(horizontal = 2.dp),
             )
