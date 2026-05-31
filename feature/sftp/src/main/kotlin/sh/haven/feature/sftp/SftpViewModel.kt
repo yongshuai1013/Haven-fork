@@ -991,6 +991,15 @@ class SftpViewModel @Inject constructor(
     private val _isRcloneProfile = MutableStateFlow(false)
     val isRcloneProfile: StateFlow<Boolean> = _isRcloneProfile.asStateFlow()
 
+    /**
+     * Tracks whether the active profile is a Reticulum profile. Set once at
+     * [selectProfile] (like [_isSmbProfile]/[_isRcloneProfile]) so file ops
+     * dispatch on a stable profile-TYPE flag, not a live
+     * `reticulumSessionManager.isProfileConnected()` snapshot that can read
+     * false mid-(re)connect and misroute to the SSH path.
+     */
+    private val _isReticulumProfile = MutableStateFlow(false)
+
     /** Tracks whether the active profile is the local filesystem. */
     private val _isLocalProfile = MutableStateFlow(false)
 
@@ -1140,6 +1149,7 @@ class SftpViewModel @Inject constructor(
         _isLocalProfile.value = isLocal
         _isSmbProfile.value = isSmb
         _isRcloneProfile.value = isRclone
+        _isReticulumProfile.value = isReticulum
         _activeProfileId.value = profileId
         sftpSession = null
         activeSmbClient = null
@@ -2582,13 +2592,18 @@ class SftpViewModel @Inject constructor(
                             client.upload(input, destPath, fileSize) { transferred, total ->
                                 _transferProgress.value = TransferProgress(fileName, total, transferred)
                             }
-                        } else if (reticulumSessionManager.isProfileConnected(profileId)) {
+                        } else if (_isReticulumProfile.value) {
                             // Reticulum has no streaming transport.upload(); route through the
-                            // resolved FileBackend (ReticulumFileBackend.writeBytes — octal-printf
-                            // over rnsh-exec, chunked to the link MDU). Small-file oriented; see
-                            // the backend kdoc. Without this branch uploads fell through to the
-                            // SSH path below and threw "Not connected".
-                            val backend = currentFileBackend() ?: throw IllegalStateException("Not connected")
+                            // resolved FileBackend (Reticulum SFTP writeBytes, or the exec
+                            // ReticulumFileBackend's octal-printf). Dispatch on the stable
+                            // profile-TYPE flag (like rclone/SMB above), NOT a live
+                            // isProfileConnected() snapshot — the latter can read false
+                            // mid-(re)connect (e.g. after the SAF picker backgrounded Haven)
+                            // and misroute a Reticulum upload to the SSH branch, throwing a
+                            // misleading "Not connected". A genuinely-down session instead
+                            // gets a correctly-attributed Reticulum error from currentFileBackend().
+                            val backend = currentFileBackend()
+                                ?: throw IllegalStateException("Reticulum profile not connected")
                             val data = input.readBytes()
                             backend.writeBytes(destPath, data)
                             _transferProgress.value = TransferProgress(fileName, data.size.toLong(), data.size.toLong())
