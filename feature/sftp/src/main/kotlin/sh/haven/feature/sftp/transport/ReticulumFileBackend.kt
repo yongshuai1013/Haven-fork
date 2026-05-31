@@ -39,6 +39,12 @@ private const val TAG = "ReticulumFileBackend"
  *     every command is wrapped to print the remote shell's own `$?` as an
  *     `HRC=<code>` sentinel on stderr, and the real status is parsed from
  *     there — never from [ReticulumExecSession.exitCode].
+ *  3. **No client stdin.** The rnsh listener kills/stalls a command ~50ms
+ *     after any stdin-EOF (a `close_stdin` -> _ensure_terminate behaviour,
+ *     reproduced with the reference rnsh client), so nothing here streams over
+ *     stdin. Uploads encode the bytes into the command as `printf` octal
+ *     escapes instead — a single, clean-exiting command (large files append in
+ *     chunks under the per-arg size limit).
  *
  * Known v1 limitations (named, not hidden): modified-time is reported as 0
  * (no portable per-entry time source without `stat`); symlinks are treated
@@ -87,16 +93,36 @@ class ReticulumFileBackend(
         run("cat ${q(path)}", timeoutMs = TRANSFER_TIMEOUT_MS).stdout
 
     override suspend fun writeBytes(path: String, data: ByteArray) {
-        // Upload needs a stdin-EOF (so the remote `cat` finishes), but sending
-        // a stdin EOF over rnsh currently stalls the command's exit reporting
-        // (the read path works precisely because it never closes stdin). Fail
-        // fast rather than hang the upload. Read/download/mkdir/rename/delete
-        // all work. See project_reticulum_channel_deadlock.md follow-up.
-        throw IOException(
-            "Reticulum file upload is not yet supported (stdin-EOF over rnsh " +
-                "stalls the command exit). Read, download, mkdir, rename, and " +
-                "delete work."
-        )
+        // Upload WITHOUT stdin: the rnsh listener kills/stalls a command ~50ms
+        // after any stdin-EOF (a `close_stdin` -> _ensure_terminate behaviour,
+        // reproduced with the reference rnsh client), so streaming via
+        // `cat > file` never reports a clean exit. Instead we encode the bytes
+        // into the command itself — `printf '\NNN...'` octal escapes — which is
+        // a single no-stdin command that exits cleanly. Large files are written
+        // in append chunks (each kept well under the per-arg size limit). Fully
+        // POSIX/busybox-portable (printf is universal; no base64 dependency).
+        var off = 0
+        var first = true
+        while (first || off < data.size) {
+            val end = minOf(off + WRITE_CHUNK, data.size)
+            val redirect = if (first) ">" else ">>"
+            run("printf '${octalEscape(data, off, end)}' $redirect ${q(path)}")
+            first = false
+            off = end
+        }
+    }
+
+    /** Encode bytes [from, to) as POSIX printf octal escapes (`\NNN` each). */
+    private fun octalEscape(data: ByteArray, from: Int, to: Int): String {
+        val sb = StringBuilder((to - from) * 4)
+        for (i in from until to) {
+            val v = data[i].toInt() and 0xFF
+            sb.append('\\')
+            sb.append(('0' + ((v shr 6) and 0x7)))
+            sb.append(('0' + ((v shr 3) and 0x7)))
+            sb.append(('0' + (v and 0x7)))
+        }
+        return sb.toString()
     }
 
     override suspend fun stat(path: String): SftpEntry {
@@ -255,6 +281,10 @@ class ReticulumFileBackend(
     companion object {
         /** Max stdin chunk per stream-data message (stays under the link MDU). */
         private const val STDIN_CHUNK = 400
+
+        /** Bytes per inline `printf` upload command (×4 octal stays under the
+         *  remote's per-argument size limit, ~128 KiB). Larger files append. */
+        private const val WRITE_CHUNK = 12_000
 
         private const val METADATA_TIMEOUT_MS = 120_000L
         private const val TRANSFER_TIMEOUT_MS = 300_000L
