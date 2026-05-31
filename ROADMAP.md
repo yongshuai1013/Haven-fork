@@ -20,6 +20,7 @@
 - [x] **Desktop addons** — install and launch GUI apps within the Wayland compositor
 - [x] **GTK Wayland preference** — GTK apps use Wayland backend by default
 - [x] **Display-scale / resolution control** — pick the labwc-native compositor's output resolution (reflows windows, not just a visual zoom) from the toolbar / fullscreen menu (#161)
+- [x] **Embedded app windows** — a single guest GUI app under `cage`+wayvnc surfaced live in an in-app overlay, with Picture-in-Picture, an edge-icon dock, and multiple concurrent restartable windows; also exposed as MCP `present_app`
 
 ### Connections
 - [x] **Import SSH keys** — PEM/OpenSSH/PuTTY PPK format with passphrase support
@@ -40,6 +41,7 @@
 - [x] **Tailscale auto-discovery** — detect Tailscale peers via local API and show as discovered hosts
 - [x] **Cloudflare Access SSH** — per-hostname WebSocket tunnel via `cdn-cgi/access/ssh-gateway` with `Cookie: CF_Authorization=<jwt>`. In-app WebView captures the JWT from the team's IdP login; paste-JWT path for `cloudflared access token` headless setups. Experimental — wire protocol reverse-engineered from cloudflared, awaiting confirmation against live tenants (v5.35.0-rc1, #154).
 - [x] **Workspace profiles** — savable session bundles open SSH tabs + port forwards + SFTP in one tap; also exposed as MCP `compose_workspace` verb
+- [x] **Single Packet Authorization** — native fwknop SPA / port-knock client (`core/spa`); send one encrypted packet to open a firewall port just long enough to connect, so a service stays port-closed until Haven knocks
 
 ### Security
 - [x] **Encrypted password storage** — AES-256-GCM encrypted stored passwords
@@ -72,6 +74,13 @@
 - [x] **Local-desktop manager** — per-distro install/start/stop of desktop environments with a Room-backed install log that names the failing layer; one-tap "Open shell" into any installed distro
 - [x] **X11 desktops** — one-tap Xfce4 or Openbox via Xvnc, per-DE VNC port
 - [x] **Nested Wayland desktops** — headless wlroots compositor (Sway) inside the rootfs, surfaced via wayvnc on the VNC client (Hyprland/niri offered but GPU-limited in proot — see #162)
+
+### Agent endpoint (MCP)
+- [x] **Tool-use server** — local loopback MCP / JSON-RPC server (Streamable HTTP, ports 8730–8739) exposing Haven's ViewModels as tools across read, write, and reach-back paths; disabled by default, per-action consent on every write, audited to a Room table
+- [x] **WireGuard carrier** — agent endpoint served on the device's WireGuard LAN IP and reached directly by the client (survives network transitions); SSH `-R 8730` kept as a fallback
+- [x] **Cross-protocol verb** — `compose_workspace` opens a whole saved workspace (terminal + file-browser + desktop + Wayland items) in one call through the same `WorkspaceLauncher` a tap drives
+- [x] **Reach-back tools** — agent→user surfaces: `present_media` (image/sound overlay), `present_app` (live guest app window), `raise_notification` (system notification), `queue_self_message` (line into the terminal view), all consent-gated and visible on a surface the user is already looking at
+- [x] **Host-capability brokers** — `read_logcat` (system log via Shizuku), `expose_adb`/`unexpose_adb` (adb reach over a system VPN), and the USB device broker, each re-exposing a platform-gated capability to the runtime with consent
 
 ## Near-term
 
