@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Edit
@@ -1155,6 +1156,9 @@ fun SftpScreen(
                                 } else null,
                                 onStreamFolder = if (entry.isDirectory && !viewModel.isSmbProfile()) {
                                     { viewModel.streamFolder(entry.path) }
+                                } else null,
+                                onOpenWith = if (!entry.isDirectory && !viewModel.isSmbProfile()) {
+                                    { viewModel.openWithExternalApp(entry) }
                                 } else null,
                                 onPlay = if (isRclone && entry.isMediaFile(mediaExtensions)) {
                                     { viewModel.playMediaFile(entry) }
@@ -2366,6 +2370,7 @@ private fun FileListItem(
     onPlayInBrowser: (() -> Unit)? = null,
     onStream: (() -> Unit)? = null,
     onStreamFolder: (() -> Unit)? = null,
+    onOpenWith: (() -> Unit)? = null,
     onRename: () -> Unit = {},
     onShareLink: (() -> Unit)? = null,
     onFolderSize: (() -> Unit)? = null,
@@ -2490,6 +2495,13 @@ private fun FileListItem(
                     text = { Text(stringResource(R.string.sftp_download)) },
                     leadingIcon = { Icon(Icons.Filled.Download, null) },
                     onClick = { showMenu = false; onDownload() },
+                )
+            }
+            if (onOpenWith != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.sftp_open_with)) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                    onClick = { showMenu = false; onOpenWith() },
                 )
             }
             if (onOpenInEditor != null) {

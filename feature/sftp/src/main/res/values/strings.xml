@@ -57,6 +57,7 @@
     <!-- Snackbar messages -->
     <string name="sftp_downloaded">Downloaded %s</string>
     <string name="sftp_open">Open</string>
+    <string name="sftp_open_with">Open with…</string>
     <string name="sftp_no_app_to_open">No app found to open this file</string>
     <string name="sftp_path_copied">Path copied</string>
 

@@ -984,6 +984,19 @@ class SftpViewModel @Inject constructor(
         else -> "application/octet-stream"
     }
 
+    /**
+     * Best-effort MIME type for an "Open with…" hand-off (issue #173). Tries
+     * the platform extension map first (covers documents/images/pdf), falls
+     * back to the media table, then a wildcard so the chooser still appears
+     * for types neither knows (e.g. .cbz).
+     */
+    private fun mimeTypeForName(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)?.let { return it }
+        val media = guessContentType(name)
+        return if (media != "application/octet-stream") media else "*/*"
+    }
+
     /** Tracks which active profile is SMB (vs SFTP). */
     private val _isSmbProfile = MutableStateFlow(false)
 
@@ -4694,6 +4707,81 @@ class SftpViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Play media failed", e)
                 _error.value = "Playback failed: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Hand a file off to another installed app via an ACTION_VIEW chooser
+     * ("Open with…", issue #173). Unlike [streamFile]/[playInBrowser] this
+     * serves the file's *raw original bytes* over the existing loopback HTTP
+     * bridge (no ffmpeg/HLS transcode) so a player like VLC/mpv can decode
+     * containers Haven's built-in MediaCodec path can't, and non-media files
+     * (.pdf/.epub/.cbz) open in their own viewer. The file is streamed
+     * on-demand (HTTP Range) — never fully downloaded first.
+     *
+     * The loopback URL we publish carries [SftpStreamServer]'s secret token in
+     * its path; we hand the external app the full URL, so it replays the token
+     * on its own GET and the server accepts it (other apps can't guess it).
+     */
+    fun openWithExternalApp(entry: SftpEntry) {
+        if (entry.isDirectory) return
+        if (_isSmbProfile.value) {
+            _error.value = "Open with… is not supported for SMB yet"
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val mime = mimeTypeForName(entry.name)
+                val data: android.net.Uri
+                var grantRead = false
+                when {
+                    _isLocalProfile.value -> {
+                        // Local backend has a real file → content:// via FileProvider.
+                        val file = java.io.File(entry.path)
+                        data = androidx.core.content.FileProvider.getUriForFile(
+                            appContext, "${appContext.packageName}.fileprovider", file,
+                        )
+                        grantRead = true
+                    }
+                    _isRcloneProfile.value -> {
+                        val port = ensureMediaServer()
+                        val encodedPath = entry.path
+                            .trimStart('/')
+                            .split('/')
+                            .joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+                        data = android.net.Uri.parse("http://127.0.0.1:$port/$encodedPath")
+                    }
+                    else -> {
+                        // SFTP via the loopback HTTP bridge (raw bytes, Range-capable).
+                        val profileId = _activeProfileId.value
+                            ?: throw IllegalStateException("No active profile")
+                        val port = withContext(Dispatchers.IO) { sftpStreamServer.start() }
+                        val urlPath = sftpStreamServer.publish(
+                            path = entry.path,
+                            size = entry.size,
+                            contentType = mime,
+                            opener = sftpOpener(profileId, entry.path),
+                        )
+                        data = android.net.Uri.parse("http://127.0.0.1:$port$urlPath")
+                    }
+                }
+                Log.d(TAG, "openWithExternalApp: ${entry.name} -> $data ($mime)")
+                val view = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(data, mime)
+                    if (grantRead) addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = android.content.Intent
+                    .createChooser(view, appContext.getString(R.string.sftp_open_with))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (grantRead) chooser.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                appContext.startActivity(chooser)
+            } catch (e: android.content.ActivityNotFoundException) {
+                Log.w(TAG, "openWithExternalApp: no activity to handle ${entry.name}", e)
+                _error.value = appContext.getString(R.string.sftp_no_app_to_open)
+            } catch (e: Exception) {
+                Log.e(TAG, "openWithExternalApp failed for ${entry.name}", e)
+                _error.value = "Open with… failed: ${e.message}"
             }
         }
     }
