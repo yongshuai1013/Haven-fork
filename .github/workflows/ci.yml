@@ -10,7 +10,37 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege floor. Every job here only reads the repo and uploads
+# artifacts (which use the Actions runtime token, not GITHUB_TOKEN), so a
+# read-only token is sufficient. Jobs needing more would declare their own.
+permissions:
+  contents: read
+
 jobs:
+  # Fast supply-chain guards — no toolchain, runs in parallel with the build
+  # jobs and fails the run early if hardening regresses.
+  supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          submodules: false
+      # Every external action must be pinned to a 40-char commit SHA. A bare
+      # `@v1`/`@main`/`@master` ref is mutable and re-pointable (tj-actions
+      # CVE-2025-30066 class). Local `./.github/actions/*` refs are exempt.
+      - name: Assert external actions are SHA-pinned
+        run: |
+          if grep -rEn 'uses: [^.].+@(v[0-9]|main|master)' .github/workflows .github/actions; then
+            echo "::error::Unpinned external action ref(s) above — pin to a 40-char SHA (# vX.Y.Z)."
+            exit 1
+          fi
+      # Validate the gradle-wrapper.jar that CI actually executes against
+      # Gradle's published checksums (wrapper-attack class). Submodule wrappers
+      # aren't executed by CI, so the root jar is the one that matters.
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a  # v4.4.3
+
   # Three independent Gradle entry-points run as parallel jobs instead of
   # sequentially in one. Each restores the shared toolchain + caches from
   # the composite action; the second run of each job type reuses the cache
@@ -20,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: false
       - uses: ./.github/actions/init-submodules-with-retry
@@ -33,7 +63,7 @@ jobs:
         run: ./gradlew testDebugUnitTest :app:testArm64DebugUnitTest
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: test-results
           path: '**/build/reports/tests/'
@@ -43,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: false
       - uses: ./.github/actions/init-submodules-with-retry
@@ -52,7 +82,7 @@ jobs:
         run: ./gradlew lintDebug
       - name: Upload lint results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: lint-results
           path: |
@@ -65,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: false
       - uses: ./.github/actions/init-submodules-with-retry
@@ -77,7 +107,7 @@ jobs:
         run: ./gradlew :app:assembleArm64Debug
       - name: Upload debug APK
         if: success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: app-debug
           path: app/build/outputs/apk/arm64/debug/haven-*-arm64-debug.apk

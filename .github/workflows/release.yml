@@ -11,6 +11,11 @@ env:
   # as of v2.6.1) onto Node.js 24 ahead of GitHub's 2026-06-02 deprecation.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+# Least-privilege floor. verify-ci/test/build only read; publish raises its
+# own block for the release upload + provenance.
+permissions:
+  contents: read
+
 jobs:
   # Skip a full ~16 min testReleaseUnitTest re-run when CI has already
   # verified the tagged commit on main — same commit, same test invocation
@@ -48,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: false
       # Unit tests don't compile the Wayland native build, so we skip
@@ -99,7 +104,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: false
       - uses: ./.github/actions/init-submodules-with-retry
@@ -113,7 +118,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: haven-${{ matrix.abi }}-release
           path: |
@@ -133,23 +138,48 @@ jobs:
     # runner minutes on ~20 seconds of I/O.
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Reviewer-gated: the `signing` Environment (configured in repo settings
+    # with a required reviewer + v*/main restriction) must approve before the
+    # release is published, so no single account can ship unilaterally.
+    environment: signing
     permissions:
-      contents: write
+      contents: write        # create the GitHub Release + upload assets
+      id-token: write         # OIDC for build-provenance attestation
+      attestations: write     # write the provenance attestation
     steps:
       - name: Download arm64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: haven-arm64-release
           path: release/
       - name: Download x64 artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: haven-x64-release
           path: release/
+      # Cryptographically tie each binary to this repo + commit + workflow so
+      # downstreams (F-Droid, users) can verify provenance with `gh attestation
+      # verify <file> --repo GlassHaven/Haven`.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2.4.0
+        with:
+          subject-path: |
+            release/**/*.apk
+            release/**/*.aab
+      # Publish a flat checksum manifest alongside the assets (asset names are
+      # basenames once on the release, so the manifest uses basenames too).
+      - name: Generate SHA256SUMS
+        run: |
+          : > SHA256SUMS
+          find release -type f \( -name '*.apk' -o -name '*.aab' \) | sort | while read -r f; do
+            printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$(basename "$f")" >> SHA256SUMS
+          done
+          cat SHA256SUMS
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
         with:
           generate_release_notes: true
           files: |
             release/**/*.apk
             release/**/*.aab
+            SHA256SUMS

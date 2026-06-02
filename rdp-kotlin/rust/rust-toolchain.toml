@@ -1,3 +1,7 @@
 [toolchain]
-channel = "stable"
+# Pinned (not "stable") so the compiler that builds the shipped RDP .so is
+# deterministic and matches CI (`rustup default 1.85.0`) + the F-Droid recipe.
+# A directory-scoped rust-toolchain.toml otherwise overrides `rustup default`,
+# which would let `stable` float here. Bump in lockstep with both.
+channel = "1.85.0"
 targets = ["aarch64-linux-android", "x86_64-linux-android"]
