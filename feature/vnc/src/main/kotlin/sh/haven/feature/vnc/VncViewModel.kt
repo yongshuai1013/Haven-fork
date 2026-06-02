@@ -20,6 +20,7 @@ import sh.haven.core.knock.PortKnocker
 import sh.haven.core.mosh.MoshSessionManager
 import sh.haven.core.ssh.SshClient
 import sh.haven.core.ssh.SshSessionManager
+import sh.haven.core.ui.CursorOverlay
 import sh.haven.core.vnc.ColorDepth
 import sh.haven.core.vnc.VncClient
 import sh.haven.core.vnc.VncConfig
@@ -39,13 +40,6 @@ data class SshTunnelOption(
     val sessionId: String,
     val label: String,
     val profileId: String,
-)
-
-/** Remote cursor shape, to be drawn at the local pointer position. */
-data class CursorOverlay(
-    val bitmap: Bitmap,
-    val hotspotX: Int,
-    val hotspotY: Int,
 )
 
 @HiltViewModel

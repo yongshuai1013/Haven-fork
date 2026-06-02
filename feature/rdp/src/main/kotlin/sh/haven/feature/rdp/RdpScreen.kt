@@ -45,12 +45,14 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ScreenLockLandscape
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
@@ -105,6 +107,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import sh.haven.core.data.preferences.ToolbarKey
 import sh.haven.core.data.preferences.ToolbarLayout
+import sh.haven.core.ui.CursorOverlay
 import kotlin.math.abs
 
 /**
@@ -129,8 +132,12 @@ fun RdpSessionContent(
     onKeyUp: (scancode: Int) -> Unit,
     onDisconnect: () -> Unit,
     onFullscreenChanged: (Boolean) -> Unit = {},
+    /** Server-pushed cursor shape, drawn at the tracked pointer position (#212). */
+    cursor: StateFlow<CursorOverlay?>? = null,
     pointerPos: StateFlow<Pair<Int, Int>>? = null,
     inputMode: String = "DIRECT",
+    /** Switch DIRECT/TOUCHPAD from the toolbar (#183/#212). Null hides the toggle. */
+    onSetInputMode: ((String) -> Unit)? = null,
     /**
      * Activity orientation constant
      * (`ActivityInfo.SCREEN_ORIENTATION_*`) currently in effect for
@@ -150,6 +157,7 @@ fun RdpSessionContent(
     val frameState by frame.collectAsState()
     val errorState by error.collectAsState()
     val pointerState = pointerPos?.collectAsState()?.value ?: (0 to 0)
+    val cursorState = cursor?.collectAsState()?.value
 
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     val view = LocalView.current
@@ -199,8 +207,10 @@ fun RdpSessionContent(
             onKeyUp = onKeyUp,
             onToggleFullscreen = { fullscreen = !fullscreen },
             onDisconnect = onDisconnect,
+            cursor = cursorState,
             pointerPos = pointerState,
             inputMode = inputMode,
+            onSetInputMode = onSetInputMode,
             currentOrientation = currentOrientation,
             onCycleOrientation = onCycleOrientation,
         )
@@ -454,8 +464,10 @@ private fun RdpViewer(
     onKeyUp: (Int) -> Unit,
     onToggleFullscreen: () -> Unit,
     onDisconnect: () -> Unit,
+    cursor: CursorOverlay? = null,
     pointerPos: Pair<Int, Int> = 0 to 0,
     inputMode: String = "DIRECT",
+    onSetInputMode: ((String) -> Unit)? = null,
     currentOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
     onCycleOrientation: () -> Unit = {},
 ) {
@@ -468,6 +480,7 @@ private fun RdpViewer(
     val orientationMode = OrientationMode.fromActivityValue(currentOrientation)
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     val imageBitmap = remember(frame) { frame.asImageBitmap() }
+    val cursorImage = remember(cursor) { cursor?.bitmap?.asImageBitmap() }
 
     // Zoom & pan state
     var zoom by rememberSaveable { mutableFloatStateOf(1f) }
@@ -708,6 +721,23 @@ private fun RdpViewer(
                     },
             ) {
                 drawRemoteFrame(imageBitmap, frame.width, frame.height)
+                // Server cursor overlay (#212). Draw at the touchpad-tracked
+                // virtual cursor in TOUCHPAD mode (the position the user is
+                // steering), else at the server-reported pointer position.
+                if (cursorImage != null && cursor != null) {
+                    val (px, py) = if (inputMode == "TOUCHPAD") virtualCursor else pointerPos
+                    drawRdpCursor(
+                        cursor = cursorImage,
+                        cursorW = cursor.bitmap.width,
+                        cursorH = cursor.bitmap.height,
+                        hotspotX = cursor.hotspotX,
+                        hotspotY = cursor.hotspotY,
+                        pointerX = px,
+                        pointerY = py,
+                        fbWidth = frame.width,
+                        fbHeight = frame.height,
+                    )
+                }
             }
         }
 
@@ -833,6 +863,9 @@ private fun RdpViewer(
                     Icon(orientationMode.icon, contentDescription = orientationMode.description)
                 }
 
+                // Direct/trackpad input-mode toggle — #183/#212.
+                onSetInputMode?.let { InputModeToggle(inputMode, it) }
+
                 Spacer(Modifier.weight(1f))
 
                 if (zoom != 1f || panX != 0f || panY != 0f) {
@@ -926,6 +959,8 @@ private fun RdpViewer(
                     IconButton(onClick = onCycleOrientation) {
                         Icon(orientationMode.icon, contentDescription = orientationMode.description)
                     }
+                    // Direct/trackpad input-mode toggle — #183/#212.
+                    onSetInputMode?.let { InputModeToggle(inputMode, it) }
                     if (zoom != 1f || panX != 0f || panY != 0f) {
                         IconButton(onClick = {
                             zoom = 1f
@@ -951,6 +986,28 @@ private fun RdpViewer(
     } // end Box
 }
 
+/**
+ * Toggle DIRECT (absolute: finger = cursor) vs TOUCHPAD (relative: drag glides
+ * the cursor) input from the viewer (#183/#212). Mirrors the VNC toggle so the
+ * cursor-in-touchpad-mode fix is reachable without digging into Settings.
+ * Checked (highlighted) = trackpad mode.
+ */
+@Composable
+private fun InputModeToggle(inputMode: String, onSetInputMode: (String) -> Unit) {
+    val touchpad = inputMode == "TOUCHPAD"
+    FilledIconToggleButton(
+        checked = touchpad,
+        onCheckedChange = { onSetInputMode(if (touchpad) "DIRECT" else "TOUCHPAD") },
+        modifier = Modifier.size(40.dp),
+    ) {
+        Icon(
+            Icons.Default.TouchApp,
+            contentDescription = if (touchpad) "Trackpad mode on (tap for direct touch)"
+                                 else "Direct touch mode (tap for trackpad)",
+        )
+    }
+}
+
 private fun DrawScope.drawRemoteFrame(
     image: androidx.compose.ui.graphics.ImageBitmap,
     srcWidth: Int,
@@ -970,6 +1027,43 @@ private fun DrawScope.drawRemoteFrame(
         srcSize = androidx.compose.ui.unit.IntSize(srcWidth, srcHeight),
         dstOffset = androidx.compose.ui.unit.IntOffset(offsetX.toInt(), offsetY.toInt()),
         dstSize = androidx.compose.ui.unit.IntSize(dstW.toInt(), dstH.toInt()),
+    )
+}
+
+/**
+ * Draw the server cursor at the tracked pointer position (#212). Uses the same
+ * fit-scale/centre math as [drawRemoteFrame] so it lands in the framebuffer's
+ * local coordinate space; the enclosing Canvas's graphicsLayer then applies
+ * zoom/pan uniformly. Mirror of VncScreen's drawVncCursor.
+ */
+private fun DrawScope.drawRdpCursor(
+    cursor: androidx.compose.ui.graphics.ImageBitmap,
+    cursorW: Int,
+    cursorH: Int,
+    hotspotX: Int,
+    hotspotY: Int,
+    pointerX: Int,
+    pointerY: Int,
+    fbWidth: Int,
+    fbHeight: Int,
+) {
+    val viewW = size.width
+    val viewH = size.height
+    val scale = minOf(viewW / fbWidth, viewH / fbHeight)
+    val fbOffsetX = (viewW - fbWidth * scale) / 2
+    val fbOffsetY = (viewH - fbHeight * scale) / 2
+
+    val cx = fbOffsetX + (pointerX - hotspotX) * scale
+    val cy = fbOffsetY + (pointerY - hotspotY) * scale
+    val dstW = cursorW * scale
+    val dstH = cursorH * scale
+
+    drawImage(
+        image = cursor,
+        srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
+        srcSize = androidx.compose.ui.unit.IntSize(cursorW, cursorH),
+        dstOffset = androidx.compose.ui.unit.IntOffset(cx.toInt(), cy.toInt()),
+        dstSize = androidx.compose.ui.unit.IntSize(dstW.toInt().coerceAtLeast(1), dstH.toInt().coerceAtLeast(1)),
     )
 }
 

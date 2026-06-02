@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ScreenLockLandscape
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.ScreenRotation
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -113,6 +114,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 import sh.haven.core.data.preferences.ToolbarKey
 import sh.haven.core.data.preferences.ToolbarLayout
+import sh.haven.core.ui.CursorOverlay
 import kotlin.math.abs
 
 /**
@@ -146,6 +148,8 @@ fun VncSessionContent(
     cursor: StateFlow<CursorOverlay?>? = null,
     pointerPos: StateFlow<Pair<Int, Int>>? = null,
     inputMode: String = "DIRECT",
+    /** Switch DIRECT/TOUCHPAD input mode from the toolbar (#183). */
+    onSetInputMode: ((String) -> Unit)? = null,
     bandwidthSuggestion: StateFlow<String?>? = null,
     onAcceptBandwidthSuggestion: (() -> Unit)? = null,
     onDismissBandwidthSuggestion: (() -> Unit)? = null,
@@ -224,6 +228,7 @@ fun VncSessionContent(
             cursor = cursorState,
             pointerPos = pointerState,
             inputMode = inputMode,
+            onSetInputMode = onSetInputMode,
             bandwidthSuggestion = bandwidthSuggestion?.collectAsState()?.value,
             onAcceptBandwidthSuggestion = onAcceptBandwidthSuggestion,
             onDismissBandwidthSuggestion = onDismissBandwidthSuggestion,
@@ -332,6 +337,30 @@ fun VncScreen(
  * Lets the user move the pointer with no button pressed, or hold any button
  * and drag — the "use real mouse buttons like SSH" request.
  */
+/**
+ * Toggle between DIRECT (absolute: finger position = cursor, drag presses the
+ * button) and TOUCHPAD (relative: drag glides the cursor with no button held)
+ * input modes from inside the viewer (#183). The capability already exists as
+ * the `desktopInputMode` preference; this surfaces it in-context so users hit
+ * by "swiping always clicks" can switch without digging into Settings. Checked
+ * (highlighted) = trackpad mode.
+ */
+@Composable
+private fun InputModeToggle(inputMode: String, onSetInputMode: (String) -> Unit) {
+    val touchpad = inputMode == "TOUCHPAD"
+    FilledIconToggleButton(
+        checked = touchpad,
+        onCheckedChange = { onSetInputMode(if (touchpad) "DIRECT" else "TOUCHPAD") },
+        modifier = Modifier.size(40.dp),
+    ) {
+        Icon(
+            Icons.Default.TouchApp,
+            contentDescription = if (touchpad) "Trackpad mode on (tap for direct touch)"
+                                 else "Direct touch mode (tap for trackpad)",
+        )
+    }
+}
+
 @Composable
 private fun MouseButtonToggles(held: Int?, onToggle: (Int) -> Unit) {
     listOf(1 to "L", 2 to "M", 3 to "R").forEach { (btn, label) ->
@@ -427,6 +456,9 @@ private fun VncViewer(
     onDismissBandwidthSuggestion: (() -> Unit)? = null,
     currentOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE,
     onCycleOrientation: () -> Unit = {},
+    /** Switch DIRECT/TOUCHPAD input mode from the toolbar (#183). When null
+     *  the toggle is hidden (e.g. the legacy single-session path). */
+    onSetInputMode: ((String) -> Unit)? = null,
     onMinimize: (() -> Unit)? = null,
     onPictureInPicture: (() -> Unit)? = null,
     /**
@@ -1023,6 +1055,9 @@ private fun VncViewer(
                 // Explicit mouse-button hold toggles (L/M/R) — #183.
                 MouseButtonToggles(held = heldButton, onToggle = toggleHeldButton)
 
+                // Direct/trackpad input-mode toggle — #183.
+                onSetInputMode?.let { InputModeToggle(inputMode, it) }
+
                 // App-window-only: background to an edge icon (keeps it alive).
                 onMinimize?.let { minimize ->
                     IconButton(onClick = minimize) {
@@ -1134,6 +1169,8 @@ private fun VncViewer(
                     }
                     // Explicit mouse-button hold toggles (L/M/R) — #183.
                     MouseButtonToggles(held = heldButton, onToggle = toggleHeldButton)
+                    // Direct/trackpad input-mode toggle — #183.
+                    onSetInputMode?.let { InputModeToggle(inputMode, it) }
                     if (zoom != 1f || panX != 0f || panY != 0f) {
                         IconButton(onClick = {
                             zoom = 1f

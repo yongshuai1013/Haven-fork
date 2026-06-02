@@ -22,6 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.db.entities.ConnectionProfile
+import sh.haven.core.data.desktop.CursorSnapshot
+import sh.haven.core.data.desktop.DesktopFrameHandle
 import sh.haven.core.data.desktop.DesktopStatus
 import sh.haven.core.data.preferences.AppWindowDef
 import sh.haven.core.data.preferences.AppWindowOrigin
@@ -39,6 +41,7 @@ import sh.haven.core.mosh.MoshSessionManager
 import sh.haven.core.rdp.RdpSession
 import sh.haven.core.ssh.SshClient
 import sh.haven.core.ssh.SshSessionManager
+import sh.haven.core.ui.CursorOverlay
 import sh.haven.core.tunnel.TunnelResolver
 import sh.haven.core.tunnel.TunneledConnection
 import sh.haven.core.tunnel.TunneledSocket
@@ -773,7 +776,7 @@ class DesktopViewModel @Inject constructor(
             val connected = MutableStateFlow(false)
             val frame = MutableStateFlow<Bitmap?>(null)
             val error = MutableStateFlow<String?>(null)
-            val cursor = MutableStateFlow<sh.haven.feature.vnc.CursorOverlay?>(null)
+            val cursor = MutableStateFlow<CursorOverlay?>(null)
             val pointerPos = MutableStateFlow(0 to 0)
             val bandwidthSuggestion = MutableStateFlow<String?>(null)
 
@@ -845,7 +848,7 @@ class DesktopViewModel @Inject constructor(
                     if (!username.isNullOrEmpty()) usernameSupplier = { username }
                     onScreenUpdate = { bitmap -> frame.value = bitmap }
                     onCursorUpdate = { bmp, hx, hy ->
-                        cursor.value = if (bmp == null) null else sh.haven.feature.vnc.CursorOverlay(bmp, hx, hy)
+                        cursor.value = if (bmp == null) null else CursorOverlay(bmp, hx, hy)
                     }
                     onBandwidthSuggestion = { suggested ->
                         // Only surface if the global preference is on. If
@@ -918,6 +921,16 @@ class DesktopViewModel @Inject constructor(
                 pauseAllExcept(_tabs.value.size - 1)
                 _activeTabIndex.value = _tabs.value.size - 1
                 desktopSessionRegistry.setStatus(profileId, DesktopStatus.CONNECTING)
+                // Expose the rendered frame + cursor to MCP capture_desktop_tab.
+                desktopSessionRegistry.registerFrameHandle(
+                    profileId,
+                    DesktopFrameHandle(
+                        protocol = "VNC",
+                        frame = { frame.value },
+                        cursor = { cursor.value?.let { CursorSnapshot(it.bitmap, it.hotspotX, it.hotspotY) } },
+                        pointer = { pointerPos.value },
+                    ),
+                )
 
                 val tc = tunneledConn
                 if (tc != null) {
@@ -1061,6 +1074,8 @@ class DesktopViewModel @Inject constructor(
                 val connected = MutableStateFlow(false)
                 val frame = MutableStateFlow<Bitmap?>(null)
                 val error = MutableStateFlow<String?>(null)
+                val cursor = MutableStateFlow<CursorOverlay?>(null)
+                val pointerPos = MutableStateFlow(0 to 0)
 
                 val verboseEnabled = preferencesRepository.verboseLoggingEnabled.first()
                 val verboseBuffer = if (verboseEnabled) ConcurrentLinkedQueue<String>() else null
@@ -1078,6 +1093,10 @@ class DesktopViewModel @Inject constructor(
                     socksProxy = rdpSocksProxy,
                 )
                 session.onFrameUpdate = { bitmap -> frame.value = bitmap }
+                session.onCursorUpdate = { bmp, hx, hy ->
+                    cursor.value = if (bmp == null) null else CursorOverlay(bmp, hx, hy)
+                }
+                session.onCursorPosition = { x, y -> pointerPos.value = x to y }
                 session.onError = { e ->
                     Log.e(TAG, "RDP error on tab $tabId", e)
                     error.value = RdpViewModel.describeError(e, host, port)
@@ -1132,6 +1151,8 @@ class DesktopViewModel @Inject constructor(
                     _connected = connected,
                     _frame = frame,
                     _error = error,
+                    _cursor = cursor,
+                    _pointerPos = pointerPos,
                     tunnelPort = tunnelPort,
                     tunnelSessionId = tunnelSessionId,
                     tunnelLease = tunnelLease,
@@ -1142,6 +1163,16 @@ class DesktopViewModel @Inject constructor(
                 tabs.add(tab)
                 _tabs.value = tabs
                 _activeTabIndex.value = tabs.size - 1
+                // Expose the rendered frame + cursor to MCP capture_desktop_tab.
+                desktopSessionRegistry.registerFrameHandle(
+                    profileId,
+                    DesktopFrameHandle(
+                        protocol = "RDP",
+                        frame = { frame.value },
+                        cursor = { cursor.value?.let { CursorSnapshot(it.bitmap, it.hotspotX, it.hotspotY) } },
+                        pointer = { pointerPos.value },
+                    ),
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "RDP connect failed", e)
                 if (profileId != null) {
@@ -1381,6 +1412,7 @@ class DesktopViewModel @Inject constructor(
                     tab.tunnelLease?.close()
                     releaseSshTunnelDependent(tab.profileId)
                     desktopSessionRegistry.clear(tab.profileId)
+                    desktopSessionRegistry.clearFrameHandle(tab.profileId)
                 }
                 is DesktopTab.Rdp -> {
                     if (tab.profileId != null) {
@@ -1391,6 +1423,7 @@ class DesktopViewModel @Inject constructor(
                     tab.tunnelLease?.close()
                     releaseSshTunnelDependent(tab.profileId)
                     desktopSessionRegistry.clear(tab.profileId)
+                    desktopSessionRegistry.clearFrameHandle(tab.profileId)
                 }
                 is DesktopTab.Wayland -> {} // compositor lifecycle managed externally
             }

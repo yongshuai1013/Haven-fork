@@ -99,6 +99,32 @@ pub trait ClipboardCallback: Send + Sync {
     fn on_remote_clipboard(&self, text: String);
 }
 
+/// Server-side pointer (cursor) updates. RDP servers send the cursor shape and
+/// position out-of-band rather than baking it into the framebuffer, so without
+/// this the RDP viewer has no cursor at all (unlike VNC) — see #212. We enable
+/// `enable_server_pointer` and forward the decoded shape to Kotlin, which draws
+/// it as an overlay at the tracked pointer position. `rgba` is the decoded
+/// pointer bitmap (RGBA, non-premultiplied alpha — `pointer_software_rendering`
+/// stays off so we composite client-side).
+#[uniffi::export(with_foreign)]
+pub trait PointerCallback: Send + Sync {
+    fn on_pointer_bitmap(
+        &self,
+        width: u16,
+        height: u16,
+        hotspot_x: u16,
+        hotspot_y: u16,
+        rgba: Vec<u8>,
+    );
+    /// Server requested the pointer be hidden (e.g. video playback, games).
+    fn on_pointer_hidden(&self);
+    /// Server requested the default/system pointer (keep the last shape).
+    fn on_pointer_default(&self);
+    /// Server moved the pointer (used in DIRECT mode; TOUCHPAD uses the
+    /// client-tracked virtual cursor).
+    fn on_pointer_position(&self, x: u16, y: u16);
+}
+
 /// Lifecycle + error surface for the RDP session, driven from the session
 /// thread. Kotlin uses this to decide when to show the frame vs. a connecting
 /// state vs. an error. Previously every failure in `run_rdp_session` went to
@@ -126,6 +152,7 @@ struct SessionState {
     frame_callback: Option<Arc<dyn FrameCallback>>,
     clipboard_callback: Option<Arc<dyn ClipboardCallback>>,
     session_callback: Option<Arc<dyn SessionCallback>>,
+    pointer_callback: Option<Arc<dyn PointerCallback>>,
     shutdown: bool,
 }
 
@@ -161,6 +188,7 @@ impl RdpClient {
                 frame_callback: None,
                 clipboard_callback: None,
                 session_callback: None,
+                pointer_callback: None,
                 shutdown: false,
             })),
             input_queue: Arc::new(Mutex::new(Vec::new())),
@@ -328,6 +356,12 @@ impl RdpClient {
             s.clipboard_callback = Some(cb);
         }
     }
+
+    pub fn set_pointer_callback(&self, cb: Arc<dyn PointerCallback>) {
+        if let Ok(mut s) = self.state.write() {
+            s.pointer_callback = Some(cb);
+        }
+    }
 }
 
 /// Build the ironrdp Config with all required fields.
@@ -419,7 +453,12 @@ fn build_config(config: &RdpConfig) -> ironrdp_connector::Config {
         performance_flags: ironrdp_pdu::rdp::client_info::PerformanceFlags::default(),
         license_cache: None,
         timezone_info: Default::default(),
-        enable_server_pointer: false,
+        // Request server-side pointer (cursor) updates so the RDP viewer can
+        // draw a cursor like VNC does (#212). Keep software rendering off — we
+        // composite the cursor client-side over the framebuffer rather than
+        // having ironrdp bake it in, so it tracks the touchpad-mode virtual
+        // cursor and doesn't leave trails on slow links.
+        enable_server_pointer: true,
         pointer_software_rendering: false,
     }
 }
@@ -959,6 +998,46 @@ fn run_rdp_session(
                                         rect.left, rect.top, rect.right, rect.bottom);
                                     update_framebuffer(state, &image, &rect);
                                 }
+                                // Server cursor updates (#212). Forward the
+                                // decoded shape/visibility/position to Kotlin,
+                                // firing the callback outside the state lock
+                                // (same pattern as update_framebuffer's frame
+                                // callback) so a Kotlin handler that calls back
+                                // into the client can't deadlock.
+                                ActiveStageOutput::PointerBitmap(ptr) => {
+                                    let cb = state.read().ok()
+                                        .and_then(|s| s.pointer_callback.clone());
+                                    if let Some(cb) = cb {
+                                        cb.on_pointer_bitmap(
+                                            ptr.width,
+                                            ptr.height,
+                                            ptr.hotspot_x,
+                                            ptr.hotspot_y,
+                                            ptr.bitmap_data.clone(),
+                                        );
+                                    }
+                                }
+                                ActiveStageOutput::PointerHidden => {
+                                    let cb = state.read().ok()
+                                        .and_then(|s| s.pointer_callback.clone());
+                                    if let Some(cb) = cb {
+                                        cb.on_pointer_hidden();
+                                    }
+                                }
+                                ActiveStageOutput::PointerDefault => {
+                                    let cb = state.read().ok()
+                                        .and_then(|s| s.pointer_callback.clone());
+                                    if let Some(cb) = cb {
+                                        cb.on_pointer_default();
+                                    }
+                                }
+                                ActiveStageOutput::PointerPosition { x, y } => {
+                                    let cb = state.read().ok()
+                                        .and_then(|s| s.pointer_callback.clone());
+                                    if let Some(cb) = cb {
+                                        cb.on_pointer_position(x, y);
+                                    }
+                                }
                                 ActiveStageOutput::Terminate(reason) => {
                                     error!("Server disconnect: {}", reason);
                                     break;
@@ -968,7 +1047,6 @@ fn run_rdp_session(
                                     // Would need to handle reconnection here
                                     break;
                                 }
-                                _ => {}
                             }
                         }
                     }
@@ -1182,12 +1260,15 @@ fn try_handle_slow_path_bitmap(
                             _ => continue,
                         };
 
-                        // ARGB_8888 in native little-endian: bytes [B, G, R, A]
+                        // Android ARGB_8888 copyPixelsFromBuffer wants RGBA byte
+                        // order: [R, G, B, A] (#212 — writing [B,G,R,A] swapped
+                        // red/blue on-device, e.g. xrdp's blue login background
+                        // rendered brown).
                         let di = (dst_row_y * fb_width + dst_col_x) * 4;
                         if di + 3 < fb_data.len() {
-                            fb_data[di] = b;
+                            fb_data[di] = r;
                             fb_data[di + 1] = g;
-                            fb_data[di + 2] = r;
+                            fb_data[di + 2] = b;
                             fb_data[di + 3] = 0xFF;
                         }
                     }
@@ -1254,8 +1335,11 @@ fn update_framebuffer(
     let fb_height = image.height() as usize;
     let pixel_data = image.data();
 
-    // Convert BGRA (ironrdp RgbA32) to Android ARGB_8888 native LE: [B,G,R,A]
-    // ironrdp BGRA is already [B,G,R,A] in memory — same layout!
+    // ironrdp's DecodedImage is PixelFormat::RgbA32 = [R,G,B,A] in memory.
+    // Android Bitmap.Config.ARGB_8888 + copyPixelsFromBuffer also expects RGBA
+    // byte order ([R,G,B,A]) — confirmed on-device (#212): a frame written as
+    // [B,G,R,A] renders with red/blue swapped (the blue Windows accent showed
+    // orange). So a verbatim copy is correct here; no swap.
     let pixel_count = fb_width * fb_height;
     let argb = pixel_data[..pixel_count * 4].to_vec();
 

@@ -547,7 +547,11 @@ fun HavenNavHost(
                         toolbarLayout = toolbarLayout,
                         navBlockMode = navBlockMode,
                         inputMode = desktopInputMode,
+                        onSetInputMode = { mode ->
+                            coroutineScope.launch { preferencesRepository.setDesktopInputMode(mode) }
+                        },
                         isActive = pagerState.settledPage == pageOf(Screen.Desktop),
+                        fullscreen = desktopFullscreen,
                         onFullscreenChanged = { desktopFullscreen = it },
                         onConnectedChanged = { desktopConnected = it },
                     )

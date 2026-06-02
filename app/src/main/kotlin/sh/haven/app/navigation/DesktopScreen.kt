@@ -77,7 +77,13 @@ fun DesktopScreen(
     toolbarLayout: ToolbarLayout = ToolbarLayout.DEFAULT,
     navBlockMode: NavBlockMode = NavBlockMode.ALIGNED,
     inputMode: String = "DIRECT",
+    onSetInputMode: ((String) -> Unit)? = null,
     isActive: Boolean = true,
+    /** When the active viewer is fullscreen, the manager's own chrome (the
+     *  compact Manage row + tab bar) is hidden too, so a small-screen RDP/VNC
+     *  session is truly edge-to-edge (#212). The viewer's floating overlay
+     *  remains the way back out of fullscreen. */
+    fullscreen: Boolean = false,
     onFullscreenChanged: (Boolean) -> Unit = {},
     onConnectedChanged: (Boolean) -> Unit = {},
 ) {
@@ -160,22 +166,26 @@ fun DesktopScreen(
         // Compact action row at the very top — surfaces the Manage
         // toggle without consuming the full TopAppBar height. Stays
         // visible while a session is running so the user can switch
-        // to Manage at any time.
-        Surface(tonalElevation = 1.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = { userManageOverride = !showManage },
+        // to Manage at any time. Hidden in fullscreen (#212) so the
+        // viewer goes edge-to-edge on small screens; the viewer's
+        // floating overlay still exits fullscreen.
+        if (!fullscreen) {
+            Surface(tonalElevation = 1.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = if (showManage) Icons.Filled.DesktopWindows else Icons.Filled.Tune,
-                        contentDescription = if (showManage) "Sessions" else "Manage desktops",
-                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { userManageOverride = !showManage },
+                    ) {
+                        Icon(
+                            imageVector = if (showManage) Icons.Filled.DesktopWindows else Icons.Filled.Tune,
+                            contentDescription = if (showManage) "Sessions" else "Manage desktops",
+                        )
+                    }
                 }
             }
         }
@@ -188,9 +198,9 @@ fun DesktopScreen(
         if (tabs.isEmpty()) {
             DesktopEmptyState()
         } else {
-            // Tab bar — always visible when tabs exist (hidden in fullscreen by parent)
+            // Tab bar — visible when tabs exist, hidden in fullscreen (#212).
             val isConnected by (activeTab?.connected ?: MutableStateFlow(false)).collectAsState()
-            if (tabs.size > 1 || !isConnected) {
+            if (!fullscreen && (tabs.size > 1 || !isConnected)) {
                 DesktopTabBar(
                     tabs = tabs,
                     activeTabIndex = activeTabIndex,
@@ -231,6 +241,7 @@ fun DesktopScreen(
                             cursor = tab.cursor,
                             pointerPos = tab.pointerPos,
                             inputMode = inputMode,
+                            onSetInputMode = onSetInputMode,
                             bandwidthSuggestion = tab.bandwidthSuggestion,
                             onAcceptBandwidthSuggestion = { desktopViewModel.acceptBandwidthSuggestion(tab.id) },
                             onDismissBandwidthSuggestion = { desktopViewModel.dismissBandwidthSuggestion(tab.id) },
@@ -265,8 +276,10 @@ fun DesktopScreen(
                             onKeyUp = { scancode -> desktopViewModel.sendRdpKey(scancode, false) },
                             onDisconnect = { desktopViewModel.closeTab(tab.id) },
                             onFullscreenChanged = onFullscreenChanged,
+                            cursor = tab.cursor,
                             pointerPos = tab.pointerPos,
                             inputMode = inputMode,
+                            onSetInputMode = onSetInputMode,
                             currentOrientation = desktopOrientation,
                             onCycleOrientation = { desktopViewModel.cycleDesktopOrientation() },
                             onRetry = { desktopViewModel.retryTab(tab.id) },

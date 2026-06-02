@@ -1,0 +1,5 @@
+RDP fixes: correct colours, a visible mouse cursor, and a cleaner fullscreen.
+
+• Fixed: RDP colours were red/blue swapped (blue rendered as orange/brown). All RDP rendering paths now use the correct byte order, so remote desktops show true colours.
+• Added: RDP now shows the server mouse cursor (previously it had none). A new touch/trackpad toggle in the RDP toolbar lets you switch between direct-touch and trackpad modes.
+• Fixed: in fullscreen, the desktop manager's top bar now hides too, for an edge-to-edge view on small screens.

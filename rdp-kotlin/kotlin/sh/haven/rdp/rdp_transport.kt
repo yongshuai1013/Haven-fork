@@ -663,6 +663,18 @@ internal interface UniffiCallbackInterfaceFrameCallbackMethod0 : com.sun.jna.Cal
 internal interface UniffiCallbackInterfaceFrameCallbackMethod1 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`width`: Short,`height`: Short,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
+internal interface UniffiCallbackInterfacePointerCallbackMethod0 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`width`: Short,`height`: Short,`hotspotX`: Short,`hotspotY`: Short,`rgba`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfacePointerCallbackMethod1 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfacePointerCallbackMethod2 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfacePointerCallbackMethod3 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`x`: Short,`y`: Short,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
 internal interface UniffiCallbackInterfaceSessionCallbackMethod0 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`width`: Short,`height`: Short,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
@@ -703,6 +715,31 @@ internal open class UniffiVTableCallbackInterfaceFrameCallback(
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceFrameCallback) {
         `onFrameUpdate` = other.`onFrameUpdate`
         `onResize` = other.`onResize`
+        `uniffiFree` = other.`uniffiFree`
+    }
+
+}
+@Structure.FieldOrder("onPointerBitmap", "onPointerHidden", "onPointerDefault", "onPointerPosition", "uniffiFree")
+internal open class UniffiVTableCallbackInterfacePointerCallback(
+    @JvmField internal var `onPointerBitmap`: UniffiCallbackInterfacePointerCallbackMethod0? = null,
+    @JvmField internal var `onPointerHidden`: UniffiCallbackInterfacePointerCallbackMethod1? = null,
+    @JvmField internal var `onPointerDefault`: UniffiCallbackInterfacePointerCallbackMethod2? = null,
+    @JvmField internal var `onPointerPosition`: UniffiCallbackInterfacePointerCallbackMethod3? = null,
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+) : Structure() {
+    class UniffiByValue(
+        `onPointerBitmap`: UniffiCallbackInterfacePointerCallbackMethod0? = null,
+        `onPointerHidden`: UniffiCallbackInterfacePointerCallbackMethod1? = null,
+        `onPointerDefault`: UniffiCallbackInterfacePointerCallbackMethod2? = null,
+        `onPointerPosition`: UniffiCallbackInterfacePointerCallbackMethod3? = null,
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    ): UniffiVTableCallbackInterfacePointerCallback(`onPointerBitmap`,`onPointerHidden`,`onPointerDefault`,`onPointerPosition`,`uniffiFree`,), Structure.ByValue
+
+   internal fun uniffiSetValue(other: UniffiVTableCallbackInterfacePointerCallback) {
+        `onPointerBitmap` = other.`onPointerBitmap`
+        `onPointerHidden` = other.`onPointerHidden`
+        `onPointerDefault` = other.`onPointerDefault`
+        `onPointerPosition` = other.`onPointerPosition`
         `uniffiFree` = other.`uniffiFree`
     }
 
@@ -840,6 +877,19 @@ internal open class UniffiVTableCallbackInterfaceSessionCallback(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -852,6 +902,7 @@ internal interface UniffiLib : Library {
                 uniffiCheckApiChecksums(lib)
                 uniffiCallbackInterfaceClipboardCallback.register(lib)
                 uniffiCallbackInterfaceFrameCallback.register(lib)
+                uniffiCallbackInterfacePointerCallback.register(lib)
                 uniffiCallbackInterfaceSessionCallback.register(lib)
                 }
         }
@@ -879,6 +930,20 @@ internal interface UniffiLib : Library {
     fun uniffi_rdp_transport_fn_method_framecallback_on_frame_update(`ptr`: Pointer,`x`: Short,`y`: Short,`w`: Short,`h`: Short,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_rdp_transport_fn_method_framecallback_on_resize(`ptr`: Pointer,`width`: Short,`height`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_clone_pointercallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
+    fun uniffi_rdp_transport_fn_free_pointercallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_init_callback_vtable_pointercallback(`vtable`: UniffiVTableCallbackInterfacePointerCallback,
+    ): Unit
+    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(`ptr`: Pointer,`width`: Short,`height`: Short,`hotspotX`: Short,`hotspotY`: Short,`rgba`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(`ptr`: Pointer,`x`: Short,`y`: Short,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_rdp_transport_fn_clone_rdpclient(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
@@ -911,6 +976,8 @@ internal interface UniffiLib : Library {
     fun uniffi_rdp_transport_fn_method_rdpclient_set_clipboard_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_rdp_transport_fn_method_rdpclient_set_session_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1044,6 +1111,14 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_rdp_transport_checksum_method_framecallback_on_resize(
     ): Short
+    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap(
+    ): Short
+    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden(
+    ): Short
+    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default(
+    ): Short
+    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position(
+    ): Short
     fun uniffi_rdp_transport_checksum_method_rdpclient_connect(
     ): Short
     fun uniffi_rdp_transport_checksum_method_rdpclient_disconnect(
@@ -1069,6 +1144,8 @@ internal interface UniffiLib : Library {
     fun uniffi_rdp_transport_checksum_method_rdpclient_set_clipboard_callback(
     ): Short
     fun uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback(
+    ): Short
+    fun uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback(
     ): Short
     fun uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback(
     ): Short
@@ -1104,6 +1181,18 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_rdp_transport_checksum_method_framecallback_on_resize() != 54094.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap() != 35826.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden() != 42953.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default() != 43433.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position() != 49559.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_rdp_transport_checksum_method_rdpclient_connect() != 51883.toShort()) {
@@ -1143,6 +1232,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback() != 49675.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback() != 482.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback() != 44349.toShort()) {
@@ -2159,6 +2251,394 @@ public object FfiConverterTypeFrameCallback: FfiConverter<FrameCallback, Pointer
 //
 
 
+/**
+ * Server-side pointer (cursor) updates. RDP servers send the cursor shape and
+ * position out-of-band rather than baking it into the framebuffer, so without
+ * this the RDP viewer has no cursor at all (unlike VNC) — see #212. We enable
+ * `enable_server_pointer` and forward the decoded shape to Kotlin, which draws
+ * it as an overlay at the tracked pointer position. `rgba` is the decoded
+ * pointer bitmap (RGBA, non-premultiplied alpha — `pointer_software_rendering`
+ * stays off so we composite client-side).
+ */
+public interface PointerCallback {
+    
+    fun `onPointerBitmap`(`width`: kotlin.UShort, `height`: kotlin.UShort, `hotspotX`: kotlin.UShort, `hotspotY`: kotlin.UShort, `rgba`: kotlin.ByteArray)
+    
+    /**
+     * Server requested the pointer be hidden (e.g. video playback, games).
+     */
+    fun `onPointerHidden`()
+    
+    /**
+     * Server requested the default/system pointer (keep the last shape).
+     */
+    fun `onPointerDefault`()
+    
+    /**
+     * Server moved the pointer (used in DIRECT mode; TOUCHPAD uses the
+     * client-tracked virtual cursor).
+     */
+    fun `onPointerPosition`(`x`: kotlin.UShort, `y`: kotlin.UShort)
+    
+    companion object
+}
+
+/**
+ * Server-side pointer (cursor) updates. RDP servers send the cursor shape and
+ * position out-of-band rather than baking it into the framebuffer, so without
+ * this the RDP viewer has no cursor at all (unlike VNC) — see #212. We enable
+ * `enable_server_pointer` and forward the decoded shape to Kotlin, which draws
+ * it as an overlay at the tracked pointer position. `rgba` is the decoded
+ * pointer bitmap (RGBA, non-premultiplied alpha — `pointer_software_rendering`
+ * stays off so we composite client-side).
+ */
+open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
+
+    constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed = AtomicBoolean(false)
+    private val callCounter = AtomicLong(1)
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        // TODO: maybe we should log a warning if called more than once?
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        this.destroy()
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.get()
+            if (c == 0L) {
+                throw IllegalStateException("${this.javaClass.simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+        override fun run() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_pointercallback(ptr, status)
+                }
+            }
+        }
+    }
+
+    fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall() { status ->
+            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_pointercallback(pointer!!, status)
+        }
+    }
+
+    override fun `onPointerBitmap`(`width`: kotlin.UShort, `height`: kotlin.UShort, `hotspotX`: kotlin.UShort, `hotspotY`: kotlin.UShort, `rgba`: kotlin.ByteArray)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(
+        it, FfiConverterUShort.lower(`width`),FfiConverterUShort.lower(`height`),FfiConverterUShort.lower(`hotspotX`),FfiConverterUShort.lower(`hotspotY`),FfiConverterByteArray.lower(`rgba`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Server requested the pointer be hidden (e.g. video playback, games).
+     */override fun `onPointerHidden`()
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(
+        it, _status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Server requested the default/system pointer (keep the last shape).
+     */override fun `onPointerDefault`()
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(
+        it, _status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Server moved the pointer (used in DIRECT mode; TOUCHPAD uses the
+     * client-tracked virtual cursor).
+     */override fun `onPointerPosition`(`x`: kotlin.UShort, `y`: kotlin.UShort)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(
+        it, FfiConverterUShort.lower(`x`),FfiConverterUShort.lower(`y`),_status)
+}
+    }
+    
+    
+
+    
+
+    
+    
+    companion object
+    
+}
+
+
+// Put the implementation in an object so we don't pollute the top-level namespace
+internal object uniffiCallbackInterfacePointerCallback {
+    internal object `onPointerBitmap`: UniffiCallbackInterfacePointerCallbackMethod0 {
+        override fun callback(`uniffiHandle`: Long,`width`: Short,`height`: Short,`hotspotX`: Short,`hotspotY`: Short,`rgba`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePointerCallback.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPointerBitmap`(
+                    FfiConverterUShort.lift(`width`),
+                    FfiConverterUShort.lift(`height`),
+                    FfiConverterUShort.lift(`hotspotX`),
+                    FfiConverterUShort.lift(`hotspotY`),
+                    FfiConverterByteArray.lift(`rgba`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onPointerHidden`: UniffiCallbackInterfacePointerCallbackMethod1 {
+        override fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePointerCallback.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPointerHidden`(
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onPointerDefault`: UniffiCallbackInterfacePointerCallbackMethod2 {
+        override fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePointerCallback.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPointerDefault`(
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onPointerPosition`: UniffiCallbackInterfacePointerCallbackMethod3 {
+        override fun callback(`uniffiHandle`: Long,`x`: Short,`y`: Short,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePointerCallback.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPointerPosition`(
+                    FfiConverterUShort.lift(`x`),
+                    FfiConverterUShort.lift(`y`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+
+    internal object uniffiFree: UniffiCallbackInterfaceFree {
+        override fun callback(handle: Long) {
+            FfiConverterTypePointerCallback.handleMap.remove(handle)
+        }
+    }
+
+    internal var vtable = UniffiVTableCallbackInterfacePointerCallback.UniffiByValue(
+        `onPointerBitmap`,
+        `onPointerHidden`,
+        `onPointerDefault`,
+        `onPointerPosition`,
+        uniffiFree,
+    )
+
+    // Registers the foreign callback with the Rust side.
+    // This method is generated for each callback interface.
+    internal fun register(lib: UniffiLib) {
+        lib.uniffi_rdp_transport_fn_init_callback_vtable_pointercallback(vtable)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePointerCallback: FfiConverter<PointerCallback, Pointer> {
+    internal val handleMap = UniffiHandleMap<PointerCallback>()
+
+    override fun lower(value: PointerCallback): Pointer {
+        return Pointer(handleMap.insert(value))
+    }
+
+    override fun lift(value: Pointer): PointerCallback {
+        return PointerCallbackImpl(value)
+    }
+
+    override fun read(buf: ByteBuffer): PointerCallback {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(Pointer(buf.getLong()))
+    }
+
+    override fun allocationSize(value: PointerCallback) = 8UL
+
+    override fun write(value: PointerCallback, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(Pointer.nativeValue(lower(value)))
+    }
+}
+
+
+// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// to the live Rust struct on the other side of the FFI.
+//
+// Each instance implements core operations for working with the Rust `Arc<T>` and the
+// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
+//
+// There's some subtlety here, because we have to be careful not to operate on a Rust
+// struct after it has been dropped, and because we must expose a public API for freeing
+// theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
+//
+//   * Each instance holds an opaque pointer to the underlying Rust struct.
+//     Method calls need to read this pointer from the object's state and pass it in to
+//     the Rust FFI.
+//
+//   * When an instance is no longer needed, its pointer should be passed to a
+//     special destructor function provided by the Rust FFI, which will drop the
+//     underlying Rust struct.
+//
+//   * Given an instance, calling code is expected to call the special
+//     `destroy` method in order to free it after use, either by calling it explicitly
+//     or by using a higher-level helper like the `use` method. Failing to do so risks
+//     leaking the underlying Rust struct.
+//
+//   * We can't assume that calling code will do the right thing, and must be prepared
+//     to handle Kotlin method calls executing concurrently with or even after a call to
+//     `destroy`, and to handle multiple (possibly concurrent!) calls to `destroy`.
+//
+//   * We must never allow Rust code to operate on the underlying Rust struct after
+//     the destructor has been called, and must never call the destructor more than once.
+//     Doing so may trigger memory unsafety.
+//
+//   * To mitigate many of the risks of leaking memory and use-after-free unsafety, a `Cleaner`
+//     is implemented to call the destructor when the Kotlin object becomes unreachable.
+//     This is done in a background thread. This is not a panacea, and client code should be aware that
+//      1. the thread may starve if some there are objects that have poorly performing
+//     `drop` methods or do significant work in their `drop` methods.
+//      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
+//         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
+//
+// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// possibility of a race between a method call and a concurrent call to `destroy`:
+//
+//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
+//      before it can pass the pointer over the FFI to Rust.
+//    * Thread B calls `destroy` and frees the underlying Rust struct.
+//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//      a use-after-free.
+//
+// One possible solution would be to use a `ReadWriteLock`, with each method call taking
+// a read lock (and thus allowed to run concurrently) and the special `destroy` method
+// taking a write lock (and thus blocking on live method calls). However, we aim not to
+// generate methods with any hidden blocking semantics, and a `destroy` method that might
+// block if called incorrectly seems to meet that bar.
+//
+// So, we achieve our goals by giving each instance an associated `AtomicLong` counter to track
+// the number of in-flight method calls, and an `AtomicBoolean` flag to indicate whether `destroy`
+// has been called. These are updated according to the following rules:
+//
+//    * The initial value of the counter is 1, indicating a live object with no in-flight calls.
+//      The initial value for the flag is false.
+//
+//    * At the start of each method call, we atomically check the counter.
+//      If it is 0 then the underlying Rust struct has already been destroyed and the call is aborted.
+//      If it is nonzero them we atomically increment it by 1 and proceed with the method call.
+//
+//    * At the end of each method call, we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+//    * When `destroy` is called, we atomically flip the flag from false to true.
+//      If the flag was already true we silently fail.
+//      Otherwise we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+// Astute readers may observe that this all sounds very similar to the way that Rust's `Arc<T>` works,
+// and indeed it is, with the addition of a flag to guard against multiple calls to `destroy`.
+//
+// The overall effect is that the underlying Rust struct is destroyed only when `destroy` has been
+// called *and* all in-flight method calls have completed, avoiding violating any of the expectations
+// of the underlying Rust code.
+//
+// This makes a cleaner a better alternative to _not_ calling `destroy()` as
+// and when the object is finished with, but the abstraction is not perfect: if the Rust object's `drop`
+// method is slow, and/or there are many objects to cleanup, and it's on a low end Android device, then the cleaner
+// thread may be starved, and the app will leak memory.
+//
+// In this case, `destroy`ing manually may be a better solution.
+//
+// The cleaner can live side by side with the manual calling of `destroy`. In the order of responsiveness, uniffi objects
+// with Rust peers are reclaimed:
+//
+// 1. By calling the `destroy` method of the object, which calls `rustObject.free()`. If that doesn't happen:
+// 2. When the object becomes unreachable, AND the Cleaner thread gets to call `rustObject.free()`. If the thread is starved then:
+// 3. The memory is reclaimed when the process terminates.
+//
+// [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
+//
+
+
 public interface RdpClientInterface {
     
     fun `connect`(`host`: kotlin.String, `port`: kotlin.UShort, `socksProxy`: SocksProxyConfig?)
@@ -2186,6 +2666,8 @@ public interface RdpClientInterface {
     fun `setClipboardCallback`(`cb`: ClipboardCallback)
     
     fun `setFrameCallback`(`cb`: FrameCallback)
+    
+    fun `setPointerCallback`(`cb`: PointerCallback)
     
     fun `setSessionCallback`(`cb`: SessionCallback)
     
@@ -2422,6 +2904,17 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(
         it, FfiConverterTypeFrameCallback.lower(`cb`),_status)
+}
+    }
+    
+    
+
+    override fun `setPointerCallback`(`cb`: PointerCallback)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(
+        it, FfiConverterTypePointerCallback.lower(`cb`),_status)
 }
     }
     

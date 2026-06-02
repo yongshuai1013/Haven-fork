@@ -360,18 +360,13 @@ impl EgfxProcessor {
                 for row in 0..copy_h {
                     let s_off = (src_y + row) * src_stride + src_x * 4;
                     let d_off = (dst_t as usize + row) * dst_stride + dst_l as usize * 4;
-                    // Surface is RGBA8888 (R,G,B,A bytes); framebuffer is
-                    // BGRA in memory (Android ARGB_8888 little-endian).
-                    // Swap R<->B per pixel during the copy.
+                    // Surface is RGBA8888 ([R,G,B,A] bytes). Android's
+                    // ARGB_8888 framebuffer (copyPixelsFromBuffer) also expects
+                    // RGBA byte order, so copy straight through — no R<->B swap
+                    // (#212: the swap rendered blue as orange on-device).
                     let src_row = &surface.pixels[s_off..s_off + copy_w * 4];
                     let dst_row = &mut fb.pixels[d_off..d_off + copy_w * 4];
-                    for px in 0..copy_w {
-                        let i = px * 4;
-                        dst_row[i] = src_row[i + 2];     // B
-                        dst_row[i + 1] = src_row[i + 1]; // G
-                        dst_row[i + 2] = src_row[i];     // R
-                        dst_row[i + 3] = src_row[i + 3]; // A
-                    }
+                    dst_row.copy_from_slice(src_row);
                 }
                 bb_l = bb_l.min(dst_l);
                 bb_t = bb_t.min(dst_t);

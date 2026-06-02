@@ -97,14 +97,21 @@ fn main() -> ExitCode {
     // into emitting EGFX surface updates instead of just sitting idle.
     let type_after = args.get(7).cloned().unwrap_or_default();
 
+    // RDP_NLA=0 disables CredSSP/NLA (reach the login screen on a permissive
+    // server without valid creds — enough to capture an EGFX frame for colour
+    // diagnosis). RDP_DEPTH overrides the negotiated colour depth.
+    let enable_credssp = std::env::var("RDP_NLA").map(|v| v != "0").unwrap_or(true);
+    let color_depth: u8 = std::env::var("RDP_DEPTH").ok().and_then(|s| s.parse().ok()).unwrap_or(32);
+    let width: u16 = std::env::var("RDP_W").ok().and_then(|s| s.parse().ok()).unwrap_or(1280);
+    let height: u16 = std::env::var("RDP_H").ok().and_then(|s| s.parse().ok()).unwrap_or(800);
     let config = RdpConfig {
         username: user,
         password: pass,
         domain,
-        width: 1280,
-        height: 800,
-        color_depth: 32,
-        enable_credssp: true,
+        width,
+        height,
+        color_depth,
+        enable_credssp,
     };
 
     let client = Arc::new(RdpClient::new(config));
@@ -123,7 +130,7 @@ fn main() -> ExitCode {
     client.set_clipboard_callback(Arc::new(StderrClipCb));
 
     eprintln!("[connecting] {host}:{port}");
-    if let Err(e) = client.connect(host, port) {
+    if let Err(e) = client.connect(host, port, None) {
         eprintln!("[connect-failed] {e:?}");
         return ExitCode::from(1);
     }
@@ -151,6 +158,42 @@ fn main() -> ExitCode {
             typed = true;
         }
         std::thread::sleep(Duration::from_millis(200));
+    }
+
+    // Dump the final framebuffer so we can inspect exactly what the Android
+    // viewer would render. The framebuffer bytes are Android ARGB_8888 native
+    // LE = [B,G,R,A] per pixel (see update_framebuffer / try_handle_slow_path_
+    // bitmap), so emitting RGB=(byte2,byte1,byte0) reproduces the on-device
+    // colours faithfully. PPM (P6) keeps it dependency-free. (#212)
+    if let Some(fb) = client.get_framebuffer() {
+        let w = fb.width as usize;
+        let h = fb.height as usize;
+        let path = std::env::var("RDP_DUMP").unwrap_or_else(|_| "/tmp/rdp_fb.ppm".into());
+        match std::fs::File::create(&path) {
+            Ok(mut f) => {
+                use std::io::Write;
+                let _ = write!(f, "P6\n{w} {h}\n255\n");
+                let mut rgb = Vec::with_capacity(w * h * 3);
+                let mut nonblack = 0u64;
+                for px in fb.pixels.chunks_exact(4) {
+                    // Framebuffer is RGBA ([R,G,B,A]) — same as on-device.
+                    let (r, g, b) = (px[0], px[1], px[2]);
+                    if r != 0 || g != 0 || b != 0 {
+                        nonblack += 1;
+                    }
+                    rgb.extend_from_slice(&[r, g, b]);
+                }
+                let _ = f.write_all(&rgb);
+                let total = (w * h) as u64;
+                eprintln!(
+                    "[dump] wrote {path} ({w}x{h}); non-black {nonblack}/{total} = {:.1}%",
+                    100.0 * nonblack as f64 / total.max(1) as f64
+                );
+            }
+            Err(e) => eprintln!("[dump-failed] {e}"),
+        }
+    } else {
+        eprintln!("[dump] no framebuffer available");
     }
 
     eprintln!("[deadline] disconnecting");

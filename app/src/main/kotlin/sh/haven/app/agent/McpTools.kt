@@ -1501,6 +1501,33 @@ internal class McpTools(
             },
         ) { args -> captureDesktop(args) },
 
+        "capture_desktop_tab" to ToolHandler(
+            description = "Capture what a remote-desktop VIEWER tab (RDP or VNC) is actually rendering, INLINE as an image — the framebuffer the user sees, with the server cursor composited on top at the tracked pointer position. This is distinct from capture_desktop, which screenshots an in-guest X11/VNC desktop; this one captures the RDP/VNC client viewer (e.g. to verify colours and the cursor against a remote Windows/Linux server). Pass profileId to pick a tab (from list_desktop_sessions); omit it when exactly one desktop tab is open. Returns the image plus { profileId, protocol, width, height, hasCursor, cursorWidth?, cursorHeight?, hotspotX?, hotspotY?, pointerX?, pointerY?, format }.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Profile id of the desktop tab (from list_desktop_sessions). Omit when exactly one tab is open.")
+                    })
+                    put("maxWidth", JSONObject().apply {
+                        put("type", "integer")
+                        put("description", "Downscale so the image is at most this many pixels wide. Default 1280 (clamped 160–4096).")
+                    })
+                    put("format", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "\"jpeg\" (default, smaller) or \"png\" (lossless, larger).")
+                    })
+                })
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                val pid = args.optString("profileId").takeIf { it.isNotBlank() }
+                val who = if (pid != null) "desktop '${profileLabel(pid)}'" else "the open remote desktop"
+                "Let the agent see what $who is rendering"
+            },
+        ) { args -> captureDesktopTab(args) },
+
         "launch_app_in_desktop" to ToolHandler(
             description = "Launch a GUI application into a RUNNING X11/VNC desktop (deId), with DISPLAY/XAUTHORITY/HOME and the software-GL fallback (LIBGL_ALWAYS_SOFTWARE=1, GALLIUM_DRIVER=llvmpipe) already exported so GPU-less GL apps like KiCad/eeschema don't crash their canvas. Optionally waits for the app's window to appear and returns its windowId — pass that to capture_desktop to screenshot just that window. The app keeps running after this returns. For looking at saved design FILES prefer view_file (headless, no desktop needed); use this when you need the live interactive app.",
             inputSchema = JSONObject().apply {
@@ -6625,6 +6652,84 @@ internal class McpTools(
             put("source", "guest")
             windowId?.let { put("windowId", it) }
             windowTitle?.let { put("windowTitle", it) }
+            // Reserved keys: McpServer lifts these into an MCP image content
+            // block and strips them from structuredContent / the text echo.
+            put("__imageBase64", b64)
+            put("__mimeType", if (format == "jpeg") "image/jpeg" else "image/png")
+        }
+    }
+
+    /**
+     * Capture a remote-desktop VIEWER tab's rendered framebuffer (RDP/VNC), with
+     * the server cursor composited at the tracked pointer position, and return
+     * it inline. Distinct from [captureDesktop] (in-guest X11). Reads the live
+     * frame via the [DesktopFrameHandle] the tab registered in
+     * [desktopSessionRegistry]; no DesktopViewModel coupling.
+     */
+    private suspend fun captureDesktopTab(args: JSONObject): JSONObject {
+        val explicitPid = args.optString("profileId").takeIf { it.isNotBlank() }
+        val handles = desktopSessionRegistry.frameHandles()
+        val pid = explicitPid ?: when (handles.size) {
+            1 -> handles.keys.first()
+            0 -> throw McpError(-32602, "No remote-desktop tab is open. Use connect_profile, then list_desktop_sessions.")
+            else -> throw McpError(
+                -32602,
+                "Multiple desktop tabs open (${handles.keys.joinToString()}); pass profileId.",
+            )
+        }
+        val handle = desktopSessionRegistry.frameHandle(pid)
+            ?: throw McpError(-32602, "No capturable desktop tab for profile '$pid' (call list_desktop_sessions).")
+        val src = handle.frame()
+            ?: throw McpError(-32603, "Desktop '$pid' has not rendered a frame yet — wait for it to connect.")
+
+        val maxWidth = args.optInt("maxWidth", 1280).coerceIn(160, 4096)
+        val format = if (args.optString("format", "jpeg").lowercase() == "png") "png" else "jpeg"
+
+        val cursor = handle.cursor()
+        val (px, py) = handle.pointer()
+
+        val (b64, w, h) = withContext(Dispatchers.Default) {
+            // Composite the cursor onto a mutable copy so the source frame
+            // (shared with the live viewer) is never mutated.
+            var bmp = src.copy(Bitmap.Config.ARGB_8888, true)
+            if (cursor != null) {
+                android.graphics.Canvas(bmp).drawBitmap(
+                    cursor.bitmap,
+                    (px - cursor.hotspotX).toFloat(),
+                    (py - cursor.hotspotY).toFloat(),
+                    null,
+                )
+            }
+            val fullW = bmp.width
+            val fullH = bmp.height
+            if (maxWidth in 1 until bmp.width) {
+                val nh = (bmp.height.toFloat() * maxWidth / bmp.width).toInt().coerceAtLeast(1)
+                bmp = Bitmap.createScaledBitmap(bmp, maxWidth, nh, true)
+            }
+            val out = java.io.ByteArrayOutputStream()
+            if (format == "jpeg") {
+                bmp.compress(Bitmap.CompressFormat.JPEG, 75, out)
+            } else {
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            Triple(Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP), fullW, fullH)
+        }
+
+        return JSONObject().apply {
+            put("profileId", pid)
+            put("protocol", handle.protocol)
+            put("width", w)
+            put("height", h)
+            put("hasCursor", cursor != null)
+            if (cursor != null) {
+                put("cursorWidth", cursor.bitmap.width)
+                put("cursorHeight", cursor.bitmap.height)
+                put("hotspotX", cursor.hotspotX)
+                put("hotspotY", cursor.hotspotY)
+                put("pointerX", px)
+                put("pointerY", py)
+            }
+            put("format", format)
             // Reserved keys: McpServer lifts these into an MCP image content
             // block and strips them from structuredContent / the text echo.
             put("__imageBase64", b64)

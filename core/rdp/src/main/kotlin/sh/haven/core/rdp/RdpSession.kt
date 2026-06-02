@@ -5,6 +5,7 @@ import android.util.Log
 import sh.haven.rdp.FrameCallback
 import sh.haven.rdp.FrameData
 import sh.haven.rdp.MouseButton
+import sh.haven.rdp.PointerCallback
 import sh.haven.rdp.RdpClient
 import sh.haven.rdp.RdpConfig
 import sh.haven.rdp.RdpException
@@ -59,6 +60,22 @@ class RdpSession(
 
     /** Called on frame updates. Set by the ViewModel. */
     var onFrameUpdate: ((Bitmap) -> Unit)? = null
+
+    /**
+     * Called when the server pushes a new cursor shape / visibility (#212).
+     * Args mirror VncConfig.onCursorUpdate: (cursor bitmap or null to hide,
+     * hotspot x, hotspot y). The app layer wraps this into a CursorOverlay.
+     */
+    var onCursorUpdate: ((Bitmap?, Int, Int) -> Unit)? = null
+
+    /**
+     * Called when the server moves the pointer (DIRECT mode). Touchpad mode
+     * drives the cursor position client-side, so this is advisory.
+     */
+    var onCursorPosition: ((Int, Int) -> Unit)? = null
+
+    /** Last non-null cursor shape, re-emitted on PointerDefault. */
+    private var lastCursor: Triple<Bitmap, Int, Int>? = null
 
     /** Called when an error occurs. */
     var onError: ((Exception) -> Unit)? = null
@@ -150,6 +167,48 @@ class RdpSession(
                 }
             })
 
+            c.setPointerCallback(object : PointerCallback {
+                override fun onPointerBitmap(
+                    width: UShort,
+                    height: UShort,
+                    hotspotX: UShort,
+                    hotspotY: UShort,
+                    rgba: ByteArray,
+                ) {
+                    if (closed) return
+                    val w = width.toInt()
+                    val h = height.toInt()
+                    if (w <= 0 || h <= 0 || rgba.size < w * h * 4) {
+                        log("E", "Bad pointer bitmap ${w}x$h, ${rgba.size} bytes")
+                        return
+                    }
+                    try {
+                        val bmp = pointerToBitmap(rgba, w, h)
+                        lastCursor = Triple(bmp, hotspotX.toInt(), hotspotY.toInt())
+                        onCursorUpdate?.invoke(bmp, hotspotX.toInt(), hotspotY.toInt())
+                    } catch (e: Exception) {
+                        log("E", "pointerToBitmap failed (${w}x$h): ${e.message}")
+                    }
+                }
+
+                override fun onPointerHidden() {
+                    if (closed) return
+                    // Temporary hide (video/games) — drop the overlay but keep
+                    // lastCursor so a subsequent PointerDefault can restore it.
+                    onCursorUpdate?.invoke(null, 0, 0)
+                }
+
+                override fun onPointerDefault() {
+                    if (closed) return
+                    lastCursor?.let { (bmp, hx, hy) -> onCursorUpdate?.invoke(bmp, hx, hy) }
+                }
+
+                override fun onPointerPosition(x: UShort, y: UShort) {
+                    if (closed) return
+                    onCursorPosition?.invoke(x.toInt(), y.toInt())
+                }
+            })
+
             log("D", "Connecting to $host:$port (worker thread will handle handshake, socks=${socksProxy != null})")
             c.connect(host, port.toUShort(), socksProxy)
         } catch (e: UnsatisfiedLinkError) {
@@ -198,6 +257,27 @@ class RdpSession(
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(frame.pixels))
         return bitmap
+    }
+
+    /**
+     * Convert an IronRDP DecodedPointer bitmap (RGBA bytes, non-premultiplied
+     * alpha — `pointer_software_rendering` is off) to an Android Bitmap. Packs
+     * each RGBA pixel into an ARGB colour int; `createBitmap(IntArray, …)`
+     * treats the input as non-premultiplied and stores it premultiplied, so the
+     * Compose overlay alpha-blends correctly. Mirrors the VNC cursor path
+     * (Framebuffer.renderCursor).
+     */
+    private fun pointerToBitmap(rgba: ByteArray, w: Int, h: Int): Bitmap {
+        val argb = IntArray(w * h)
+        for (i in 0 until w * h) {
+            val o = i * 4
+            val r = rgba[o].toInt() and 0xFF
+            val g = rgba[o + 1].toInt() and 0xFF
+            val b = rgba[o + 2].toInt() and 0xFF
+            val a = rgba[o + 3].toInt() and 0xFF
+            argb[i] = (a shl 24) or (r shl 16) or (g shl 8) or b
+        }
+        return Bitmap.createBitmap(argb, w, h, Bitmap.Config.ARGB_8888)
     }
 
     /** Get the current frame as a Bitmap. */
