@@ -78,6 +78,8 @@ jobs:
           submodules: false
       - uses: ./.github/actions/init-submodules-with-retry
       - uses: ./.github/actions/setup-toolchain
+      - name: Check for hardcoded UI strings (#210)
+        run: ./scripts/check-i18n-hardcoded.sh
       - name: Run lint
         run: ./gradlew lintDebug
       - name: Upload lint results
