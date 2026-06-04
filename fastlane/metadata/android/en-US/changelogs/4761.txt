@@ -1,0 +1,1 @@
+- Terminal: fixed a couple of lines being cropped off the bottom of the screen while the on-screen keyboard was open, in full-screen terminal apps that keep scrollback (e.g. tmux, or a REPL / Claude Code running inside it). The bottom status line and input row now stay visible just above the keyboard, instead of reappearing only when the keyboard was dismissed.
