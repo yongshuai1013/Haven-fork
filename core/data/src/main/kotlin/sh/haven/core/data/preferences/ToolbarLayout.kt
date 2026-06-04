@@ -56,9 +56,9 @@ enum class NavBlockMode(val id: String, val label: String) {
  * See `ReorderToolbarContent` in `core:toolbar`. (#224)
  */
 enum class EditModeControlsPlacement(val id: String) {
-    /** ✓/desktop on the left, add/settings on the right (default). */
+    /** ✓/desktop on the left, add/settings on the right (the v5.59.29 behaviour). */
     SPLIT("split"),
-    /** All fixed controls grouped on the left. */
+    /** All fixed controls grouped on the left (default). */
     LEFT("left"),
     /** All fixed controls grouped on the right. */
     RIGHT("right");

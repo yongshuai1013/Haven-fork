@@ -429,7 +429,7 @@ class SettingsViewModel @Inject constructor(
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5000),
-                EditModeControlsPlacement.SPLIT,
+                EditModeControlsPlacement.LEFT,
             )
 
     val toolbarMinButtonWidth: StateFlow<Int> = preferencesRepository.toolbarMinButtonWidth

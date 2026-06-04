@@ -1027,7 +1027,7 @@ class UserPreferencesRepository @Inject constructor(
     /** Where the fixed (non-draggable) controls sit in toolbar edit mode. (#224) */
     val editModeControlsPlacement: Flow<EditModeControlsPlacement> = dataStore.data.map { prefs ->
         prefs[editModeControlsPlacementKey]?.let { EditModeControlsPlacement.fromId(it) }
-            ?: EditModeControlsPlacement.SPLIT
+            ?: EditModeControlsPlacement.LEFT
     }
 
     suspend fun setEditModeControlsPlacement(placement: EditModeControlsPlacement) {

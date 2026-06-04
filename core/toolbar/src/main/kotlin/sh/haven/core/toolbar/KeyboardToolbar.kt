@@ -212,7 +212,7 @@ fun KeyboardToolbar(
     bracketPasteMode: Boolean = false,
     layout: ToolbarLayout = ToolbarLayout.DEFAULT,
     navBlockMode: sh.haven.core.data.preferences.NavBlockMode = sh.haven.core.data.preferences.NavBlockMode.ALIGNED,
-    editModeControlsPlacement: sh.haven.core.data.preferences.EditModeControlsPlacement = sh.haven.core.data.preferences.EditModeControlsPlacement.SPLIT,
+    editModeControlsPlacement: sh.haven.core.data.preferences.EditModeControlsPlacement = sh.haven.core.data.preferences.EditModeControlsPlacement.LEFT,
     minKeyWidth: Dp = DEFAULT_MIN_KEY_WIDTH,
     onToggleCtrl: () -> Unit = {},
     onToggleAlt: () -> Unit = {},
@@ -1295,7 +1295,7 @@ private fun ReorderToolbarContent(
     onDone: () -> Unit,
     onOpenSettings: () -> Unit = {},
     showVncIcon: Boolean = false,
-    placement: EditModeControlsPlacement = EditModeControlsPlacement.SPLIT,
+    placement: EditModeControlsPlacement = EditModeControlsPlacement.LEFT,
 ) {
     val rows = remember(layout) {
         // Pin the leading icon keys to match the live render's fixed 2-column
