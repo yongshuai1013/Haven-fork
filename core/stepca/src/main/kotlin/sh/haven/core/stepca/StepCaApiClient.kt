@@ -155,7 +155,22 @@ class StepCaApiClient @Inject constructor() {
             if (crt.isEmpty()) {
                 return@withContext SignSshResult.Failure("step-ca response missing 'crt' field")
             }
-            SignSshResult.Success(crt.toByteArray(Charsets.US_ASCII))
+            // step-ca's `crt` is standard-base64 of the raw SSH cert wire blob
+            // (api/ssh.go: SSHCertificate.MarshalJSON → base64.StdEncoding of
+            // cert.Marshal()). We persist the *decoded* binary in
+            // SshKey.certificateBytes — the same shape the manual "Attach
+            // certificate" path stores, and what toOpenSshPublicKeyLine /
+            // OpenSshCertificate.parse expect. Storing the base64 text verbatim
+            // (the pre-fix bug) made every step-ca key fail on connect + export
+            // with "invalid certificate type length". (#133/#185)
+            val certBlob = try {
+                java.util.Base64.getDecoder().decode(crt.trim())
+            } catch (e: IllegalArgumentException) {
+                return@withContext SignSshResult.Failure(
+                    "step-ca 'crt' was not valid base64: ${e.message}",
+                )
+            }
+            SignSshResult.Success(certBlob)
         } catch (e: Throwable) {
             SignSshResult.Failure("step-ca request failed: ${e.message}")
         } finally {

@@ -77,17 +77,25 @@ object SshCertificateParser {
         if (baseKeyType.endsWith(CERT_SUFFIX)) baseKeyType else "$baseKeyType$CERT_SUFFIX"
 
     /**
-     * Render a stored raw certificate [blob] (the base64-decoded binary we
-     * persist in `SshKey.certificateBytes`) as an OpenSSH public-key **text
-     * line** — `"<cert-type> <base64-blob>"`. JSch's
+     * Render a stored certificate as an OpenSSH public-key **text line** —
+     * `"<cert-type> <base64-blob>"`. JSch's
      * `addIdentity(name, prv, pubkey, passphrase)` parses its `pubkey`
      * argument as this textual form (type + base64), not as the raw binary;
      * passing the binary blob makes JSch silently fall back to the bare
      * public key and the server rejects a CA-only login (#185). The cert
      * type is read from the blob's leading SSH `string` field so we don't
      * depend on a separately-tracked key type.
+     *
+     * The input is first run through [normalizeToBinaryBlob] because
+     * `SshKey.certificateBytes` has been persisted in more than one shape:
+     * the manual "Attach certificate" path stores the decoded binary, but
+     * the step-ca "Generate via step-ca" path stored the *base64 text* of
+     * step-ca's `/1.0/sign-ssh` `crt` field verbatim (v5.24.88–v5.59.x),
+     * which made every step-ca key fail here — and on export — with
+     * "invalid certificate type length". (#133/#185)
      */
-    fun toOpenSshPublicKeyLine(blob: ByteArray): ByteArray {
+    fun toOpenSshPublicKeyLine(storedBytes: ByteArray): ByteArray {
+        val blob = normalizeToBinaryBlob(storedBytes)
         require(blob.size >= 4) { "certificate blob too short" }
         val typeLen = ((blob[0].toInt() and 0xFF) shl 24) or
             ((blob[1].toInt() and 0xFF) shl 16) or
@@ -97,6 +105,51 @@ object SshCertificateParser {
         val type = String(blob, 4, typeLen, Charsets.US_ASCII)
         val b64 = Base64.getEncoder().encodeToString(blob)
         return "$type $b64".toByteArray(Charsets.US_ASCII)
+    }
+
+    /**
+     * Coerce stored certificate bytes to the raw binary OpenSSH wire blob.
+     * `SshKey.certificateBytes` ships in three shapes; normalise them all to
+     * the decoded binary the rest of this object expects:
+     *  - raw binary (manual "Attach certificate" path) — returned unchanged
+     *  - bare standard-base64 of the blob, no type prefix — the shape of
+     *    step-ca's `/1.0/sign-ssh` `crt` field, stored verbatim by the
+     *    pre-fix "Generate via step-ca" path (#133/#185)
+     *  - a full OpenSSH text line `"<cert-type> <base64> [comment]"`
+     *
+     * Mirrors the tolerance already in [OpenSshCertificate.parse]. Input that
+     * matches none of the above is returned unchanged so the caller still
+     * surfaces its own diagnostic (e.g. the "invalid certificate type
+     * length" require in [toOpenSshPublicKeyLine]).
+     */
+    internal fun normalizeToBinaryBlob(bytes: ByteArray): ByteArray {
+        if (looksLikeBinaryCert(bytes)) return bytes
+        val text = runCatching { bytes.decodeToString().trim() }.getOrDefault("")
+        if (text.isEmpty()) return bytes
+        val b64 = if (text.any { it == ' ' || it == '\t' || it == '\n' || it == '\r' }) {
+            val parts = text.split(Regex("\\s+"), limit = 3)
+            if (parts.size >= 2 && parts[0].endsWith(CERT_SUFFIX)) parts[1] else return bytes
+        } else {
+            text
+        }
+        val decoded = runCatching { Base64.getDecoder().decode(b64) }.getOrNull() ?: return bytes
+        return if (looksLikeBinaryCert(decoded)) decoded else bytes
+    }
+
+    /** True when [blob] is the raw binary wire form: a leading SSH `string`
+     * whose value is a `*-cert-v01@openssh.com` type. Base64 text never
+     * matches — its first byte is a printable ASCII char, never the `0x00`
+     * a small big-endian length needs. */
+    private fun looksLikeBinaryCert(blob: ByteArray): Boolean {
+        if (blob.size < 4) return false
+        val typeLen = ((blob[0].toInt() and 0xFF) shl 24) or
+            ((blob[1].toInt() and 0xFF) shl 16) or
+            ((blob[2].toInt() and 0xFF) shl 8) or
+            (blob[3].toInt() and 0xFF)
+        if (typeLen !in 1..(blob.size - 4)) return false
+        val type = runCatching { String(blob, 4, typeLen, Charsets.US_ASCII) }.getOrNull()
+            ?: return false
+        return type.endsWith(CERT_SUFFIX)
     }
 
     /** True when the cert's embedded public key matches the supplied SHA-256 fingerprint. */

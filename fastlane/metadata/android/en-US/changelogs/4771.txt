@@ -1,0 +1,1 @@
+- step-ca: fixed SSH keys generated via "Generate via step-ca" failing to connect (and failing to export) with an "invalid certificate type length" error. The signed certificate was stored in the wrong encoding; it is now decoded to the correct binary form, and existing affected keys self-heal on update so you don't have to regenerate them.

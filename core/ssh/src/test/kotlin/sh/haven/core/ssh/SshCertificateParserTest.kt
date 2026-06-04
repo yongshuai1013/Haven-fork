@@ -52,6 +52,64 @@ class SshCertificateParserTest {
         assertEquals(listOf("bob"), cert.validPrincipals)
     }
 
+    // ---- toOpenSshPublicKeyLine: tolerate every stored cert shape (#133/#185) ----
+
+    @Test
+    fun `toOpenSshPublicKeyLine accepts the raw binary blob`() {
+        val blob = buildEd25519Cert(serial = 1L, keyId = "x", principals = listOf("x"))
+        val line = SshCertificateParser.toOpenSshPublicKeyLine(blob).decodeToString()
+        assertEquals(
+            "ssh-ed25519-cert-v01@openssh.com " + Base64.getEncoder().encodeToString(blob),
+            line,
+        )
+    }
+
+    @Test
+    fun `toOpenSshPublicKeyLine accepts bare base64 text (step-ca crt shape)`() {
+        // The pre-fix bug: "Generate via step-ca" stored step-ca's `crt`
+        // field — bare standard-base64 of the blob, no type prefix — verbatim.
+        // toOpenSshPublicKeyLine must decode it, not choke with "invalid
+        // certificate type length".
+        val blob = buildEd25519Cert(serial = 1L, keyId = "x", principals = listOf("x"))
+        val base64TextBytes = Base64.getEncoder().encodeToString(blob).toByteArray(Charsets.US_ASCII)
+        val line = SshCertificateParser.toOpenSshPublicKeyLine(base64TextBytes).decodeToString()
+        assertEquals(
+            "ssh-ed25519-cert-v01@openssh.com " + Base64.getEncoder().encodeToString(blob),
+            line,
+        )
+    }
+
+    @Test
+    fun `toOpenSshPublicKeyLine accepts a full openssh text line and drops the comment`() {
+        val blob = buildEd25519Cert(serial = 1L, keyId = "x", principals = listOf("x"))
+        val b64 = Base64.getEncoder().encodeToString(blob)
+        val fileLine = "ssh-ed25519-cert-v01@openssh.com $b64 alice@laptop"
+            .toByteArray(Charsets.US_ASCII)
+        val line = SshCertificateParser.toOpenSshPublicKeyLine(fileLine).decodeToString()
+        assertEquals("ssh-ed25519-cert-v01@openssh.com $b64", line)
+    }
+
+    @Test
+    fun `all three stored shapes normalise to the same binary blob`() {
+        val blob = buildEd25519Cert(serial = 9L, keyId = "y", principals = listOf("y"))
+        val b64 = Base64.getEncoder().encodeToString(blob)
+        val fromBinary = SshCertificateParser.normalizeToBinaryBlob(blob)
+        val fromBase64 = SshCertificateParser.normalizeToBinaryBlob(b64.toByteArray(Charsets.US_ASCII))
+        val fromLine = SshCertificateParser.normalizeToBinaryBlob(
+            "ssh-ed25519-cert-v01@openssh.com $b64 c".toByteArray(Charsets.US_ASCII),
+        )
+        assertEquals(true, blob.contentEquals(fromBinary))
+        assertEquals(true, blob.contentEquals(fromBase64))
+        assertEquals(true, blob.contentEquals(fromLine))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `toOpenSshPublicKeyLine still rejects non-certificate garbage`() {
+        // Neither valid binary nor base64-of-a-cert: must surface the clear
+        // diagnostic, not silently succeed.
+        SshCertificateParser.toOpenSshPublicKeyLine(ByteArray(12) { 0xFF.toByte() })
+    }
+
     // ---- fixture builders ----
 
     private val nonce = ByteArray(32) { (it + 1).toByte() }
