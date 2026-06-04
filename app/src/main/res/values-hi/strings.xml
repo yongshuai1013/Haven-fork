@@ -140,4 +140,5 @@
     <string name="app_biometric_not_enrolled_body">Haven app-lock चालू है, लेकिन इस डिवाइस पर कोई screen lock या biometric नामांकित नहीं है। अनलॉक करने के लिए डिवाइस Settings में एक सेट अप करें।</string>
     <string name="app_biometric_no_hardware_title">Authentication उपलब्ध नहीं</string>
     <string name="app_biometric_no_hardware_body">यह डिवाइस authenticate नहीं कर सकता (न biometric hardware है, न device credential)। अनलॉक करने के लिए Settings में PIN या पासवर्ड सेट अप करें।</string>
+    <string name="app_present_minimize">छोटा करें</string>
 </resources>

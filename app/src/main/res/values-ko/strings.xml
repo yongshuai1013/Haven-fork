@@ -150,4 +150,5 @@
     <string name="app_biometric_not_enrolled_body">Haven 앱 잠금이 켜져 있지만, 이 기기에는 화면 잠금이나 등록된 생체 인증이 없습니다. 잠금을 해제하려면 기기 설정에서 하나를 설정하세요.</string>
     <string name="app_biometric_no_hardware_title">인증을 사용할 수 없음</string>
     <string name="app_biometric_no_hardware_body">이 기기는 인증할 수 없습니다(생체 인증 하드웨어와 기기 자격 증명이 모두 없음). 잠금을 해제하려면 설정에서 PIN 또는 비밀번호를 설정하세요.</string>
+    <string name="app_present_minimize">최소화</string>
 </resources>

@@ -140,4 +140,5 @@
     <string name="app_biometric_not_enrolled_body">قفل تطبيق Haven مفعّل، لكن هذا الجهاز ليس به قفل شاشة أو بصمة مسجّلة. أعدّ واحدًا في إعدادات الجهاز للإلغاء.</string>
     <string name="app_biometric_no_hardware_title">المصادقة غير متاحة</string>
     <string name="app_biometric_no_hardware_body">يتعذّر على هذا الجهاز إجراء المصادقة (لا توجد أجهزة قياسات حيوية ولا بيانات اعتماد للجهاز). أعدّ رمز PIN أو كلمة مرور في الإعدادات للإلغاء.</string>
+    <string name="app_present_minimize">تصغير</string>
 </resources>

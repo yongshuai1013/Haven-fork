@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +37,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import sh.haven.core.data.agent.PresentedMedia
 import sh.haven.core.data.agent.PresentedMediaKind
 import kotlin.math.roundToInt
@@ -61,9 +64,8 @@ internal fun EdgeIconDock(viewModel: PresentationHostViewModel = hiltViewModel()
     val pending by viewModel.pending.collectAsStateWithLifecycle()
     val minimized by viewModel.minimizedIds.collectAsStateWithLifecycle()
 
-    val docked = pending.filter {
-        it.kind == PresentedMediaKind.APP_WINDOW && it.id in minimized
-    }
+    // App windows + minimized images / web / audio all dock as edge icons.
+    val docked = pending.filter { it.id in minimized }
     if (docked.isEmpty()) return
 
     // A presentation sheet (the focused window, or an image/audio) renders in a
@@ -133,6 +135,17 @@ private fun EdgeIcon(
     onClose: () -> Unit,
 ) {
     val frame = controller?.frame?.collectAsStateWithLifecycle()?.value
+    // A minimized image shows a thumbnail of its cached file; an app window
+    // shows its live VNC frame; web/audio fall back to a caption letter.
+    val imageThumb = if (media.kind == PresentedMediaKind.IMAGE && media.filePath != null) {
+        produceState<android.graphics.Bitmap?>(initialValue = null, media.filePath) {
+            value = withContext(Dispatchers.Default) {
+                runCatching { android.graphics.BitmapFactory.decodeFile(media.filePath) }.getOrNull()
+            }
+        }.value
+    } else {
+        null
+    }
     Surface(
         modifier = Modifier
             .padding(vertical = 6.dp)
@@ -145,19 +158,20 @@ private fun EdgeIcon(
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (frame != null) {
+            val thumb = frame?.asImageBitmap() ?: imageThumb?.asImageBitmap()
+            if (thumb != null) {
                 Image(
-                    bitmap = frame.asImageBitmap(),
-                    contentDescription = media.caption ?: "App window",
+                    bitmap = thumb,
+                    contentDescription = media.caption ?: "Minimized item",
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop,
                 )
             } else {
-                // Connecting / no frame yet: show the caption's first letter.
+                // No frame/thumbnail (web/audio, or still decoding): caption letter.
                 Text(
-                    text = (media.caption ?: "App").take(1).uppercase(),
+                    text = (media.caption ?: "•").take(1).uppercase(),
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

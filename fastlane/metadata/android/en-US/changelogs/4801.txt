@@ -1,0 +1,2 @@
+- Terminal: the Desktop (VNC) connect dialog now scrolls, so its full form — colour depth, the "save" option, and Connect — stays reachable in landscape, where it was previously clipped (#224).
+- Agent: an image, web page, or sound shared via present_media / present_web can now be minimized to a small draggable edge icon (tap to restore) instead of only dismissed — handy for keeping a reference in view while you work.

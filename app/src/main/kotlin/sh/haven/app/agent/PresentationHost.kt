@@ -232,6 +232,12 @@ internal fun PresentationHost(viewModel: PresentationHostViewModel = hiltViewMod
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                 ) {
+                    // Minimize parks it as an edge icon (kept until dismissed) so
+                    // the user can glance back at an image/page while they work;
+                    // Dismiss removes it (and deletes its cache file).
+                    OutlinedButton(onClick = { viewModel.minimize(current.id) }) {
+                        Text(stringResource(R.string.app_present_minimize))
+                    }
                     Button(onClick = { viewModel.dismiss(current) }) {
                         Text(stringResource(R.string.app_present_dismiss))
                     }

@@ -140,4 +140,5 @@
     <string name="app_biometric_not_enrolled_body">Haven 应用锁已启用，但此设备未设置屏幕锁定或录入生物识别。请在设备“设置”中设置一项以解锁。</string>
     <string name="app_biometric_no_hardware_title">无法进行身份验证</string>
     <string name="app_biometric_no_hardware_body">此设备无法进行身份验证（无生物识别硬件且无设备凭据）。请在“设置”中设置 PIN 码或密码以解锁。</string>
+    <string name="app_present_minimize">最小化</string>
 </resources>

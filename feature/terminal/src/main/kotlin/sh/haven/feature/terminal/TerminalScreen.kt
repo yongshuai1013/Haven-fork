@@ -1388,7 +1388,9 @@ private fun VncSettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.terminal_vnc_desktop)) },
         text = {
-            Column {
+            // Scrollable so the full form (colour depth + save) stays reachable
+            // in landscape, where the dialog's text area is short. (#224)
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.terminal_connect_to_host, host), style = MaterialTheme.typography.bodyMedium)
                 androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
                 OutlinedTextField(

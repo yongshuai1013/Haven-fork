@@ -146,4 +146,5 @@
     <string name="app_biometric_not_enrolled_body">El bloqueo de la app Haven está activado, pero este dispositivo no tiene bloqueo de pantalla ni datos biométricos registrados. Configura uno en los Ajustes del dispositivo para desbloquear.</string>
     <string name="app_biometric_no_hardware_title">Autenticación no disponible</string>
     <string name="app_biometric_no_hardware_body">Este dispositivo no puede autenticarse (sin hardware biométrico ni credencial del dispositivo). Configura un PIN o una contraseña en Ajustes para desbloquear.</string>
+    <string name="app_present_minimize">Minimizar</string>
 </resources>

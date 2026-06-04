@@ -140,4 +140,5 @@
     <string name="app_biometric_not_enrolled_body">Le verrouillage de l\'app Haven est activé, mais cet appareil n\'a aucun verrouillage d\'écran ni donnée biométrique enregistrée. Configurez-en un dans les Paramètres de l\'appareil pour déverrouiller.</string>
     <string name="app_biometric_no_hardware_title">Authentification indisponible</string>
     <string name="app_biometric_no_hardware_body">Cet appareil ne peut pas s\'authentifier (aucun matériel biométrique ni identifiant d\'appareil). Configurez un code PIN ou un mot de passe dans les Paramètres pour déverrouiller.</string>
+    <string name="app_present_minimize">Réduire</string>
 </resources>
