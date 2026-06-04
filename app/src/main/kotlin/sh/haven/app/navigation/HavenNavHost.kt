@@ -28,6 +28,9 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
@@ -86,6 +89,7 @@ fun HavenNavHost(
     sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository,
     stepCaConfigRepository: sh.haven.core.data.repository.StepCaConfigRepository,
     agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
+    userMessageBus: sh.haven.core.data.message.UserMessageBus,
 ) {
     // Desktop multi-session ViewModel — hoisted to nav scope so it survives tab switches
     val desktopViewModel: DesktopViewModel = hiltViewModel()
@@ -660,8 +664,26 @@ fun HavenNavHost(
         }
     }
 
+    // App-global user-message host: any ViewModel can post to userMessageBus
+    // and it shows here, over EVERY screen (the Scaffold is the root, the pager
+    // is its content). Fixes errors being lost to a screen-scoped snackbar once
+    // the connect path navigates away (#215 follow-up).
+    val globalSnackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(userMessageBus) {
+        userMessageBus.messages.collect { msg ->
+            // Simple dedupe: skip if identical to the currently-shown message.
+            if (globalSnackbarHostState.currentSnackbarData?.visuals?.message != msg.text) {
+                globalSnackbarHostState.showSnackbar(
+                    message = msg.text,
+                    duration = SnackbarDuration.Long,
+                )
+            }
+        }
+    }
+
     Scaffold(
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
+        snackbarHost = { SnackbarHost(globalSnackbarHostState) },
         bottomBar = {
             if (!desktopFullscreen && !terminalFullscreen && !useSideNavigation) {
                 NavigationBar {

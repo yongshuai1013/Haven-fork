@@ -161,6 +161,7 @@ class ConnectionsViewModelSessionTest {
             agentUiCommandBus = mockk(relaxed = true) {
                 every { commands } returns kotlinx.coroutines.flow.MutableSharedFlow()
             },
+            userMessageBus = sh.haven.core.data.message.UserMessageBus(),
         )
     }
 

@@ -50,6 +50,7 @@ class TerminalViewModelTest {
             mockk(relaxed = true),
             mockk(relaxed = true), // TunnelResolver
             sh.haven.core.data.agent.AgentUiCommandBus(),
+            sh.haven.core.data.message.UserMessageBus(),
             mockk(relaxed = true),
             sh.haven.feature.terminal.agent.TerminalSessionRegistry(),
             mockk(relaxed = true), // BarcodeDecoder

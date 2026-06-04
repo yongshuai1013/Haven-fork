@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
     // Cross-tab navigation verbs: HavenNavHost collects from this so an
     // MCP `navigate_sftp_browser` switches the pager to the right tab.
     @Inject lateinit var agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus
+    // App-global user-facing messages (e.g. shell-closed connect errors);
+    // HavenNavHost shows these in a root snackbar over every screen (#215 follow-up).
+    @Inject lateinit var userMessageBus: sh.haven.core.data.message.UserMessageBus
     // Cert renewal request bus: notifications fire haven://renew-cert/<id>
     // intents which land here and we re-publish via the existing
     // AgentUiCommandBus so HavenNavHost flips to Keys and KeysViewModel
@@ -316,6 +319,7 @@ class MainActivity : AppCompatActivity() {
                         sshKeyRepository = sshKeyRepository,
                         stepCaConfigRepository = stepCaConfigRepository,
                         agentUiCommandBus = agentUiCommandBus,
+                        userMessageBus = userMessageBus,
                     )
                     // Floats above whatever screen is active so an
                     // agent's consent prompt is unmissable. No-op when

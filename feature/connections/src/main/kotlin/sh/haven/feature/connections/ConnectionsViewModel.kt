@@ -120,6 +120,7 @@ class ConnectionsViewModel @Inject constructor(
     private val certRenewalGate: CertRenewalGate,
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
+    private val userMessageBus: sh.haven.core.data.message.UserMessageBus,
 ) : ViewModel() {
 
     /**
@@ -2492,8 +2493,9 @@ class ConnectionsViewModel @Inject constructor(
             _connectingProfileId.value = profileId
             try {
                 // First session uses the already-open SSH connection
+                var anyReady = false
                 sshSessionManager.setChosenSessionName(sessionId, sessionNames.first())
-                finishConnect(sessionId, profileId)
+                anyReady = finishConnect(sessionId, profileId, silent = true) || anyReady
 
                 // Additional sessions need new SSH connections
                 for (name in sessionNames.drop(1)) {
@@ -2521,10 +2523,11 @@ class ConnectionsViewModel @Inject constructor(
                     }
                     sshSessionManager.storeConnectionConfig(newSessionId, config, manager, cmdOverride, profile.postLoginCommand)
                     sshSessionManager.setChosenSessionName(newSessionId, name)
-                    finishConnect(newSessionId, profileId, silent = true)
+                    anyReady = finishConnect(newSessionId, profileId, silent = true) || anyReady
                 }
-                // Navigate to terminal after all tabs are open
-                _navigateToTerminal.value = profileId
+                // Navigate only if at least one session reached a live terminal
+                // (a host with no session manager closes the shell immediately).
+                if (anyReady) _navigateToTerminal.value = profileId
             } catch (e: Exception) {
                 Log.e(TAG, "Restore sessions failed", e)
                 _error.value = "Restore failed: ${e.message}"
@@ -2916,19 +2919,42 @@ class ConnectionsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun finishConnect(sessionId: String, profileId: String, verboseLog: String? = pendingVerboseLogs.remove(sessionId), silent: Boolean = false) {
+    private suspend fun finishConnect(sessionId: String, profileId: String, verboseLog: String? = pendingVerboseLogs.remove(sessionId), silent: Boolean = false): Boolean {
         // Tunnel-only profiles (#150 Phase B): bring up the transport,
         // register port forwards, but skip shell allocation and the
         // terminal navigation. Session lives in the background just
         // for its forwards — autossh-style when paired with the
         // auto-reconnect policy from Phase A.
         val tunnelOnly = repository.getById(profileId)?.tunnelOnly == true
-        withContext(Dispatchers.IO) {
-            if (!tunnelOnly) {
-                sshSessionManager.openShellForSession(sessionId)
-            }
 
-            // Apply enabled port forward rules
+        // Open the shell and AWAIT a definitive outcome — mark CONNECTED /
+        // navigate only on a confirmed live terminal. A shell that closes
+        // immediately (no session manager on the host) is reported here, not
+        // discovered later by a timer, so the user gets a clear error and is
+        // never stranded on the wrong tab. Tunnel-only sessions have no shell.
+        if (!tunnelOnly) {
+            val outcome = withContext(Dispatchers.IO) {
+                sshSessionManager.openShellAndAwaitReady(sessionId)
+            }
+            when (outcome) {
+                is sh.haven.core.ssh.ShellOutcome.Ready -> { /* proceed below */ }
+                is sh.haven.core.ssh.ShellOutcome.ShellClosed -> {
+                    connectionLogRepository.logEvent(profileId, ConnectionLog.Status.FAILED, details = "shell closed (exit ${outcome.exitStatus})", verboseLog = verboseLog)
+                    sshSessionManager.removeSession(sessionId)
+                    userMessageBus.error("Shell closed — is your session manager (tmux/zellij/screen) installed on this host?")
+                    return false
+                }
+                is sh.haven.core.ssh.ShellOutcome.Failed -> {
+                    connectionLogRepository.logEvent(profileId, ConnectionLog.Status.FAILED, details = outcome.reason, verboseLog = verboseLog)
+                    sshSessionManager.removeSession(sessionId)
+                    userMessageBus.error(outcome.reason.ifBlank { "Failed to open the remote shell" })
+                    return false
+                }
+            }
+        }
+
+        // Apply enabled port forward rules (best-effort; not gated on shell health).
+        withContext(Dispatchers.IO) {
             val rules = portForwardRepository.getEnabledForProfile(profileId)
             if (rules.isNotEmpty()) {
                 sshSessionManager.applyPortForwards(
@@ -2969,22 +2995,11 @@ class ConnectionsViewModel @Inject constructor(
         connectionLogRepository.logEvent(profileId, ConnectionLog.Status.CONNECTED, details = authDetail, verboseLog = verboseLog)
         startForegroundServiceIfNeeded()
         if (!silent && !tunnelOnly) {
+            // Shell confirmed live above, so a terminal tab will materialise —
+            // safe to navigate. No optimistic-navigate + recovery poll.
             _navigateToTerminal.value = profileId
-            // Verify a terminal tab appears — if the session manager (tmux/zellij/screen)
-            // isn't installed on the remote host, the shell exits silently and no tab is created.
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(6000)
-                val hasTerminal = sshSessionManager.sessions.value.values.any {
-                    it.profileId == profileId &&
-                        it.status == SshSessionManager.SessionState.Status.CONNECTED &&
-                        it.shellChannel?.isConnected == true
-                }
-                if (!hasTerminal) {
-                    _error.value = "Shell closed — is your session manager (tmux/zellij/screen) installed on this host?"
-                    _navigateToConnections.value = true
-                }
-            }
         }
+        return true
     }
 
     /**
@@ -3435,8 +3450,10 @@ class ConnectionsViewModel @Inject constructor(
         val session = sshSessionManager.getSessionsForProfile(profileId)
             .firstOrNull { it.status == SshSessionManager.SessionState.Status.CONNECTED }
             ?: return
-        if (session.shellChannel != null) {
-            // Shell already open — navigate directly
+        if (sshSessionManager.isLiveTerminal(session.sessionId)) {
+            // Shell open AND a terminal is attached — navigate directly. (A
+            // dead/absent channel falls through to (re)open below, rather than
+            // navigating to a tab that will never appear.)
             _navigateToTerminal.value = profileId
             return
         }

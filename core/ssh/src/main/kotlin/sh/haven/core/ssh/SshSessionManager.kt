@@ -3,6 +3,7 @@ package sh.haven.core.ssh
 import android.util.Log
 import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.ChannelShell
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.repository.ConnectionLogRepository
 import sh.haven.core.data.terminal.ScrollbackRing
@@ -38,6 +40,25 @@ import javax.inject.Singleton
 private const val AGENT_SCROLLBACK_CAPACITY_BYTES = 256 * 1024
 
 private const val TAG = "SshSessionManager"
+
+/**
+ * Time to watch a freshly-opened shell before declaring it healthy. A real
+ * interactive shell stays open well past this; a shell with no session manager
+ * (or a broken exec) EOFs within ms, so the failure path returns fast and the
+ * success path waits at most this long. (#215 follow-up)
+ */
+private const val SHELL_SETTLE_MS = 1500L
+
+/** Definitive outcome of opening a shell for a freshly-connected SSH session. */
+sealed interface ShellOutcome {
+    val sessionId: String
+    /** Live terminal: channel connected + reader running past the settle window. */
+    data class Ready(override val sessionId: String) : ShellOutcome
+    /** Remote shell exited immediately (clean exit) — e.g. no session manager installed. */
+    data class ShellClosed(override val sessionId: String, val exitStatus: Int) : ShellOutcome
+    /** Opening the shell threw, or the channel dropped during connect. */
+    data class Failed(override val sessionId: String, val reason: String) : ShellOutcome
+}
 
 /**
  * Manages active SSH sessions across the app.
@@ -309,6 +330,7 @@ class SshSessionManager @Inject constructor(
     fun createTerminalSession(
         sessionId: String,
         onDataReceived: (ByteArray, Int, Int) -> Unit,
+        connectSignal: CompletableDeferred<ShellOutcome>? = null,
     ): TerminalSession? {
         val session = _sessions.value[sessionId] ?: return null
         val channel = session.shellChannel ?: return null
@@ -319,19 +341,30 @@ class SshSessionManager @Inject constructor(
         val ring = agentScrollback.computeIfAbsent(sessionId) {
             ScrollbackRing(AGENT_SCROLLBACK_CAPACITY_BYTES)
         }
-        val mirroringCallback: (ByteArray, Int, Int) -> Unit = { data, off, len ->
-            ring.append(data, off, len)
-            onDataReceived(data, off, len)
-        }
         val termSession = TerminalSession(
             sessionId = sessionId,
             profileId = session.profileId,
             label = session.label,
             channel = channel,
             client = session.client,
-            onDataReceived = mirroringCallback,
+            onDataReceived = onDataReceived,
+            // Permanent ring mirror — NOT swapped by replaceDataCallback, so it
+            // survives reattach now that the session is created at connect time
+            // and the emulator attaches afterwards. (#215 follow-up)
+            onMirror = { data, off, len -> ring.append(data, off, len) },
             onDisconnected = { cleanExit ->
-                if (cleanExit) {
+                // Initial-connect window: report the outcome to the awaiting
+                // connect path exactly once, instead of the normal
+                // disconnect/reconnect handling. Once completed (here or
+                // disarmed by openShellAndAwaitReady after the window),
+                // established sessions take the reconnect-aware path below.
+                if (connectSignal != null && !connectSignal.isCompleted) {
+                    connectSignal.complete(
+                        if (cleanExit) ShellOutcome.ShellClosed(sessionId, channel.exitStatus)
+                        else ShellOutcome.Failed(sessionId, "shell closed during connect"),
+                    )
+                    updateStatus(sessionId, SessionState.Status.DISCONNECTED)
+                } else if (cleanExit) {
                     Log.d(TAG, "Session $sessionId exited cleanly — not reconnecting")
                     updateStatus(sessionId, SessionState.Status.DISCONNECTED)
                 } else {
@@ -353,6 +386,69 @@ class SshSessionManager @Inject constructor(
         )
         attachTerminalSession(sessionId, termSession)
         return termSession
+    }
+
+    /**
+     * Open a shell for a freshly-connected session, attach + start its terminal
+     * session, and AWAIT a definitive outcome before returning — so callers
+     * navigate to the terminal ONLY on a confirmed live shell. A shell that
+     * closes immediately (no session manager on the host) returns
+     * [ShellOutcome.ShellClosed] within ms; a healthy shell returns
+     * [ShellOutcome.Ready] after at most [settleMs]. Replaces the old
+     * open-shell-then-poll pattern. (#215 follow-up)
+     *
+     * NOTE: leaves status as-is on Ready (the caller flips it to CONNECTED on
+     * success); sets ERROR on ShellClosed/Failed so a dead shell never reads
+     * as connected.
+     */
+    suspend fun openShellAndAwaitReady(
+        sessionId: String,
+        onDataReceived: (ByteArray, Int, Int) -> Unit = { _, _, _ -> },
+        settleMs: Long = SHELL_SETTLE_MS,
+    ): ShellOutcome {
+        val session = _sessions.value[sessionId]
+            ?: return ShellOutcome.Failed(sessionId, "session not found")
+        val channel = try {
+            session.client.openShellChannel()
+        } catch (e: Exception) {
+            Log.w(TAG, "openShellChannel failed for $sessionId: ${e.message}")
+            updateStatus(sessionId, SessionState.Status.ERROR)
+            return ShellOutcome.Failed(sessionId, e.message ?: "failed to open shell")
+        }
+        attachShellChannel(sessionId, channel)
+        val connectSignal = CompletableDeferred<ShellOutcome>()
+        val term = createTerminalSession(sessionId, onDataReceived, connectSignal)
+            ?: run {
+                updateStatus(sessionId, SessionState.Status.ERROR)
+                return ShellOutcome.Failed(sessionId, "could not create terminal session")
+            }
+        term.start()
+        val signalled = withTimeoutOrNull(settleMs) { connectSignal.await() }
+        // Disarm: after the window, future disconnects must take the normal
+        // (reconnect-aware) path, not the connect-outcome path.
+        if (!connectSignal.isCompleted) connectSignal.complete(ShellOutcome.Ready(sessionId))
+        return when {
+            signalled is ShellOutcome.ShellClosed || signalled is ShellOutcome.Failed -> {
+                updateStatus(sessionId, SessionState.Status.ERROR)
+                signalled
+            }
+            channel.isConnected -> ShellOutcome.Ready(sessionId)
+            else -> {
+                updateStatus(sessionId, SessionState.Status.ERROR)
+                ShellOutcome.ShellClosed(sessionId, channel.exitStatus)
+            }
+        }
+    }
+
+    /**
+     * True iff the session has a connected channel AND an attached terminal
+     * session — i.e. a usable terminal tab can/does exist. (#215 follow-up)
+     */
+    fun isLiveTerminal(sessionId: String): Boolean {
+        val session = _sessions.value[sessionId] ?: return false
+        return session.status == SessionState.Status.CONNECTED &&
+            session.shellChannel?.isConnected == true &&
+            session.terminalSession != null
     }
 
     /**

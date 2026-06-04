@@ -25,6 +25,14 @@ class TerminalSession(
     @Volatile private var channel: ChannelShell,
     @Volatile private var client: SshClient,
     @Volatile private var onDataReceived: (ByteArray, Int, Int) -> Unit,
+    /**
+     * Permanent, non-swappable mirror of every output chunk (the agent
+     * scrollback ring). Unlike [onDataReceived] it is NOT replaced by
+     * [replaceDataCallback], so it survives terminal reattach — required now
+     * that SSH sessions are created at connect time and the emulator attaches
+     * afterwards. No-op by default.
+     */
+    private val onMirror: (ByteArray, Int, Int) -> Unit = { _, _, _ -> },
     private val onDisconnected: ((cleanExit: Boolean) -> Unit)? = null,
     pendingCommands: List<String> = emptyList(),
     /**
@@ -134,6 +142,7 @@ class TerminalSession(
                     break
                 }
                 if (bytesRead > 0) {
+                    onMirror(buffer, 0, bytesRead)
                     onDataReceived(buffer, 0, bytesRead)
 
                     // After delivering output, check if we have pending commands

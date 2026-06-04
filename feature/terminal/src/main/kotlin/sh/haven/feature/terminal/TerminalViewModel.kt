@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.connectbot.terminal.TerminalEmulator
 import org.connectbot.terminal.TerminalEmulatorFactory
 import sh.haven.core.ssh.ConnectionConfig
@@ -280,6 +279,7 @@ class TerminalViewModel @Inject constructor(
     private val connectionRepository: sh.haven.core.data.repository.ConnectionRepository,
     private val tunnelResolver: sh.haven.core.tunnel.TunnelResolver,
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
+    private val userMessageBus: sh.haven.core.data.message.UserMessageBus,
     /**
      * Coordinator for the paperclip "attach" flow — see
      * [sh.haven.feature.sftp.attach.TerminalAttachCoordinator]. Singleton-
@@ -1623,33 +1623,19 @@ class TerminalViewModel @Inject constructor(
         if (index >= 0) {
             _activeTabIndex.value = index
         } else {
-            // Tab not yet created by syncSessions — wait for it
+            // Navigation now only happens after the connect path confirmed a
+            // live terminal (ConnectionsViewModel.finishConnect awaits the
+            // shell outcome), so the tab will appear momentarily — this is a
+            // short, silent bridge for compose/sync timing only. No timeout
+            // error or Toast here: a "tab never appears" state can no longer
+            // occur on a successful connect, and on failure we never navigate.
             viewModelScope.launch {
-                try {
-                    withTimeout(5000) {
-                        _tabs.first { tabs -> tabs.any { it.profileId == profileId } }
-                    }
-                    val newIndex = _tabs.value.indexOfFirst { it.profileId == profileId }
-                    if (newIndex >= 0) {
-                        _activeTabIndex.value = newIndex
-                    }
-                } catch (_: TimeoutCancellationException) {
-                    Log.w(TAG, "selectTabByProfileId: tab for $profileId not created within 5s")
-                    val profile = runCatching { connectionRepository.getById(profileId) }.getOrNull()
-                    val mgr = profile?.sessionManager ?: "tmux"
-                    val msg = if (profile?.isLocal == true) {
-                        "Terminal failed to open — install $mgr inside the local PRoot " +
-                            "(e.g. \"apt install $mgr\"), or change the session manager " +
-                            "in the connection's settings."
-                    } else {
-                        "Terminal failed to open — install $mgr on the remote host " +
-                            "(e.g. \"sudo apt install $mgr\" or \"sudo dnf install $mgr\"), " +
-                            "or change the session manager in the connection's settings."
-                    }
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_LONG).show()
-                    }
+                withTimeoutOrNull(2000) {
+                    _tabs.first { tabs -> tabs.any { it.profileId == profileId } }
                 }
+                _tabs.value.indexOfFirst { it.profileId == profileId }
+                    .takeIf { it >= 0 }
+                    ?.let { _activeTabIndex.value = it }
             }
         }
     }
@@ -2277,11 +2263,27 @@ class TerminalViewModel @Inject constructor(
     }
 
     private suspend fun finishNewSshTab(sessionId: String) {
-        withContext(Dispatchers.IO) {
-            sessionManager.openShellForSession(sessionId)
+        // Await a definitive shell outcome (same contract as ConnectionsViewModel
+        // .finishConnect): only add + select the tab on a confirmed live shell;
+        // on an immediate shell-close show a clear, navigation-surviving error
+        // instead of leaving a blank tab / stranding on another. (#215 follow-up)
+        val outcome = withContext(Dispatchers.IO) {
+            sessionManager.openShellAndAwaitReady(sessionId)
         }
-        sessionManager.updateStatus(sessionId, SessionState.Status.CONNECTED)
-        syncSessions()
-        selectTabBySessionId(sessionId)
+        when (outcome) {
+            is sh.haven.core.ssh.ShellOutcome.Ready -> {
+                sessionManager.updateStatus(sessionId, SessionState.Status.CONNECTED)
+                syncSessions()
+                selectTabBySessionId(sessionId)
+            }
+            is sh.haven.core.ssh.ShellOutcome.ShellClosed -> {
+                sessionManager.removeSession(sessionId)
+                userMessageBus.error("Shell closed — is your session manager (tmux/zellij/screen) installed on this host?")
+            }
+            is sh.haven.core.ssh.ShellOutcome.Failed -> {
+                sessionManager.removeSession(sessionId)
+                userMessageBus.error(outcome.reason.ifBlank { "Failed to open the remote shell" })
+            }
+        }
     }
 }
