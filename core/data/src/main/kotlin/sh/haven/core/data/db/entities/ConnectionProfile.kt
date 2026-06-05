@@ -113,6 +113,10 @@ data class ConnectionProfile(
     val proxyType: String? = null,       // "SOCKS5", "SOCKS4", "HTTP", or null (none)
     val proxyHost: String? = null,
     val proxyPort: Int = 1080,
+    /** Proxy username when the SOCKS5/SOCKS4/HTTP proxy requires authentication (#227). null = no proxy auth. */
+    val proxyUser: String? = null,
+    /** Proxy password for SOCKS5 (RFC 1929) / HTTP-CONNECT Basic auth (#227). Ignored for SOCKS4 (userid only). */
+    val proxyPassword: String? = null,
     val groupId: String? = null,
     /** Last session manager session name used (for group launch restore). */
     val lastSessionName: String? = null,

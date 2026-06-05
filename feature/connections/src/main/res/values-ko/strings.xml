@@ -166,6 +166,9 @@
     <string name="connections_field_share_name">공유 이름</string>
     <string name="connections_field_colour_depth">색상 깊이</string>
     <string name="connections_field_proxy_host">프록시 호스트</string>
+    <string name="connections_field_proxy_username">프록시 사용자 이름</string>
+    <string name="connections_field_proxy_password">프록시 비밀번호</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4는 사용자 ID만 전송합니다(비밀번호 없음).</string>
     <string name="connections_field_et_port">ET 포트</string>
     <string name="connections_field_mosh_server_command">mosh-server 명령</string>
     <string name="connections_helper_mosh_server">기본값을 사용하려면 비워 두세요. 1024 미만 포트에는 authbind를 사용하세요.</string>

@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">Freigabename</string>
     <string name="connections_field_colour_depth">Farbtiefe</string>
     <string name="connections_field_proxy_host">Proxy-Host</string>
+    <string name="connections_field_proxy_username">Proxy-Benutzername</string>
+    <string name="connections_field_proxy_password">Proxy-Passwort</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 sendet nur eine Benutzer-ID (kein Passwort).</string>
     <string name="connections_field_et_port">ET-Port</string>
     <string name="connections_field_mosh_server_command">mosh-server-Befehl</string>
     <string name="connections_helper_mosh_server">Leer lassen für Standard. Verwenden Sie authbind für Ports unter 1024.</string>

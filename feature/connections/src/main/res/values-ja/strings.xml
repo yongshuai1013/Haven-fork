@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">共有名</string>
     <string name="connections_field_colour_depth">色深度</string>
     <string name="connections_field_proxy_host">プロキシホスト</string>
+    <string name="connections_field_proxy_username">プロキシのユーザー名</string>
+    <string name="connections_field_proxy_password">プロキシのパスワード</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 はユーザー ID のみを送信します（パスワードなし）。</string>
     <string name="connections_field_et_port">ETポート</string>
     <string name="connections_field_mosh_server_command">mosh-serverコマンド</string>
     <string name="connections_helper_mosh_server">既定値の場合は空欄のまま。1024未満のポートにはauthbindを使用してください。</string>

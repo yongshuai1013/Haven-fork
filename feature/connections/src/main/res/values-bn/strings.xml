@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">শেয়ারের নাম</string>
     <string name="connections_field_colour_depth">রঙের গভীরতা</string>
     <string name="connections_field_proxy_host">প্রক্সি হোস্ট</string>
+    <string name="connections_field_proxy_username">প্রক্সি ব্যবহারকারীর নাম</string>
+    <string name="connections_field_proxy_password">প্রক্সি পাসওয়ার্ড</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 শুধু একটি ইউজার-আইডি পাঠায় (কোনো পাসওয়ার্ড নয়)।</string>
     <string name="connections_field_et_port">ET পোর্ট</string>
     <string name="connections_field_mosh_server_command">mosh-server কমান্ড</string>
     <string name="connections_helper_mosh_server">ডিফল্টের জন্য খালি রাখুন। 1024-এর নিচের পোর্টের জন্য authbind ব্যবহার করুন।</string>

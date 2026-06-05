@@ -103,6 +103,8 @@ class BackupService @Inject constructor(
                 put("proxyType", p.proxyType ?: JSONObject.NULL)
                 put("proxyHost", p.proxyHost ?: JSONObject.NULL)
                 put("proxyPort", p.proxyPort)
+                put("proxyUser", p.proxyUser ?: JSONObject.NULL)
+                put("proxyPassword", p.proxyPassword ?: JSONObject.NULL)
                 put("groupId", p.groupId ?: JSONObject.NULL)
                 // Version-2 additions — fields the v1 schema missed. Adding
                 // them here unconditionally is safe because the v1 importer
@@ -367,6 +369,8 @@ class BackupService @Inject constructor(
                             proxyType = c.optStringOrNull("proxyType"),
                             proxyHost = c.optStringOrNull("proxyHost"),
                             proxyPort = c.optInt("proxyPort", 1080),
+                            proxyUser = c.optStringOrNull("proxyUser"),
+                            proxyPassword = c.optStringOrNull("proxyPassword"),
                             groupId = c.optStringOrNull("groupId"),
                             // v2 additions. v1 backups don't carry these keys,
                             // so opt* falls back to the ConnectionProfile defaults

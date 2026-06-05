@@ -1,0 +1,1 @@
+- SSH/VNC/SMB via proxy: SOCKS5, SOCKS4 and HTTP proxies that require a username and password are now supported. Add the credentials under "Route through" in the connection editor. Fixes the "SOCKS5 username/password authentication requested by server with no username/password configured" error. (#227)

@@ -165,6 +165,9 @@
     <string name="connections_field_share_name">共享名称</string>
     <string name="connections_field_colour_depth">色深</string>
     <string name="connections_field_proxy_host">代理主机</string>
+    <string name="connections_field_proxy_username">代理用户名</string>
+    <string name="connections_field_proxy_password">代理密码</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 仅发送用户 ID（无密码）。</string>
     <string name="connections_field_et_port">ET 端口</string>
     <string name="connections_field_mosh_server_command">mosh-server 命令</string>
     <string name="connections_helper_mosh_server">留空使用默认值。低于 1024 的端口请使用 authbind。</string>

@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">Имя общего ресурса</string>
     <string name="connections_field_colour_depth">Глубина цвета</string>
     <string name="connections_field_proxy_host">Хост прокси</string>
+    <string name="connections_field_proxy_username">Имя пользователя прокси</string>
+    <string name="connections_field_proxy_password">Пароль прокси</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 передаёт только идентификатор пользователя (без пароля).</string>
     <string name="connections_field_et_port">Порт ET</string>
     <string name="connections_field_mosh_server_command">Команда mosh-server</string>
     <string name="connections_helper_mosh_server">Оставьте пустым для значения по умолчанию. Используйте authbind для портов ниже 1024.</string>

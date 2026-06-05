@@ -38,7 +38,7 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         ProotInstallLog::class,
         TotpSecret::class,
     ],
-    version = 59,
+    version = 60,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -943,6 +943,15 @@ abstract class HavenDatabase : RoomDatabase() {
         val MIGRATION_58_59 = object : Migration(58, 59) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "connection_profiles", "ignoreSavedKeys", "INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // #227: proxy username/password for SOCKS5/SOCKS4/HTTP proxies that
+        // require authentication. Nullable TEXT, default null (no proxy auth).
+        val MIGRATION_59_60 = object : Migration(59, 60) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "connection_profiles", "proxyUser", "TEXT")
+                addColumnIfMissing(db, "connection_profiles", "proxyPassword", "TEXT")
             }
         }
 

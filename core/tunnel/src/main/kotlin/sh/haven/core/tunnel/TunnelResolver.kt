@@ -138,10 +138,24 @@ class TunnelResolver @Inject constructor(
     internal suspend fun jschProxy(profile: ConnectionProfile): com.jcraft.jsch.Proxy? {
         tunnelFor(profile)?.let { return TunnelProxy(it) }
         val proxyHost = profile.proxyHost ?: return null
+        // #227: when the proxy requires authentication, JSch throws
+        // JSchProxyException("…username/password authentication requested by
+        // server with no username/password configured") unless we call
+        // setUserPasswd before the proxy handshake runs. SOCKS4 only carries
+        // a userid (password ignored); SOCKS5 uses RFC 1929 user/pass; HTTP
+        // uses Proxy-Authorization: Basic.
+        val user = profile.proxyUser?.takeIf { it.isNotEmpty() }
+        val pass = profile.proxyPassword ?: ""
         return when (profile.proxyType) {
-            "SOCKS5" -> ProxySOCKS5(proxyHost, profile.proxyPort)
-            "SOCKS4" -> ProxySOCKS4(proxyHost, profile.proxyPort)
-            "HTTP" -> ProxyHTTP(proxyHost, profile.proxyPort)
+            "SOCKS5" -> ProxySOCKS5(proxyHost, profile.proxyPort).apply {
+                if (user != null) setUserPasswd(user, pass)
+            }
+            "SOCKS4" -> ProxySOCKS4(proxyHost, profile.proxyPort).apply {
+                if (user != null) setUserPasswd(user, pass)
+            }
+            "HTTP" -> ProxyHTTP(proxyHost, profile.proxyPort).apply {
+                if (user != null) setUserPasswd(user, pass)
+            }
             else -> null
         }
     }
@@ -194,7 +208,14 @@ class TunnelResolver @Inject constructor(
     ): ProxySocketFactory? {
         val type = profile.proxyType ?: return null
         val host = profile.proxyHost ?: return null
-        return ProxySocketFactory(type, host, profile.proxyPort, timeoutMs)
+        return ProxySocketFactory(
+            proxyType = type,
+            proxyHost = host,
+            proxyPort = profile.proxyPort,
+            connectTimeoutMs = timeoutMs,
+            proxyUser = profile.proxyUser?.takeIf { it.isNotEmpty() },
+            proxyPassword = profile.proxyPassword,
+        )
     }
 }
 

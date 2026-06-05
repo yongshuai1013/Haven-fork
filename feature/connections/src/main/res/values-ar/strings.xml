@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">اسم المشاركة</string>
     <string name="connections_field_colour_depth">عمق الألوان</string>
     <string name="connections_field_proxy_host">مضيف الوكيل</string>
+    <string name="connections_field_proxy_username">اسم مستخدم الوكيل</string>
+    <string name="connections_field_proxy_password">كلمة مرور الوكيل</string>
+    <string name="connections_helper_proxy_socks4_userid">يرسل SOCKS4 معرّف مستخدم فقط (بدون كلمة مرور).</string>
     <string name="connections_field_et_port">منفذ ET</string>
     <string name="connections_field_mosh_server_command">أمر mosh-server</string>
     <string name="connections_helper_mosh_server">اتركه فارغًا للقيمة الافتراضية. استخدم authbind للمنافذ الأقل من 1024.</string>

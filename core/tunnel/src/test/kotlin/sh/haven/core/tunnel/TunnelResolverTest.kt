@@ -8,6 +8,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -167,6 +168,67 @@ class TunnelResolverTest {
         assertNull(resolver.jschProxy(profile(proxyType = "WAT", proxyHost = "x", proxyPort = 1)))
     }
 
+    // #227: proxy auth — setUserPasswd must be applied before the JSch
+    // handshake, else the proxy throws JSchProxyException("…username/password
+    // authentication requested by server with no username/password configured").
+
+    private fun proxyField(proxy: Any, name: String): String? =
+        proxy.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(proxy) as String?
+
+    @Test
+    fun jschProxySocks5AppliesUserPasswdWhenCredsPresent() = runTest {
+        val resolver = TunnelResolver(mockk(relaxed = true))
+        val proxy = resolver.jschProxy(
+            profile(proxyType = "SOCKS5", proxyHost = "127.0.0.1", proxyPort = 1080,
+                proxyUser = "alice", proxyPassword = "s3cr3t"),
+        )
+        assertTrue(proxy is ProxySOCKS5)
+        assertEquals("alice", proxyField(proxy!!, "user"))
+        assertEquals("s3cr3t", proxyField(proxy, "passwd"))
+    }
+
+    @Test
+    fun jschProxySocks5LeavesUserNullWhenNoCreds() = runTest {
+        val resolver = TunnelResolver(mockk(relaxed = true))
+        val proxy = resolver.jschProxy(profile(proxyType = "SOCKS5", proxyHost = "127.0.0.1", proxyPort = 1080))
+        assertTrue(proxy is ProxySOCKS5)
+        assertNull(proxyField(proxy!!, "user"))
+    }
+
+    @Test
+    fun jschProxyHttpAppliesUserPasswdWhenCredsPresent() = runTest {
+        val resolver = TunnelResolver(mockk(relaxed = true))
+        val proxy = resolver.jschProxy(
+            profile(proxyType = "HTTP", proxyHost = "127.0.0.1", proxyPort = 8080,
+                proxyUser = "bob", proxyPassword = "pw"),
+        )
+        assertTrue(proxy is ProxyHTTP)
+        assertEquals("bob", proxyField(proxy!!, "user"))
+        assertEquals("pw", proxyField(proxy, "passwd"))
+    }
+
+    @Test
+    fun jschProxySocks4AppliesUserid() = runTest {
+        val resolver = TunnelResolver(mockk(relaxed = true))
+        val proxy = resolver.jschProxy(
+            profile(proxyType = "SOCKS4", proxyHost = "127.0.0.1", proxyPort = 1080,
+                proxyUser = "carol", proxyPassword = ""),
+        )
+        assertTrue(proxy is ProxySOCKS4)
+        assertEquals("carol", proxyField(proxy!!, "user"))
+    }
+
+    @Test
+    fun jschProxyIgnoresBlankProxyUser() = runTest {
+        val resolver = TunnelResolver(mockk(relaxed = true))
+        val proxy = resolver.jschProxy(
+            profile(proxyType = "SOCKS5", proxyHost = "127.0.0.1", proxyPort = 1080,
+                proxyUser = "", proxyPassword = "x"),
+        )
+        assertTrue(proxy is ProxySOCKS5)
+        assertNull("blank username must not enable proxy auth", proxyField(proxy!!, "user"))
+    }
+
     @Test
     fun socketFactoryReturnsProxyFactoryWhenOnlyProxySet() = runTest {
         val resolver = TunnelResolver(mockk(relaxed = true))
@@ -212,6 +274,8 @@ class TunnelResolverTest {
         proxyType: String? = null,
         proxyHost: String? = null,
         proxyPort: Int = 0,
+        proxyUser: String? = null,
+        proxyPassword: String? = null,
     ): ConnectionProfile = ConnectionProfile(
         label = "test",
         host = "example.com",
@@ -220,6 +284,8 @@ class TunnelResolverTest {
         proxyType = proxyType,
         proxyHost = proxyHost,
         proxyPort = proxyPort,
+        proxyUser = proxyUser,
+        proxyPassword = proxyPassword,
     )
 
     private fun stubConn(): TunneledConnection = object : TunneledConnection {

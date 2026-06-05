@@ -303,6 +303,9 @@
     <string name="connections_field_share_name">Nombre del recurso compartido</string>
     <string name="connections_field_colour_depth">Profundidad de color</string>
     <string name="connections_field_proxy_host">Host del proxy</string>
+    <string name="connections_field_proxy_username">Usuario del proxy</string>
+    <string name="connections_field_proxy_password">Contraseña del proxy</string>
+    <string name="connections_helper_proxy_socks4_userid">SOCKS4 solo envía un ID de usuario (sin contraseña).</string>
     <string name="connections_field_et_port">Puerto ET</string>
     <string name="connections_field_mosh_server_command">Comando de mosh-server</string>
     <string name="connections_helper_mosh_server">Déjalo en blanco para el valor predeterminado. Usa authbind para puertos por debajo de 1024.</string>

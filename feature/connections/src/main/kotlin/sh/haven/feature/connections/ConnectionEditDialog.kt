@@ -236,6 +236,8 @@ fun ConnectionEditDialog(
     var proxyType by rememberSaveable { mutableStateOf(existing?.proxyType) }
     var proxyHost by rememberSaveable { mutableStateOf(existing?.proxyHost ?: "") }
     var proxyPort by rememberSaveable { mutableStateOf(existing?.proxyPort?.toString() ?: "1080") }
+    var proxyUser by rememberSaveable { mutableStateOf(existing?.proxyUser ?: "") }
+    var proxyPassword by rememberSaveable { mutableStateOf(existing?.proxyPassword ?: "") }
     var keyId by rememberSaveable { mutableStateOf(existing?.keyId) }
     // #166: ordered auth methods, serialised so rememberSaveable can persist
     // it across config changes. Seeded from the profile's parsed specs (which
@@ -603,6 +605,36 @@ fun ConnectionEditDialog(
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.width(80.dp),
+                            )
+                        }
+                        // #227: optional proxy authentication. SOCKS4 carries
+                        // a userid only (no password), so we hide the password
+                        // field and note that for SOCKS4.
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = proxyUser,
+                                onValueChange = { proxyUser = it },
+                                label = { Text(stringResource(R.string.connections_field_proxy_username)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (proxyType != "SOCKS4") {
+                                OutlinedTextField(
+                                    value = proxyPassword,
+                                    onValueChange = { proxyPassword = it },
+                                    label = { Text(stringResource(R.string.connections_field_proxy_password)) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        if (proxyType == "SOCKS4" && proxyUser.isNotBlank()) {
+                            Text(
+                                stringResource(R.string.connections_helper_proxy_socks4_userid),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp),
                             )
                         }
                         if (host.endsWith(".onion") && proxyType == "SOCKS5") {
@@ -2795,6 +2827,10 @@ fun ConnectionEditDialog(
                             proxyType = if (useCloudflareTunnel) null else proxyType,
                             proxyHost = if (useCloudflareTunnel) null else proxyHost.ifBlank { null },
                             proxyPort = proxyPort.toIntOrNull() ?: 1080,
+                            proxyUser = if (useCloudflareTunnel || proxyType == null) null
+                                else proxyUser.ifBlank { null },
+                            proxyPassword = if (useCloudflareTunnel || proxyType == null || proxyType == "SOCKS4") null
+                                else proxyPassword.ifBlank { null },
                             // #166: persist the ordered method list, and keep
                             // the legacy authType/keyId in sync with the
                             // primary (first) method so code paths that still

@@ -2121,6 +2121,14 @@ internal class McpTools(
                         put("type", "integer")
                         put("description", "Proxy port. Default 1080 (SOCKS) / 8080 (HTTP).")
                     })
+                    put("proxyUser", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Proxy username, when the proxy requires authentication (#227). Optional. SOCKS4 sends userid only.")
+                    })
+                    put("proxyPassword", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Proxy password for SOCKS5 (RFC 1929) / HTTP Basic auth (#227). Optional; ignored for SOCKS4.")
+                    })
                     put("clear", JSONObject().apply {
                         put("type", "boolean")
                         put("description", "If true, clear both tunnelConfigId and proxyType. Profile routes direct.")
@@ -6006,12 +6014,16 @@ internal class McpTools(
         val proxyType = if (args.has("proxyType")) args.optString("proxyType") else null
         val proxyHost = if (args.has("proxyHost")) args.optString("proxyHost") else null
         val proxyPort = if (args.has("proxyPort")) args.optInt("proxyPort", 1080) else null
+        val proxyUser = if (args.has("proxyUser")) args.optString("proxyUser") else null
+        val proxyPassword = if (args.has("proxyPassword")) args.optString("proxyPassword") else null
 
         val updated = when {
             clear -> profile.copy(
                 tunnelConfigId = null,
                 proxyType = null,
                 proxyHost = null,
+                proxyUser = null,
+                proxyPassword = null,
             )
             !tunnelConfigId.isNullOrBlank() -> {
                 tunnelConfigRepository.getById(tunnelConfigId)
@@ -6020,6 +6032,8 @@ internal class McpTools(
                     tunnelConfigId = tunnelConfigId,
                     proxyType = null,
                     proxyHost = null,
+                    proxyUser = null,
+                    proxyPassword = null,
                 )
             }
             !proxyType.isNullOrBlank() -> {
@@ -6034,6 +6048,11 @@ internal class McpTools(
                     proxyType = proxyType,
                     proxyHost = proxyHost,
                     proxyPort = proxyPort ?: profile.proxyPort,
+                    // #227: only touch creds when the caller passed them, so
+                    // re-routing without creds keeps any previously set ones.
+                    proxyUser = if (proxyUser != null) proxyUser.ifBlank { null } else profile.proxyUser,
+                    proxyPassword = if (proxyType == "SOCKS4") null
+                        else if (proxyPassword != null) proxyPassword.ifBlank { null } else profile.proxyPassword,
                 )
             }
             else -> throw IllegalArgumentException(
@@ -6047,6 +6066,9 @@ internal class McpTools(
             put("proxyType", updated.proxyType ?: JSONObject.NULL)
             put("proxyHost", updated.proxyHost ?: JSONObject.NULL)
             put("proxyPort", updated.proxyPort)
+            // Never echo the password; just report whether proxy auth is set.
+            put("proxyUser", updated.proxyUser ?: JSONObject.NULL)
+            put("proxyAuth", !updated.proxyUser.isNullOrEmpty())
         }
     }
 
