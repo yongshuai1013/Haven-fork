@@ -1024,6 +1024,16 @@ fun TerminalScreen(
                                 initialFontSize = fontSize.sp,
                                 typeface = hackTypeface,
                                 keyboardEnabled = true,
+                                // Reflow (resize) on a keyboard toggle when a
+                                // full-screen TUI is running, so its top status
+                                // row isn't shifted off the top (#206 / tmux
+                                // copy-mode indicator). The alt screen reflows
+                                // intrinsically in termlib; mouse tracking is the
+                                // primary-buffer signal — Haven forces `mouse on`
+                                // for tmux/byobu and zellij uses the alt screen,
+                                // so this covers the multiplexers. A plain shell
+                                // (no mouse) keeps the no-resize render-shift.
+                                reflowOnKeyboard = isMouseMode,
                                 backgroundColor = terminalBg,
                                 foregroundColor = terminalFg,
                                 focusRequester = focusRequester,

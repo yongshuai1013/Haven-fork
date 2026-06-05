@@ -56,6 +56,7 @@ fun HavenTerminal(
     tapToPositionCursorOnPrompt: Boolean = false,
     onScrollControllerAvailable: ((org.connectbot.terminal.ScrollController) -> Unit)? = null,
     onGestureInjectorReady: ((org.connectbot.terminal.GestureInjector) -> Unit)? = null,
+    reflowOnKeyboard: Boolean = false,
 ) {
     Terminal(
         terminalEmulator = terminalEmulator,
@@ -96,5 +97,6 @@ fun HavenTerminal(
         tapToPositionCursorOnPrompt = tapToPositionCursorOnPrompt,
         onScrollControllerAvailable = onScrollControllerAvailable,
         onGestureInjectorReady = onGestureInjectorReady,
+        reflowOnKeyboard = reflowOnKeyboard,
     )
 }
