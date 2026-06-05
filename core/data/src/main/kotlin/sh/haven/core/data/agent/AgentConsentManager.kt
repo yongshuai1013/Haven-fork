@@ -112,6 +112,17 @@ class AgentConsentManager @Inject constructor() {
     private val windowedAllows = mutableMapOf<String, Long>()
 
     /**
+     * Single-use retry grants for EVERY_CALL tools: `grantKey -> expiry`. When
+     * an EVERY_CALL operation is approved but the MCP client already gave up
+     * (its read timeout < the consent wait), the approval would otherwise be
+     * wasted and the agent's retry would re-prompt — the "unexpected MCP
+     * timeout" symptom. Keyed by client+tool+operation (so a *different* call
+     * still prompts) and CONSUMED on first use within a short TTL, so it never
+     * weakens EVERY_CALL beyond honouring the just-approved operation's retry.
+     */
+    private val retryGrants = mutableMapOf<String, Long>()
+
+    /**
      * Clients that the user has elected to bypass per-call prompts for
      * (the "Allow all MCP requests from 'X' until app restart" checkbox
      * on the consent sheet). Process-scoped, never persisted —
@@ -177,6 +188,7 @@ class AgentConsentManager @Inject constructor() {
         level: ConsentLevel,
         timeoutMs: Long = 60_000,
         offerTimedAllow: Boolean = false,
+        operationKey: String? = null,
     ): ConsentDecision {
         if (level == ConsentLevel.NEVER) return ConsentDecision.ALLOW
 
@@ -209,6 +221,18 @@ class AgentConsentManager @Inject constructor() {
             if (expiry != null) {
                 if (expiry > System.currentTimeMillis()) return ConsentDecision.ALLOW
                 windowedAllows.remove(memoKey) // expired — clean up opportunistically
+            }
+        }
+        // Single-use retry grant for EVERY_CALL: honour a just-approved
+        // operation whose client timed out before the result arrived, so the
+        // agent's retry of the SAME operation proceeds instead of re-prompting.
+        if (level == ConsentLevel.EVERY_CALL) {
+            val grantKey = "$memoKey ${operationKey.orEmpty()}"
+            mutex.withLock {
+                val expiry = retryGrants.remove(grantKey) // consume regardless
+                if (expiry != null && expiry > System.currentTimeMillis()) {
+                    return ConsentDecision.ALLOW
+                }
             }
         }
 
@@ -252,8 +276,19 @@ class AgentConsentManager @Inject constructor() {
             }
         }
 
-        if (decision == ConsentDecision.ALLOW && level == ConsentLevel.ONCE_PER_SESSION) {
-            mutex.withLock { sessionAllowed.add(memoKey) }
+        if (decision == ConsentDecision.ALLOW) {
+            when (level) {
+                ConsentLevel.ONCE_PER_SESSION -> mutex.withLock { sessionAllowed.add(memoKey) }
+                // Arm a single-use retry grant so the approval survives a client
+                // that timed out mid-wait (consumed on the retry; see retryGrants).
+                ConsentLevel.EVERY_CALL -> {
+                    val grantKey = "$memoKey ${operationKey.orEmpty()}"
+                    mutex.withLock {
+                        retryGrants[grantKey] = System.currentTimeMillis() + RETRY_GRANT_MS
+                    }
+                }
+                else -> Unit
+            }
         }
         return decision
     }
@@ -381,5 +416,12 @@ class AgentConsentManager @Inject constructor() {
         const val PAIRING_TOOL_NAME = "_pairing"
 
         private const val LOG_TAG = "AgentConsent"
+
+        /**
+         * How long a just-approved EVERY_CALL operation's single-use retry grant
+         * stays valid (long enough for the agent to retry after a client-side
+         * timeout, short enough not to span unrelated activity).
+         */
+        private const val RETRY_GRANT_MS = 45_000L
     }
 }

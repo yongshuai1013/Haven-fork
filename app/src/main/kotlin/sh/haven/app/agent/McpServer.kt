@@ -1130,6 +1130,13 @@ class McpServer @Inject constructor(
             // the handler past the socket / client timeout (which surfaced as
             // "operation timed out" / "socket closed"). On timeout, return a
             // retryable error rather than hanging — and never auto-allow.
+            // Stable key for this exact operation (sorted args) so an EVERY_CALL
+            // approval that the client gave up on can be honoured on the retry of
+            // the SAME call without re-prompting (#mcp-timeout).
+            val operationKey = runCatching {
+                arguments.keys().asSequence().sorted()
+                    .joinToString("") { k -> "$k=${arguments.opt(k)}" }
+            }.getOrDefault(arguments.toString())
             val decision = runBlocking {
                 withTimeoutOrNull(CONSENT_WAIT_MS) {
                     consentManager.requestConsent(
@@ -1137,6 +1144,7 @@ class McpServer @Inject constructor(
                         clientHint = lastClientHint,
                         summary = summary,
                         level = consent.level,
+                        operationKey = operationKey,
                     )
                 }
             }

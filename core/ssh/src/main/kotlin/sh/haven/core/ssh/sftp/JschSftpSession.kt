@@ -9,6 +9,9 @@ import kotlinx.coroutines.withContext
 import sh.haven.core.ssh.SshIoException
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * [SftpSession] backed by a JSch [ChannelSftp].
@@ -100,8 +103,39 @@ internal class JschSftpSession(private val channel: ChannelSftp) : SftpSession {
 
     override suspend fun openInputStream(path: String, offset: Long): InputStream =
         withContext(Dispatchers.IO) {
-            translatingJschErrors {
-                channel.get(path, null as SftpProgressMonitor?, offset)
+            // jsch's get(path, monitor, offset) InputStream (ChannelSftp$2) has a
+            // buffer-overflow bug: its 1024-byte `rest_byte` gets System.arraycopy'd
+            // with a >1024 length on some servers/packet patterns, throwing
+            // IndexOutOfBounds ("src.length=1024 … length=2048"), which then
+            // desyncs the channel. Confirmed unfixed through jsch 2.28.2. So
+            // stream via the non-buggy get(src, OutputStream, …, skip) overload on
+            // a background thread and surface the bytes through a pipe. OVERWRITE
+            // + `offset` reads the source starting at `offset` (offset 0 = whole
+            // file — the install / serve_file case).
+            val pipeIn = PipedInputStream(PIPE_BUFFER_BYTES)
+            val pipeOut = PipedOutputStream(pipeIn)
+            val failure = AtomicReference<Throwable?>(null)
+            Thread({
+                try {
+                    translatingJschErrors {
+                        channel.get(path, pipeOut, null, ChannelSftp.OVERWRITE, offset)
+                    }
+                } catch (t: Throwable) {
+                    failure.set(t)
+                } finally {
+                    try { pipeOut.close() } catch (_: Throwable) { /* best effort */ }
+                }
+            }, "sftp-get").apply { isDaemon = true }.start()
+            // Re-raise a producer-side failure at EOF rather than truncating silently.
+            object : InputStream() {
+                override fun read(): Int = pipeIn.read().also { if (it < 0) raiseIfFailed() }
+                override fun read(b: ByteArray, off: Int, len: Int): Int =
+                    pipeIn.read(b, off, len).also { if (it < 0) raiseIfFailed() }
+                override fun available(): Int = pipeIn.available()
+                override fun close() = pipeIn.close()
+                private fun raiseIfFailed() {
+                    failure.get()?.let { throw SshIoException("SFTP read failed: ${it.message}", it) }
+                }
             }
         }
 
@@ -164,5 +198,10 @@ internal class JschSftpSession(private val channel: ChannelSftp) : SftpSession {
         throw SshIoException(e.message, e)
     } catch (e: JSchException) {
         throw SshIoException(e.message, e)
+    }
+
+    private companion object {
+        /** Pipe capacity for the streamed SFTP download (back-pressures the producer). */
+        const val PIPE_BUFFER_BYTES = 1 shl 20 // 1 MiB
     }
 }

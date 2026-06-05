@@ -1,0 +1,2 @@
+- Fixed file transfers over SSH/SFTP (installing an APK from a backend, file downloads, streaming) sometimes failing with an internal "src.length=1024 … length=2048" error from the SSH library — downloads now stream through a non-buggy code path.
+- Fewer spurious agent/MCP "operation timed out" errors: when you approve a consent prompt but the client already stopped waiting, the approval is now honoured on the retry of the same request instead of prompting again.
