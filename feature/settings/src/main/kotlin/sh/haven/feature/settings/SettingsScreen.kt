@@ -418,6 +418,12 @@ fun SettingsScreen(
             subtitle = theme.label,
             onClick = { showThemeDialog = true },
         )
+        SettingsItem(
+            icon = Icons.Filled.Reorder,
+            title = stringResource(R.string.settings_screen_order_title),
+            subtitle = stringResource(R.string.settings_screen_order_subtitle),
+            onClick = { showScreenOrderDialog = true },
+        )
         SettingsToggleItem(
             icon = Icons.Filled.Palette,
             title = stringResource(R.string.settings_color_scheme_auto_switch_title),
@@ -662,12 +668,6 @@ fun SettingsScreen(
             subtitle = stringResource(R.string.settings_show_linux_vm_subtitle),
             checked = showLinuxVmCard,
             onCheckedChange = viewModel::setShowLinuxVmCard,
-        )
-        SettingsItem(
-            icon = Icons.Filled.Reorder,
-            title = stringResource(R.string.settings_screen_order_title),
-            subtitle = stringResource(R.string.settings_screen_order_subtitle),
-            onClick = { showScreenOrderDialog = true },
         )
         // Issue #160 — by default the bottom-nav hides tabs whose
         // backing resource (terminal profiles, SSH keys, desktops) is
