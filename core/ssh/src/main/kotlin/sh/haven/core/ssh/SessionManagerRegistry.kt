@@ -2,6 +2,7 @@ package sh.haven.core.ssh
 
 import sh.haven.core.et.EtSessionManager
 import sh.haven.core.local.LocalSessionManager
+import sh.haven.core.mail.MailSessionManager
 import sh.haven.core.mosh.MoshSessionManager
 import sh.haven.core.rdp.RdpSessionManager
 import sh.haven.core.reticulum.ReticulumSessionManager
@@ -25,6 +26,7 @@ class SessionManagerRegistry @Inject constructor(
     private val smb: SmbSessionManager,
     private val local: LocalSessionManager,
     private val rdp: RdpSessionManager,
+    private val mail: MailSessionManager,
     private val keepAlives: Set<@JvmSuppressWildcards ForegroundKeepAlive>,
 ) {
     /** Disconnect all sessions for a profile across all transports. */
@@ -36,6 +38,7 @@ class SessionManagerRegistry @Inject constructor(
         smb.removeAllSessionsForProfile(profileId)
         local.removeAllSessionsForProfile(profileId)
         rdp.removeAllSessionsForProfile(profileId)
+        mail.removeAllSessionsForProfile(profileId)
     }
 
     /**
@@ -53,6 +56,7 @@ class SessionManagerRegistry @Inject constructor(
             local.activeSessions.isNotEmpty() ||
             rdp.activeSessions.isNotEmpty() ||
             smb.activeSessions.isNotEmpty() ||
+            mail.activeSessions.isNotEmpty() ||
             keepAlives.any { it.isActive }
 
     /**
@@ -67,7 +71,8 @@ class SessionManagerRegistry @Inject constructor(
             et.sessions.value.values.map { it.toSession() } +
             smb.sessions.value.values.map { it.toSession() } +
             local.sessions.value.values.map { it.toSession() } +
-            rdp.sessions.value.values.map { it.toSession() }
+            rdp.sessions.value.values.map { it.toSession() } +
+            mail.sessions.value.values.map { it.toSession() }
 
     /** All sessions belonging to a single profile, across all transports. */
     fun sessionsForProfile(profileId: String): List<Session> =
@@ -104,3 +109,6 @@ private fun RdpSessionManager.SessionState.toSession() =
 
 private fun SmbSessionManager.SessionState.toSession() =
     UnifiedSession(sessionId, profileId, label, mapStatus(status.name), Transport.SMB)
+
+private fun MailSessionManager.SessionState.toSession() =
+    UnifiedSession(sessionId, profileId, label, mapStatus(status.name), Transport.MAIL)

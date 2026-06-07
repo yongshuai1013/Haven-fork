@@ -162,10 +162,12 @@ class WorkspaceViewModel @Inject constructor(
  *
  * VNC is not in [SessionManagerRegistry] (no session manager), so it
  * isn't represented here — automatic capture skips VNC tabs in v1.
+ * MAIL has no workspace Kind yet, so it's likewise skipped (null).
  */
 private fun Transport.toWorkspaceKind(): WorkspaceItem.Kind? = when (this) {
     Transport.SSH, Transport.MOSH, Transport.ET, Transport.RETICULUM, Transport.LOCAL ->
         WorkspaceItem.Kind.TERMINAL
     Transport.SMB -> WorkspaceItem.Kind.FILE_BROWSER
     Transport.RDP -> WorkspaceItem.Kind.DESKTOP
+    Transport.MAIL -> null
 }

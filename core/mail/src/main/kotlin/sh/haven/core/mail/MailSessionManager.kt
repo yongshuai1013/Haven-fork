@@ -1,10 +1,14 @@
 package sh.haven.core.mail
 
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,6 +41,13 @@ class MailSessionManager @Inject constructor(
 
     /** The injected engine, exposed for the feature-layer backend selector. */
     val mailClient: MailClient get() = client
+
+    /** Background scope for fire-and-forget Proton session revokes on disconnect. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Connected sessions — used by the registry's foreground keep-alive check. */
+    val activeSessions: List<SessionState>
+        get() = _sessions.value.values.filter { it.status == SessionState.Status.CONNECTED }
 
     fun registerSession(profileId: String, label: String): String {
         val sessionId = UUID.randomUUID().toString()
@@ -125,9 +136,30 @@ class MailSessionManager @Inject constructor(
 
     fun removeSession(sessionId: String) {
         _sessions.update { it - sessionId }
+        revoke(listOf(sessionId))
     }
 
     fun removeAllSessionsForProfile(profileId: String) {
+        val ids = _sessions.value.values
+            .filter { it.profileId == profileId }
+            .map { it.sessionId }
         _sessions.update { map -> map.filterValues { it.profileId != profileId } }
+        revoke(ids)
+    }
+
+    /**
+     * Best-effort revoke the Proton session(s) in the Go bridge so a disconnect
+     * actually tears down the server-side session and frees the bridge's
+     * in-process registry entry — not just the local [SessionState]. Fire-and-
+     * forget (a network call) on [scope]; the local map is already cleared.
+     */
+    private fun revoke(sessionIds: List<String>) {
+        if (sessionIds.isEmpty()) return
+        scope.launch {
+            for (id in sessionIds) {
+                runCatching { client.logout(id) }
+                    .onFailure { Log.w(TAG, "logout($id) failed: ${it.message}") }
+            }
+        }
     }
 }
