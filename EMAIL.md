@@ -72,6 +72,12 @@ Goal: add an **EMAIL** connection type that, instead of a file view, opens a **K
 
 **Milestone split:** CP-0→CP-5 is the gating, independently-shippable abstraction proof (two engines, read path); CP-6→CP-7 add send.
 
+**Progress (2026-06-07):**
+- ✅ **CP-0** (`13da99df`) — `com.sun.mail:android-mail:1.6.7` locked. Spike-gated: bytecode shows zero `java.beans`/`java.awt` (Android-safe); a throwaway client built against only the android-mail jars did a full IMAP+SMTP+RFC822 round-trip vs a local GreenMail server; verification-metadata written.
+- ✅ **CP-1** (`e57f6e76`) — engine-routing refactor. `Map<MailEngine,MailClient>` (Hilt `@IntoMap`), sealed `MailConnectParams`, `SessionState.engine`, `clientForProfile/Session`, one engine-neutral `RfcMailBackend`; MCP tools + selector + `connectEmail` use the routed client. Proton path field-identical; `MailSessionManagerRoutingTest` 3/3; app compiles (Hilt validated).
+- ✅ **CP-2** (`42fd6ac6`) — `ImapMailClient` read engine (login/listFolders/listMessages/getMessageRaw/logout over android-mail; explicit provider registration; `TunnelingSSLSocketFactory` for TLS-over-tunnel; `folderFullName uid` message ids). Registered as `MailEngine.IMAP`. `ImapMailClientTest` 4/4. **Gap:** the envelope→`MailMessage` mapping isn't yet exercised against a live server in CI (library path proven by CP-0; mapping device-verified in CP-5; optional in-process GreenMail test would add CI coverage).
+- ⏭ **Next:** CP-3 (`connectEmail` IMAP branch — socketFactory, fail-closed, register IMAP) + CP-4 (edit-dialog generic-IMAP fields). CP-5 device verification needs a test server — **Dovecot-in-proot** (CI-safe, no creds) vs an env-gated **real account** (Fastmail/iCloud app-password).
+
 ### Risks (ranked)
 - **R1 (crit)** JVM mail lib Android compat (`java.beans`/activation) → CP-0 spike. **R2 (high)** refactoring verified Proton code → CP-1 pure refactor, Proton-identical, gated before IMAP. **R3 (high)** clearnet leak when socketFactory null but tunnel set → symmetric fail-closed + negative test. **R4 (med)** IMAP identity/folder state (UID vs message-id) → encode `folderId:UID`. **R5 (med)** SMTP send safety → explicit From, consent-gated MCP, compose confirms recipients. **R6 (med, portrait)** dialog/compose density → gated collapsible fields, full-screen compose, no FAB.
 
