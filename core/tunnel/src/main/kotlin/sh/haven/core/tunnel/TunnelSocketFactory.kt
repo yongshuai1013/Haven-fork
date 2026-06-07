@@ -22,6 +22,16 @@ class TunnelSocketFactory(
     private val dialTimeoutMs: Int = 30_000,
 ) : SocketFactory() {
 
+    /**
+     * Unconnected socket whose dial is deferred to [Socket.connect]. JavaMail's
+     * SocketFetcher creates the base socket via the no-arg `createSocket()` and
+     * then calls `connect(addr)`, so a connected-only factory can't serve it
+     * (it hits SocketFactory's "Unconnected sockets not implemented" default).
+     * [DeferredTunneledSocket] bridges that, dialing through the tunnel on
+     * connect — so a dead tunnel fails the connect (no clearnet fallback).
+     */
+    override fun createSocket(): Socket = DeferredTunneledSocket(tunnel, dialTimeoutMs)
+
     override fun createSocket(host: String, port: Int): Socket {
         val conn = tunnel.dial(host, port, dialTimeoutMs)
         return TunneledSocket(conn, host, port)

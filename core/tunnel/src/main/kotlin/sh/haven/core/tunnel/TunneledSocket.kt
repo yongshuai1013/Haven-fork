@@ -4,6 +4,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketAddress
 
@@ -122,4 +123,111 @@ class TunneledSocket(
     override fun getRemoteSocketAddress(): java.net.SocketAddress? {
         return java.net.InetSocketAddress.createUnresolved(host, port)
     }
+}
+
+/**
+ * Like [TunneledSocket] but dials the tunnel lazily on [connect] rather than
+ * wrapping a pre-dialled connection. Required by upstream libraries that obtain
+ * a socket from a [javax.net.SocketFactory] via the no-arg `createSocket()` and
+ * then call `connect(addr)` — notably JavaMail's `SocketFetcher`, which uses
+ * that pattern for any custom base socket factory. A dead/blocked tunnel makes
+ * the [connect] dial fail, so the caller fails closed (no clearnet fallback).
+ */
+class DeferredTunneledSocket(
+    private val tunnel: Tunnel,
+    private val dialTimeoutMs: Int,
+) : Socket() {
+
+    @Volatile
+    private var connection: TunneledConnection? = null
+
+    @Volatile
+    private var host: String = ""
+
+    @Volatile
+    private var port: Int = -1
+
+    @Volatile
+    private var closed: Boolean = false
+
+    override fun connect(endpoint: SocketAddress?) = connect(endpoint, 0)
+
+    override fun connect(endpoint: SocketAddress?, timeout: Int) {
+        if (closed) throw IOException("Socket is closed")
+        val addr = endpoint as? InetSocketAddress
+            ?: throw IOException("Unsupported endpoint: $endpoint")
+        host = addr.hostString ?: addr.address?.hostAddress
+            ?: throw IOException("Unresolved endpoint host")
+        port = addr.port
+        connection = tunnel.dial(host, port, if (timeout > 0) timeout else dialTimeoutMs)
+    }
+
+    private fun conn(): TunneledConnection {
+        if (closed) throw IOException("Socket is closed")
+        return connection ?: throw IOException("Socket is not connected")
+    }
+
+    override fun getInputStream(): InputStream = conn().inputStream
+
+    override fun getOutputStream(): OutputStream = conn().outputStream
+
+    override fun getInetAddress(): InetAddress? = try {
+        InetAddress.getByName(host)
+    } catch (_: Exception) {
+        null
+    }
+
+    override fun getPort(): Int = port
+
+    override fun getLocalAddress(): InetAddress = InetAddress.getLoopbackAddress()
+
+    override fun getLocalPort(): Int = -1
+
+    override fun isConnected(): Boolean = connection != null && !closed
+
+    override fun isBound(): Boolean = connection != null
+
+    override fun isClosed(): Boolean = closed
+
+    override fun isInputShutdown(): Boolean = closed
+
+    override fun isOutputShutdown(): Boolean = closed
+
+    override fun close() {
+        if (closed) return
+        closed = true
+        try {
+            connection?.close()
+        } catch (_: Throwable) {
+            // best-effort teardown
+        }
+    }
+
+    override fun bind(bindpoint: SocketAddress?) {
+        // No-op — the tunnel binds its own source on dial.
+    }
+
+    override fun shutdownInput() {}
+    override fun shutdownOutput() {}
+
+    // Socket options — same accept-and-ignore contract as [TunneledSocket].
+    override fun setTcpNoDelay(on: Boolean) {}
+    override fun setKeepAlive(on: Boolean) {}
+    override fun setSoTimeout(timeout: Int) {}
+    override fun setSoLinger(on: Boolean, linger: Int) {}
+    override fun setReuseAddress(on: Boolean) {}
+    override fun setOOBInline(on: Boolean) {}
+    override fun setReceiveBufferSize(size: Int) {}
+    override fun setSendBufferSize(size: Int) {}
+    override fun setTrafficClass(tc: Int) {}
+
+    override fun getTcpNoDelay(): Boolean = false
+    override fun getKeepAlive(): Boolean = false
+    override fun getSoTimeout(): Int = 0
+    override fun getSoLinger(): Int = -1
+    override fun getReuseAddress(): Boolean = false
+    override fun getOOBInline(): Boolean = false
+
+    override fun getRemoteSocketAddress(): SocketAddress? =
+        if (port >= 0) InetSocketAddress.createUnresolved(host, port) else null
 }

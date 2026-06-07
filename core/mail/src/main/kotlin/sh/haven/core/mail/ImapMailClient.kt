@@ -3,8 +3,6 @@ package sh.haven.core.mail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.net.InetAddress
-import java.net.Socket
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -19,9 +17,6 @@ import javax.mail.Session
 import javax.mail.Store
 import javax.mail.UIDFolder
 import javax.mail.internet.InternetAddress
-import javax.net.SocketFactory
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSocketFactory
 
 /**
  * [MailClient] over generic IMAP using the android-mail (JavaMail) build. The
@@ -164,30 +159,38 @@ class ImapMailClient @Inject constructor() : MailClient {
         this["mail.imaps.class"] = "com.sun.mail.imap.IMAPSSLStore"
         this["mail.smtp.class"] = "com.sun.mail.smtp.SMTPTransport"
         this["mail.smtps.class"] = "com.sun.mail.smtp.SMTPSSLTransport"
-        this["mail.imap.connectiontimeout"] = TIMEOUT_MS
+        // Read timeout only. connectiontimeout is set per-branch: with a tunnel
+        // factory it must NOT be set, because it makes JavaMail use the no-arg
+        // SocketFactory.createSocket() + connect() path, which the tunnel factory
+        // doesn't implement ("Unconnected sockets not implemented"). The tunnel's
+        // own dial timeout bounds the connect instead.
         this["mail.imap.timeout"] = TIMEOUT_MS
-        this["mail.imaps.connectiontimeout"] = TIMEOUT_MS
         this["mail.imaps.timeout"] = TIMEOUT_MS
 
         val sf = p.socketFactory
         if (p.tls) {
             this["mail.store.protocol"] = "imaps"
             if (sf != null) {
-                // Layer TLS over the tunneled plain socket.
-                this["mail.imaps.ssl.socketFactory"] = TunnelingSSLSocketFactory(sf)
-                // CRITICAL (no clearnet leak): JavaMail's socketFactory.fallback
-                // defaults to TRUE — if our tunnel factory can't connect it
-                // silently retries with a DIRECT java.net.Socket, leaking past the
-                // tunnel. Force false so a dead/blocked tunnel fails the connect.
-                this["mail.imaps.ssl.socketFactory.fallback"] = "false"
+                // Route the BASE socket through the tunnel. JavaMail's
+                // SocketFetcher creates the base socket with `mail.imaps
+                // .socketFactory`, then — seeing it isn't already an SSLSocket —
+                // wraps it in implicit TLS itself. (`.ssl.socketFactory` is ONLY
+                // the wrap factory; setting just that left the BASE socket on the
+                // default direct factory → a clearnet leak past the tunnel.)
+                // fallback=false => a dead/blocked tunnel fails the connect.
+                this["mail.imaps.socketFactory"] = sf
                 this["mail.imaps.socketFactory.fallback"] = "false"
                 this["mail.imaps.ssl.checkserveridentity"] = "true"
+            } else {
+                this["mail.imaps.connectiontimeout"] = TIMEOUT_MS
             }
         } else {
             this["mail.store.protocol"] = "imap"
             if (sf != null) {
                 this["mail.imap.socketFactory"] = sf
                 this["mail.imap.socketFactory.fallback"] = "false"
+            } else {
+                this["mail.imap.connectiontimeout"] = TIMEOUT_MS
             }
         }
     }
@@ -214,40 +217,4 @@ class ImapMailClient @Inject constructor() : MailClient {
             return messageId.substring(0, i) to uid
         }
     }
-}
-
-/**
- * An [SSLSocketFactory] that first opens a plain socket through [base] (the
- * per-profile tunnel) and then layers TLS over it, so implicit-SSL IMAP/SMTP
- * rides the tunnel. JavaMail calls `createSocket(host, port)` for implicit SSL
- * and `createSocket(Socket, host, port, autoClose)` for STARTTLS layering.
- */
-internal class TunnelingSSLSocketFactory(
-    private val base: SocketFactory,
-) : SSLSocketFactory() {
-
-    private val ssl: SSLSocketFactory =
-        SSLContext.getInstance("TLS").apply { init(null, null, null) }.socketFactory
-
-    override fun createSocket(host: String, port: Int): Socket =
-        ssl.createSocket(base.createSocket(host, port), host, port, true)
-
-    override fun createSocket(host: String, port: Int, localHost: InetAddress?, localPort: Int): Socket =
-        ssl.createSocket(base.createSocket(host, port, localHost, localPort), host, port, true)
-
-    override fun createSocket(s: Socket?, host: String?, port: Int, autoClose: Boolean): Socket =
-        ssl.createSocket(s, host, port, autoClose)
-
-    override fun createSocket(host: InetAddress?, port: Int): Socket =
-        throw UnsupportedOperationException("IMAP/SMTP connect by hostname only")
-
-    override fun createSocket(
-        address: InetAddress?,
-        port: Int,
-        localAddress: InetAddress?,
-        localPort: Int,
-    ): Socket = throw UnsupportedOperationException("IMAP/SMTP connect by hostname only")
-
-    override fun getDefaultCipherSuites(): Array<String> = ssl.defaultCipherSuites
-    override fun getSupportedCipherSuites(): Array<String> = ssl.supportedCipherSuites
 }
