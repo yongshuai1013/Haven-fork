@@ -1,0 +1,3 @@
+A second terminal/tmux session to a host reached over a WireGuard tunnel now connects instantly by reusing the live SSH connection, instead of timing out — some tunnel peers (e.g. a FRITZ!Box) won't service a second concurrent flow. The same fix covers the timeout when a tab restores alongside the MCP carrier on app launch.
+
+FIDO2/SSH security keys with the "always require user verification" (always-uv) policy now prompt for a PIN and connect, instead of failing with CTAP2 error 0x36. (#230)
