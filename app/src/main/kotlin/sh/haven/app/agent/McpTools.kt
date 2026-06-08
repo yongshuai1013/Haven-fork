@@ -265,6 +265,49 @@ internal class McpTools(
             consentLevel = ConsentLevel.NEVER,
         ) { args -> readMailMessage(args) },
 
+        "send_mail" to ToolHandler(
+            description = "Send a plain-text email from a connected EMAIL profile. Pass profileId (from list_connections; connect_profile first), to (array of recipient addresses, at least one), subject, and body (plain text). Optional cc/bcc arrays. Returns { sent, messageId, appendedToSent }. IMAP/SMTP only — Proton send is not yet implemented and returns an error. Side-effectful: prompts for consent on every call and is recorded in the connection log.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "EMAIL connection profile id.")
+                    })
+                    put("to", JSONObject().apply {
+                        put("type", "array")
+                        put("items", JSONObject().put("type", "string"))
+                        put("description", "Recipient email addresses (at least one).")
+                    })
+                    put("subject", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Subject line.")
+                    })
+                    put("body", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Plain-text message body.")
+                    })
+                    put("cc", JSONObject().apply {
+                        put("type", "array")
+                        put("items", JSONObject().put("type", "string"))
+                        put("description", "Optional Cc addresses.")
+                    })
+                    put("bcc", JSONObject().apply {
+                        put("type", "array")
+                        put("items", JSONObject().put("type", "string"))
+                        put("description", "Optional Bcc addresses.")
+                    })
+                })
+                put("required", JSONArray().put("profileId").put("to").put("subject").put("body"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args ->
+                val n = args.optJSONArray("to")?.length() ?: 0
+                "Send email to $n recipient(s) — \"${args.optString("subject")}\" — " +
+                    "from \"${profileLabel(args.optString("profileId"))}\"?"
+            },
+        ) { args -> sendMail(args) },
+
         "list_rclone_provider_options" to ToolHandler(
             description = "List a credentials-based rclone provider's basic config fields — the non-advanced options needed to configure a non-OAuth remote (ftp, sftp, webdav, s3, b2, mega, filen, …). Each entry has name, help, required, isPassword, default, type. Feed the collected values into configure_rclone_remote's `parameters`. OAuth providers (drive, dropbox, onedrive, box, pcloud) are configured via the in-app browser sign-in, not this. (#181)",
             inputSchema = JSONObject().apply {
@@ -2811,6 +2854,12 @@ internal class McpTools(
 
     // ---- EMAIL (ProtonMail) read tools — the MCP-drivable read path (#EMAIL) ----
 
+    /** Non-blank, trimmed string elements of a JSON array (empty when null). */
+    private fun JSONArray?.toTrimmedStringList(): List<String> {
+        if (this == null) return emptyList()
+        return (0 until length()).mapNotNull { i -> optString(i, "").trim().ifBlank { null } }
+    }
+
     private fun requireMailSession(profileId: String): String =
         mailSessionManager.getSessionIdForProfile(profileId)
             ?: throw McpError(-32603, "Profile $profileId is not a connected email account — call connect_profile first.")
@@ -2902,6 +2951,45 @@ internal class McpTools(
             }
         } catch (e: Exception) {
             throw McpError(-32603, "Failed to read mail message: ${e.message}")
+        }
+    }
+
+    private suspend fun sendMail(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifEmpty {
+            throw McpError(-32602, "Missing required argument: profileId")
+        }
+        val to = args.optJSONArray("to").toTrimmedStringList()
+        if (to.isEmpty()) {
+            throw McpError(-32602, "Missing required argument: to (at least one recipient)")
+        }
+        if (!args.has("subject")) throw McpError(-32602, "Missing required argument: subject")
+        if (!args.has("body")) throw McpError(-32602, "Missing required argument: body")
+        val subject = args.optString("subject")
+        val body = args.optString("body")
+        val cc = args.optJSONArray("cc").toTrimmedStringList()
+        val bcc = args.optJSONArray("bcc").toTrimmedStringList()
+        val sessionId = requireMailSession(profileId)
+        val mail = sh.haven.core.mail.OutgoingMail(
+            to = to, cc = cc, bcc = bcc, subject = subject, bodyText = body,
+        )
+        return try {
+            val result = mailClientFor(sessionId).send(sessionId, mail)
+            // Audit-log the send so it shows in Settings → connection log.
+            runCatching {
+                connectionLogRepository.logEvent(
+                    profileId,
+                    sh.haven.core.data.db.entities.ConnectionLog.Status.CONNECTED,
+                    details = "Sent mail to ${to.size} recipient(s)" +
+                        (if (subject.isNotBlank()) " — \"$subject\"" else ""),
+                )
+            }
+            JSONObject().apply {
+                put("sent", true)
+                result.messageId?.let { put("messageId", it) }
+                put("appendedToSent", result.appendedToSent)
+            }
+        } catch (e: Exception) {
+            throw McpError(-32603, "Failed to send mail: ${e.message}")
         }
     }
 

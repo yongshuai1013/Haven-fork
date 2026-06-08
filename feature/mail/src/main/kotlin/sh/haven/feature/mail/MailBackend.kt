@@ -2,16 +2,20 @@ package sh.haven.feature.mail
 
 import sh.haven.core.mail.MailFolder
 import sh.haven.core.mail.MailMessage
+import sh.haven.core.mail.OutgoingMail
+import sh.haven.core.mail.SendResult
 
 /**
  * The feature-layer view of a connected mail account: folders, message lists,
- * and a fully-parsed (decrypted + MIME-parsed) message ready to render. Backed
- * by the engine-neutral [RfcMailBackend] (Proton and IMAP both feed RFC822).
+ * a fully-parsed (decrypted + MIME-parsed) message ready to render, and
+ * outbound send. Backed by the engine-neutral [RfcMailBackend] (Proton and IMAP
+ * both feed RFC822; send routes to IMAP/SMTP, Proton returns a 501 for now).
  */
 interface MailBackend {
     suspend fun listFolders(): List<MailFolder>
     suspend fun listMessages(folderId: String): List<MailMessage>
     suspend fun readMessage(messageId: String): ParsedMessage
+    suspend fun sendMessage(mail: OutgoingMail): SendResult
 }
 
 /** A decrypted, MIME-parsed message ready for the reader UI. */

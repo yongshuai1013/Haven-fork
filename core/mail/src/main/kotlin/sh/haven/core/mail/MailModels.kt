@@ -56,6 +56,32 @@ data class MailMessage(
 )
 
 /**
+ * An outgoing message handed to [MailClient.send]. CP-6 carries a plain-text
+ * body only — attachments, HTML bodies, and reply-threading headers
+ * (In-Reply-To / References) are deferred to a later checkpoint. [to] must be
+ * non-empty; the From address is the authenticated account and is set by the
+ * engine, not the caller.
+ */
+data class OutgoingMail(
+    val to: List<String>,
+    val cc: List<String> = emptyList(),
+    val bcc: List<String> = emptyList(),
+    val subject: String,
+    val bodyText: String,
+)
+
+/**
+ * Outcome of [MailClient.send]. [messageId] is the RFC822 Message-ID assigned to
+ * the sent message (null if the engine didn't surface one); [appendedToSent] is
+ * true when a copy was filed in the account's Sent folder — best-effort, so a
+ * send is reported successful even when the Sent append fails.
+ */
+data class SendResult(
+    val messageId: String?,
+    val appendedToSent: Boolean,
+)
+
+/**
  * Result of a successful Proton SRP login + keyring unlock.
  *
  * SECURITY (R3): [saltedKeyPass] is the derived passphrase that unlocks the

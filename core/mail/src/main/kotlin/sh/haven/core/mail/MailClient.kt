@@ -34,6 +34,14 @@ interface MailClient {
     /** Fetch and decrypt one message, returning the raw RFC822 MIME bytes. */
     suspend fun getMessageRaw(sessionId: String, messageId: String): ByteArray
 
+    /**
+     * Send [mail] from the connected account, returning the assigned Message-ID
+     * and whether a copy was filed in Sent. Throws [MailException] on
+     * transport/auth failure. The Proton engine is not yet wired for send and
+     * throws [MailException.ProtocolError] with status 501.
+     */
+    suspend fun send(sessionId: String, mail: OutgoingMail): SendResult
+
     /** Revoke and drop the session. */
     suspend fun logout(sessionId: String)
 }

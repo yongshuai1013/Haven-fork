@@ -67,6 +67,8 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var connectionRepository: ConnectionRepository
     @Inject lateinit var sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository
     @Inject lateinit var stepCaConfigRepository: sh.haven.core.data.repository.StepCaConfigRepository
+    // Drives the Mail tab's visibility (shown only while a mail session is open).
+    @Inject lateinit var mailSessionManager: sh.haven.core.mail.MailSessionManager
     // Published to FidoAuthenticator in onResume so NFC reader mode can
     // be enabled during FIDO2 SSH assertions. Without this, Nitrokey /
     // SoloKey / YubiKey-over-NFC flows never saw a Tag (#15).
@@ -375,6 +377,7 @@ class MainActivity : AppCompatActivity() {
                         stepCaConfigRepository = stepCaConfigRepository,
                         agentUiCommandBus = agentUiCommandBus,
                         userMessageBus = userMessageBus,
+                        mailSessionManager = mailSessionManager,
                     )
                     // Floats above whatever screen is active so an
                     // agent's consent prompt is unmissable. No-op when

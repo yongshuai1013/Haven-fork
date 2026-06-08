@@ -95,6 +95,7 @@ fun HavenNavHost(
     stepCaConfigRepository: sh.haven.core.data.repository.StepCaConfigRepository,
     agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
     userMessageBus: sh.haven.core.data.message.UserMessageBus,
+    mailSessionManager: sh.haven.core.mail.MailSessionManager,
 ) {
     // Desktop multi-session ViewModel — hoisted to nav scope so it survives tab switches
     val desktopViewModel: DesktopViewModel = hiltViewModel()
@@ -130,7 +131,14 @@ fun HavenNavHost(
         .collectAsState(initial = false)
 
     val hasTerminalProfiles = connections.any { it.isTerminal }
-    val hasEmailProfiles = connections.any { it.isEmail }
+    // The Mail tab tracks live sessions, not saved profiles: it appears only
+    // while an email connection is actually open (a CONNECTED session) and
+    // disappears on disconnect — mail is a transient view with no offline
+    // store yet, unlike the Terminal/Keys tabs which gate on profile existence.
+    val mailSessions by mailSessionManager.sessions.collectAsState()
+    val hasOpenEmailSession = mailSessions.values.any {
+        it.status == sh.haven.core.mail.MailSessionManager.SessionState.Status.CONNECTED
+    }
     // Show Keys once the user has any key/CA config OR any SSH connection
     // to attach a key to — otherwise there's a chicken-and-egg: a fresh
     // SSH connection can't reach key management to generate/import a key
@@ -143,7 +151,7 @@ fun HavenNavHost(
     val screens = remember(
         screenOrderPref,
         hasTerminalProfiles,
-        hasEmailProfiles,
+        hasOpenEmailSession,
         hasKeysOrCaConfigs,
         alwaysShowAllTabs,
     ) {
@@ -173,8 +181,9 @@ fun HavenNavHost(
                 // SFTP file browser is useful even with no remote storage
                 // (local file paths work), so it stays visible.
                 Screen.Sftp -> true
-                // Mail hides until there's an EMAIL profile to open.
-                Screen.Mail -> hasEmailProfiles
+                // Mail shows only while an email connection is open (a live
+                // CONNECTED session) and hides again on disconnect.
+                Screen.Mail -> hasOpenEmailSession
                 // Terminal hides until there's any SSH/Mosh/ET/Reticulum
                 // profile (ConnectionProfile.isTerminal covers them all).
                 Screen.Terminal -> hasTerminalProfiles

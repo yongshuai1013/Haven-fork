@@ -3,6 +3,8 @@ package sh.haven.feature.mail
 import sh.haven.core.mail.MailClient
 import sh.haven.core.mail.MailFolder
 import sh.haven.core.mail.MailMessage
+import sh.haven.core.mail.OutgoingMail
+import sh.haven.core.mail.SendResult
 
 /**
  * Engine-neutral [MailBackend] over any connected [MailClient]: list calls
@@ -25,4 +27,7 @@ class RfcMailBackend(
         val raw = client.getMessageRaw(sessionId, messageId)
         return MimeParser.parse(raw)
     }
+
+    override suspend fun sendMessage(mail: OutgoingMail): SendResult =
+        client.send(sessionId, mail)
 }

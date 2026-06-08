@@ -1,8 +1,10 @@
 package sh.haven.core.mail
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.util.Date
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -17,12 +19,15 @@ import javax.mail.Session
 import javax.mail.Store
 import javax.mail.UIDFolder
 import javax.mail.internet.InternetAddress
+import javax.mail.internet.MimeMessage
 
 /**
  * [MailClient] over generic IMAP using the android-mail (JavaMail) build. The
  * read path mirrors [ProtonMailClient]: list folders, list envelopes, and fetch
  * a message as raw RFC822 bytes (`Message.writeTo`) so the feature layer parses
- * it with the same `MimeParser` both engines share. SMTP send lands in CP-6.
+ * it with the same `MimeParser` both engines share. [send] (CP-6) builds a
+ * `MimeMessage` and posts it over SMTP on the same tunneled [SocketFactory],
+ * then best-effort files a copy in the account's Sent folder.
  *
  * The JVM [Store] for each [sessionId] is held here; the transport rides the
  * per-profile tunnel via [MailConnectParams.Imap.socketFactory] (a plain
@@ -121,6 +126,38 @@ class ImapMailClient @Inject constructor() : MailClient {
             }
         }
 
+    override suspend fun send(sessionId: String, mail: OutgoingMail): SendResult =
+        withContext(Dispatchers.IO) {
+            require(mail.to.isNotEmpty()) { "OutgoingMail.to must not be empty" }
+            val s = session(sessionId)
+            val p = s.params
+            // A dedicated Session for SMTP: the stored read Session only carries
+            // the IMAP socketFactory keys. The build/send is split into testable
+            // helpers (buildSmtpProps / buildMimeMessage).
+            val smtpSession = Session.getInstance(buildSmtpProps(p))
+            val msg = buildMimeMessage(smtpSession, p, mail)
+            try {
+                val transport = smtpSession.getTransport(if (p.tls) "smtps" else "smtp")
+                try {
+                    // Pass the creds — JavaMail authenticates only when the server
+                    // advertises AUTH (so a no-auth relay/test sink still works);
+                    // mail.smtp.auth is intentionally NOT forced on.
+                    transport.connect(p.server, p.smtpPort, p.username, p.password)
+                    transport.sendMessage(msg, msg.allRecipients)
+                } finally {
+                    runCatching { transport.close() }
+                }
+            } catch (e: AuthenticationFailedException) {
+                throw MailException.AuthFailed(e.message ?: "SMTP authentication failed")
+            } catch (e: MessagingException) {
+                throw MailException.ProtocolError(0, e.message ?: "SMTP send failed")
+            }
+            SendResult(
+                messageId = runCatching { msg.messageID }.getOrNull(),
+                appendedToSent = appendToSent(s, msg),
+            )
+        }
+
     override suspend fun logout(sessionId: String) {
         withContext(Dispatchers.IO) {
             sessions.remove(sessionId)?.let { runCatching { it.store.close() } }
@@ -195,7 +232,108 @@ class ImapMailClient @Inject constructor() : MailClient {
         }
     }
 
+    /**
+     * SMTP session properties. Mirrors the IMAP base-socket lesson from CP-5:
+     * route the BASE socket through the tunnel ([MailConnectParams.Imap.socketFactory])
+     * with `fallback=false`, so a dead/blocked tunnel fails the connect instead of
+     * silently leaking onto the clearnet. `.ssl.socketFactory` is only the wrap
+     * factory and would leave the base socket on the default direct factory.
+     */
+    internal fun buildSmtpProps(p: MailConnectParams.Imap): Properties = Properties().apply {
+        // Register providers explicitly — Android strips META-INF/javamail.* so
+        // auto-discovery fails on-device; without this getTransport() throws.
+        this["mail.smtp.class"] = "com.sun.mail.smtp.SMTPTransport"
+        this["mail.smtps.class"] = "com.sun.mail.smtp.SMTPSSLTransport"
+        this["mail.smtp.timeout"] = TIMEOUT_MS
+        this["mail.smtps.timeout"] = TIMEOUT_MS
+
+        val sf = p.socketFactory
+        if (p.tls) {
+            // Implicit TLS (typically 465). JavaMail's SocketFetcher creates the
+            // base socket with `mail.smtps.socketFactory`, then wraps it in TLS.
+            this["mail.transport.protocol"] = "smtps"
+            if (sf != null) {
+                this["mail.smtps.socketFactory"] = sf
+                this["mail.smtps.socketFactory.fallback"] = "false"
+                this["mail.smtps.ssl.checkserveridentity"] = "true"
+            } else {
+                this["mail.smtps.connectiontimeout"] = TIMEOUT_MS
+            }
+        } else {
+            // Plaintext / STARTTLS (typically 587). Opportunistically upgrade to
+            // TLS when the server offers STARTTLS (protects creds on a TLS-capable
+            // server); not *required*, so a plaintext relay/test sink still works.
+            this["mail.transport.protocol"] = "smtp"
+            this["mail.smtp.starttls.enable"] = "true"
+            if (sf != null) {
+                this["mail.smtp.socketFactory"] = sf
+                this["mail.smtp.socketFactory.fallback"] = "false"
+            } else {
+                this["mail.smtp.connectiontimeout"] = TIMEOUT_MS
+            }
+        }
+    }
+
+    /** Build the outgoing [MimeMessage]; `saveChanges()` finalises headers + assigns a Message-ID. */
+    internal fun buildMimeMessage(
+        smtpSession: Session,
+        p: MailConnectParams.Imap,
+        mail: OutgoingMail,
+    ): MimeMessage = MimeMessage(smtpSession).apply {
+        setFrom(fromAddress(p))
+        setRecipients(Message.RecipientType.TO, toAddresses(mail.to))
+        if (mail.cc.isNotEmpty()) setRecipients(Message.RecipientType.CC, toAddresses(mail.cc))
+        if (mail.bcc.isNotEmpty()) setRecipients(Message.RecipientType.BCC, toAddresses(mail.bcc))
+        setSubject(mail.subject, "UTF-8")
+        setText(mail.bodyText, "UTF-8")
+        sentDate = Date()
+        saveChanges()
+    }
+
+    /** From the authenticated account; synthesise a domain when the username is a bare local part. */
+    private fun fromAddress(p: MailConnectParams.Imap): InternetAddress =
+        InternetAddress(if (p.username.contains('@')) p.username else "${p.username}@${p.server}")
+
+    private fun toAddresses(addrs: List<String>): Array<javax.mail.Address> =
+        addrs.mapNotNull { a -> a.trim().ifBlank { null }?.let { InternetAddress(it, false) } }
+            .toTypedArray()
+
+    /**
+     * Best-effort file a copy of [msg] in the account's Sent folder over the live
+     * IMAP [Store]. Never throws — a failed append must not fail the send.
+     */
+    private fun appendToSent(s: ImapSession, msg: MimeMessage): Boolean = runCatching {
+        val sent = findSentFolder(s.store)?.takeIf { it.exists() } ?: return false
+        sent.open(Folder.READ_WRITE)
+        try {
+            msg.setFlag(Flags.Flag.SEEN, true)
+            sent.appendMessages(arrayOf<Message>(msg))
+            true
+        } finally {
+            runCatching { sent.close(false) }
+        }
+    }.getOrElse {
+        Log.w(TAG, "append-to-Sent failed: ${it.message}")
+        false
+    }
+
+    /** Locate the Sent folder: prefer the RFC 6154 `\Sent` special-use attribute, then a name match. */
+    private fun findSentFolder(store: Store): Folder? {
+        val all = runCatching { store.defaultFolder.list("*").toList() }.getOrDefault(emptyList())
+        all.firstOrNull { f ->
+            runCatching {
+                (f as? com.sun.mail.imap.IMAPFolder)?.attributes
+                    ?.any { it.equals("\\Sent", ignoreCase = true) } == true
+            }.getOrDefault(false)
+        }?.let { return it }
+        val names = setOf("sent", "sent items", "sent mail", "sent messages")
+        return all.firstOrNull {
+            it.name.lowercase() in names || it.fullName.lowercase() in names
+        }
+    }
+
     companion object {
+        private const val TAG = "ImapMailClient"
         private const val TIMEOUT_MS = "30000"
 
         /**

@@ -73,6 +73,15 @@ class ProtonMailClient @Inject constructor() : MailClient {
             Base64.decode(b64, Base64.DEFAULT)
         }
 
+    override suspend fun send(sessionId: String, mail: OutgoingMail): SendResult {
+        // Proton send (per-recipient key discovery + internal-E2E / PGP-external /
+        // encrypt-to-outside schemes + CreateDraft/SendDraft) is the hardest,
+        // highest-risk piece — a mis-scheme leaks plaintext — and is a later
+        // checkpoint. The Go mailbridge's `send` RPC also returns 501. Fail loudly
+        // rather than pretend success; CP-6 ships IMAP/SMTP send only.
+        throw MailException.ProtocolError(501, "Proton send is not implemented yet")
+    }
+
     override suspend fun logout(sessionId: String) {
         withContext(Dispatchers.IO) { MailBridge.logout(sessionId) }
     }
