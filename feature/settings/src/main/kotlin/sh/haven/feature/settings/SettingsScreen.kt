@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.LockReset
 import androidx.compose.material.icons.filled.SwapVert
@@ -922,6 +923,37 @@ fun SettingsScreen(
                 checked = mcpWireguardEnabled,
                 onCheckedChange = viewModel::setMcpWireguardEnabled,
             )
+
+            // Warn when another app's system VPN holds the same address Haven's
+            // userspace WireGuard netstack binds — the kernel VPN shadows our
+            // listener so the WG endpoint is silently unreachable.
+            val mcpWireguardCollision by viewModel.mcpWireguardCollision.collectAsState()
+            mcpWireguardCollision?.takeIf { mcpWireguardEnabled }?.let { collision ->
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        Icons.Filled.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .padding(end = 12.dp, top = 2.dp)
+                            .size(20.dp),
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.settings_mcp_wireguard_collision,
+                            collision.vpnInterface,
+                            collision.address,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
 
             // Also bind the device's Wi-Fi/LAN address so a same-network
             // client reaches the endpoint directly (no WireGuard, no reverse

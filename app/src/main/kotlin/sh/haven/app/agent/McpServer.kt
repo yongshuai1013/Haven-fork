@@ -3,6 +3,10 @@ package sh.haven.app.agent
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -153,6 +157,7 @@ class McpServer @Inject constructor(
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
     private val usbBroker: sh.haven.core.usb.UsbBroker,
     private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
+    private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
     private val mcpTunnelManager: McpTunnelManager,
 ) : Closeable {
 
@@ -238,6 +243,19 @@ class McpServer @Inject constructor(
      */
     private val _wireguardEndpointUrl = MutableStateFlow<String?>(null)
     val wireguardEndpointUrl: StateFlow<String?> = _wireguardEndpointUrl.asStateFlow()
+
+    // The WireGuard-shadowed-by-system-VPN warning is published to
+    // [mcpStatusHolder] (core/data) so feature modules (Settings) can observe it
+    // without depending on :app. See [detectVpnAddressCollision].
+
+    /** The address the WG MCP listener is currently bound to, for collision re-checks. */
+    @Volatile private var wireguardBoundAddress: String? = null
+
+    private val connectivityManager: ConnectivityManager? by lazy {
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+    }
+    /** Watches VPN networks so the collision warning updates live as VPNs come/go. */
+    private var vpnNetworkCallback: ConnectivityManager.NetworkCallback? = null
 
     /** Synthetic profile id under which the MCP listener holds a WG tunnel. */
     private val wireguardProfileId = "mcp-wg-listener"
@@ -471,6 +489,7 @@ class McpServer @Inject constructor(
     /** Must hold [lifecycleLock]. Idempotent. */
     private fun startWireguardBinderLocked() {
         if (wireguardJob?.isActive == true) return
+        registerVpnWatcherLocked()
         val boundPort = port
         wireguardJob = scope.launch {
             while (isActive) {
@@ -517,8 +536,11 @@ class McpServer @Inject constructor(
                     continue
                 }
                 wireguardListener = ln
-                _wireguardEndpointUrl.value = tunnel.localAddress()?.let { "http://$it:$boundPort/mcp" }
+                val wgAddr = tunnel.localAddress()
+                _wireguardEndpointUrl.value = wgAddr?.let { "http://$it:$boundPort/mcp" }
+                wireguardBoundAddress = wgAddr
                 Log.i(TAG, "MCP also listening on WireGuard ${_wireguardEndpointUrl.value ?: ":$boundPort"}")
+                refreshWireguardCollision()
                 try {
                     while (isActive) {
                         val conn = ln.accept()
@@ -542,6 +564,8 @@ class McpServer @Inject constructor(
                 } finally {
                     wireguardListener = null
                     _wireguardEndpointUrl.value = null
+                    wireguardBoundAddress = null
+                    mcpStatusHolder.setWireguardCollision(null)
                     tunnelManager.release(wireguardProfileId)
                 }
                 if (isActive) delay(WG_RETRY_MS)
@@ -553,6 +577,9 @@ class McpServer @Inject constructor(
     private fun stopWireguardBinderLocked() {
         wireguardJob?.cancel()
         wireguardJob = null
+        unregisterVpnWatcherLocked()
+        wireguardBoundAddress = null
+        mcpStatusHolder.setWireguardCollision(null)
         // Close the listener to unblock a pending accept(), then drop our
         // hold on the tunnel.
         try { wireguardListener?.close() } catch (_: Exception) {}
@@ -565,6 +592,71 @@ class McpServer @Inject constructor(
             // down (we were the only thing keeping it alive).
             tunnelManager.release(wireguardCarrierProfileId)
         }
+    }
+
+    /**
+     * Best-effort: a warning when an active system VPN (another app's
+     * [NetworkCapabilities.TRANSPORT_VPN] network) holds [address] — the same
+     * address our userspace WireGuard netstack serves MCP on. The kernel VPN
+     * then shadows our listener (peers reach the kernel tun, which RSTs our
+     * port), so the WG endpoint is silently unreachable. Needs
+     * `ACCESS_NETWORK_STATE` (held); returns null on any lookup failure.
+     */
+    private fun detectVpnAddressCollision(address: String?): sh.haven.core.data.agent.WgCollisionInfo? {
+        if (address.isNullOrBlank()) return null
+        val cm = connectivityManager ?: return null
+        val target = runCatching { InetAddress.getByName(address) }.getOrNull() ?: return null
+        return try {
+            val iface = cm.allNetworks.firstNotNullOfOrNull { net ->
+                val caps = cm.getNetworkCapabilities(net)
+                if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) != true) return@firstNotNullOfOrNull null
+                val lp = cm.getLinkProperties(net) ?: return@firstNotNullOfOrNull null
+                if (lp.linkAddresses.any { it.address == target }) lp.interfaceName ?: "vpn" else null
+            } ?: return null
+            sh.haven.core.data.agent.WgCollisionInfo(vpnInterface = iface, address = address)
+        } catch (e: Exception) {
+            Log.w(TAG, "VPN collision check failed: ${e.message}")
+            null
+        }
+    }
+
+    /** Re-evaluate the WG endpoint collision against the currently-bound address. */
+    private fun refreshWireguardCollision() {
+        val info = detectVpnAddressCollision(wireguardBoundAddress)
+        if (info != mcpStatusHolder.wireguardCollision.value) {
+            mcpStatusHolder.setWireguardCollision(info)
+            if (info != null) {
+                Log.w(TAG, "WG MCP carrier shadowed: system VPN (${info.vpnInterface}) holds ${info.address} — endpoint unreachable from peers")
+            }
+        }
+    }
+
+    /** Must hold [lifecycleLock]. Idempotent. Watches VPN networks for live collision updates. */
+    private fun registerVpnWatcherLocked() {
+        if (vpnNetworkCallback != null) return
+        val cm = connectivityManager ?: return
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) = refreshWireguardCollision()
+            override fun onLost(network: Network) = refreshWireguardCollision()
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) =
+                refreshWireguardCollision()
+        }
+        val req = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+            .build()
+        try {
+            cm.registerNetworkCallback(req, cb)
+            vpnNetworkCallback = cb
+        } catch (e: Exception) {
+            Log.w(TAG, "VPN watcher register failed: ${e.message}")
+        }
+    }
+
+    /** Must hold [lifecycleLock]. Idempotent. */
+    private fun unregisterVpnWatcherLocked() {
+        val cb = vpnNetworkCallback ?: return
+        runCatching { connectivityManager?.unregisterNetworkCallback(cb) }
+        vpnNetworkCallback = null
     }
 
     fun stop() = synchronized(lifecycleLock) {

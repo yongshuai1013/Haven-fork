@@ -91,6 +91,7 @@ class McpWorkspaceToolsTest {
             desktopSessionRegistry = mockk<sh.haven.core.data.desktop.DesktopSessionRegistry>(relaxed = true),
             usbBroker = mockk<sh.haven.core.usb.UsbBroker>(relaxed = true),
             presentationManager = sh.haven.core.data.agent.AgentPresentationManager(),
+            mcpStatusHolder = sh.haven.core.data.agent.McpStatusHolder(),
             mcpTunnelManager = mockk(relaxed = true),
             reticulumSessionManager = mockk(relaxed = true),
             reticulumForwardServer = mockk(relaxed = true),

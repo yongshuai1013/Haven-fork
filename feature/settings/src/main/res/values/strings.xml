@@ -321,6 +321,7 @@
     <string name="settings_mcp_wireguard_title">Expose on WireGuard tunnel</string>
     <string name="settings_mcp_wireguard_subtitle_on">Enabled — also reachable at &lt;wg-ip&gt;:8730 on the active WireGuard tunnel</string>
     <string name="settings_mcp_wireguard_subtitle_off">Disabled — turn on to reach the endpoint over an active WireGuard tunnel</string>
+    <string name="settings_mcp_wireguard_collision">Another VPN (%1$s) is using %2$s — the same address this endpoint binds, so it\'s shadowed and unreachable from peers. Stop that VPN, or point your MCP client at the loopback (127.0.0.1) endpoint instead.</string>
     <string name="settings_mcp_lan_title">Expose on Wi-Fi/LAN</string>
     <string name="settings_mcp_lan_subtitle_on">Enabled — also reachable at &lt;device-lan-ip&gt;:8730 on the local network</string>
     <string name="settings_mcp_lan_subtitle_off">Disabled — turn on for direct reach from a device on the same Wi-Fi/LAN</string>

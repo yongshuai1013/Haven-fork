@@ -38,7 +38,17 @@ class SettingsViewModel @Inject constructor(
     private val agentConsentManager: AgentConsentManager,
     private val terminalFontInstaller: TerminalFontInstaller,
     private val connectionRepository: ConnectionRepository,
+    private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
 ) : ViewModel() {
+
+    /**
+     * Non-null when the WireGuard-exposed MCP endpoint is shadowed by another
+     * app's system VPN holding the same address (so it's unreachable). Shown as
+     * a warning in the MCP section. Published by the MCP server via
+     * [sh.haven.core.data.agent.McpStatusHolder].
+     */
+    val mcpWireguardCollision: StateFlow<sh.haven.core.data.agent.WgCollisionInfo?> =
+        mcpStatusHolder.wireguardCollision
 
     val terminalFontPath: StateFlow<String?> = preferencesRepository.terminalFontPath
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
