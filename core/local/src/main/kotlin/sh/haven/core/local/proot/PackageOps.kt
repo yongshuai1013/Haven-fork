@@ -87,12 +87,16 @@ object Apk : PackageOps {
  * Debian / Ubuntu apt-get strategy.
  *
  * `DEBIAN_FRONTEND=noninteractive` suppresses dpkg's debconf
- * prompts; `-y` auto-confirms. `--no-install-recommends` is
- * deliberately omitted from install — Xfce4 et al. become
- * unusable without their Recommends. Callers that want minimal
- * footprint can append the flag via the package list (e.g. by
- * wrapping the package name in `--no-install-recommends pkgname`
- * — apt parses options anywhere).
+ * prompts; `-y` auto-confirms; `--no-install-recommends` keeps the
+ * footprint sane. Ubuntu enables Recommends by default, so a bare
+ * `apt-get install xfce4 …` pulls the metapackage's entire Recommends
+ * closure — ~250 packages / 396 MB download / 1.6 GB on disk, vs the
+ * ~100 MB the UI advertises. The DE package lists in [DesktopEnvironment]
+ * already name the essentials explicitly (the DE metapackage, the VNC
+ * server, a terminal, dbus, fonts), and a metapackage's hard Depends —
+ * the actual desktop — install regardless, so the core session stays
+ * functional; only the optional goodies are dropped. Users who want a
+ * specific extra can add it later.
  *
  * Success heuristic: apt-get prints `Setting up <pkg> (<ver>) ...`
  * for each installed package. This is more reliable than the
@@ -126,7 +130,7 @@ object Apt : PackageOps {
      * user to restart the entire 1-2 GB desktop fetch.
      */
     override fun installCmd(pkgs: List<String>): String =
-        "$CLEAR_LOCK $ENV apt-get install -y --fix-missing ${pkgs.joinToString(" ")}"
+        "$CLEAR_LOCK $ENV apt-get install -y --no-install-recommends --fix-missing ${pkgs.joinToString(" ")}"
 
     override fun removeCmd(pkgs: List<String>): String =
         "$CLEAR_LOCK $ENV apt-get remove -y ${pkgs.joinToString(" ")}"
