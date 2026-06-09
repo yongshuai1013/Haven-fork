@@ -144,6 +144,22 @@
 -keep class org.joni.** { *; }
 -keep class org.jcodings.** { *; }
 
+# JavaMail (com.sun.mail:android-mail) registers its Store/Transport providers
+# reflectively by fully-qualified class name — via META-INF/javamail.providers
+# and the mail.<proto>.class properties ImapMailClient sets, which JavaMail
+# resolves with Class.forName. R8 leaves the providers *resource* untouched but
+# renames the provider *classes* (verified against this release's mapping.txt:
+# com.sun.mail.imap.IMAPSSLStore -> s4.c, com.sun.mail.smtp.SMTPSSLTransport ->
+# u4.c), so getStore("imaps") / getTransport("smtps") throw
+# NoSuchProviderException and every email account fails to connect in release
+# builds (debug works because R8 doesn't run). Keep the whole provider tree.
+-keep class com.sun.mail.** { *; }
+-keep class javax.mail.** { *; }
+-keep class javax.activation.** { *; }
+-dontwarn com.sun.mail.**
+-dontwarn javax.mail.**
+-dontwarn javax.activation.**
+
 # Tesseract4Android — native libtess.so / libleptonica.so dispatch back
 # into Java via JNI by class+field+method name (mNativeData, init,
 # nativeInit, nativeSetImageBitmap, etc.). R8 obfuscating any of the
