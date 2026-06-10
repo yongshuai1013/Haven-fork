@@ -47,6 +47,9 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.robolectric)
     testImplementation(libs.coroutines.test)
+    // Real org.json for unit tests (android.jar's is stubbed under
+    // isReturnDefaultValues), so MailRuleJson round-trips can be asserted.
+    testImplementation("org.json:json:20240303")
 }
 
 kotlin {

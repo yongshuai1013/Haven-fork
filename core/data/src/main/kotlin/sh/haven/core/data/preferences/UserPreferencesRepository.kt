@@ -51,6 +51,7 @@ class UserPreferencesRepository @Inject constructor(
     private val showCopyOutputButtonKey = booleanPreferencesKey("show_copy_output_button")
     private val keepScreenOnInTerminalKey = booleanPreferencesKey("keep_screen_on_in_terminal")
     private val connectionLoggingEnabledKey = booleanPreferencesKey("connection_logging_enabled")
+    private val mailAutomationEnabledKey = booleanPreferencesKey("mail_automation_enabled")
     private val alwaysShowAllTabsKey = booleanPreferencesKey("always_show_all_tabs")
     private val usbGuestExposureEnabledKey = booleanPreferencesKey("usb_guest_exposure_enabled")
     private val verboseLoggingEnabledKey = booleanPreferencesKey("verbose_logging_enabled")
@@ -199,6 +200,22 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setConnectionLoggingEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[connectionLoggingEnabledKey] = enabled
+        }
+    }
+
+    /**
+     * Master switch for inbound-email automation (Mail Rules). Off by default. While on
+     * (and ≥1 enabled rule exists) Haven runs a foreground watch that polls for new mail —
+     * a persistent notification + some battery cost — so it stays opt-in and one tap away
+     * from off.
+     */
+    val mailAutomationEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[mailAutomationEnabledKey] ?: false
+    }
+
+    suspend fun setMailAutomationEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[mailAutomationEnabledKey] = enabled
         }
     }
 

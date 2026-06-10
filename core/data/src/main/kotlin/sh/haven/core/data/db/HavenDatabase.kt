@@ -9,6 +9,10 @@ import sh.haven.core.data.db.entities.ConnectionGroup
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.db.entities.ConnectionProfile
 import sh.haven.core.data.db.entities.KnownHost
+import sh.haven.core.data.db.entities.MailRule
+import sh.haven.core.data.db.entities.MailRuleFiring
+import sh.haven.core.data.db.entities.MailRulePendingAction
+import sh.haven.core.data.db.entities.MailWatermark
 import sh.haven.core.data.db.entities.PasteQueueEntry
 import sh.haven.core.data.db.entities.PortForwardRule
 import sh.haven.core.data.db.entities.ProotInstallLog
@@ -37,8 +41,12 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         SyncProfile::class,
         ProotInstallLog::class,
         TotpSecret::class,
+        MailRule::class,
+        MailWatermark::class,
+        MailRuleFiring::class,
+        MailRulePendingAction::class,
     ],
-    version = 63,
+    version = 64,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -56,6 +64,10 @@ abstract class HavenDatabase : RoomDatabase() {
     abstract fun syncProfileDao(): SyncProfileDao
     abstract fun prootInstallLogDao(): ProotInstallLogDao
     abstract fun totpSecretDao(): TotpSecretDao
+    abstract fun mailRuleDao(): MailRuleDao
+    abstract fun mailWatermarkDao(): MailWatermarkDao
+    abstract fun mailRuleFiringDao(): MailRuleFiringDao
+    abstract fun mailRulePendingActionDao(): MailRulePendingActionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -988,6 +1000,88 @@ abstract class HavenDatabase : RoomDatabase() {
         val MIGRATION_62_63 = object : Migration(62, 63) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "connection_profiles", "emailSmtpServer", "TEXT")
+            }
+        }
+
+        /**
+         * Mail Rules — inbound-email automation. Four tables: the user-defined rules,
+         * the per-(account,folder) poll high-water-mark, the firing/audit log, and the
+         * queue of destructive actions awaiting foreground approval.
+         */
+        val MIGRATION_63_64 = object : Migration(63, 64) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `mail_rules` (
+                        `id` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `enabled` INTEGER NOT NULL DEFAULT 1,
+                        `orderIndex` INTEGER NOT NULL DEFAULT 0,
+                        `accountProfileId` TEXT,
+                        `folderId` TEXT NOT NULL DEFAULT 'INBOX',
+                        `criteriaJson` TEXT NOT NULL,
+                        `actionsJson` TEXT NOT NULL,
+                        `stopOnMatch` INTEGER NOT NULL DEFAULT 0,
+                        `notifyOnFire` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL,
+                        `lastFiredAt` INTEGER,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `mail_watermarks` (
+                        `profileId` TEXT NOT NULL,
+                        `folderId` TEXT NOT NULL,
+                        `uidValidity` INTEGER NOT NULL,
+                        `lastSeenUid` INTEGER NOT NULL,
+                        `uidNext` INTEGER,
+                        `lastPolledAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`profileId`, `folderId`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `mail_rule_firings` (
+                        `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `ruleId` TEXT,
+                        `profileId` TEXT NOT NULL,
+                        `folderId` TEXT NOT NULL,
+                        `uid` INTEGER NOT NULL,
+                        `messageSubject` TEXT,
+                        `firedAt` INTEGER NOT NULL,
+                        `kind` TEXT NOT NULL DEFAULT 'FIRED',
+                        `actionsCompletedMask` INTEGER NOT NULL DEFAULT 0,
+                        `outcomeSummary` TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_mail_rule_firings_profileId_folderId_uid` " +
+                        "ON `mail_rule_firings` (`profileId`, `folderId`, `uid`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_mail_rule_firings_ruleId` " +
+                        "ON `mail_rule_firings` (`ruleId`)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `mail_rule_pending_actions` (
+                        `id` TEXT NOT NULL,
+                        `ruleId` TEXT NOT NULL,
+                        `profileId` TEXT NOT NULL,
+                        `folderId` TEXT NOT NULL,
+                        `uid` INTEGER NOT NULL,
+                        `messageId` TEXT NOT NULL,
+                        `messageSubject` TEXT,
+                        `actionJson` TEXT NOT NULL,
+                        `queuedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
             }
         }
 
