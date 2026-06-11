@@ -332,6 +332,9 @@ class SettingsViewModel @Inject constructor(
     val interceptCtrlShiftV: StateFlow<Boolean> = preferencesRepository.interceptCtrlShiftV
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val reflowTerminalOnKeyboard: StateFlow<Boolean> = preferencesRepository.reflowTerminalOnKeyboard
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val showTerminalTabBar: StateFlow<Boolean> = preferencesRepository.showTerminalTabBar
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
@@ -632,6 +635,12 @@ class SettingsViewModel @Inject constructor(
     fun setInterceptCtrlShiftV(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setInterceptCtrlShiftV(enabled)
+        }
+    }
+
+    fun setReflowTerminalOnKeyboard(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setReflowTerminalOnKeyboard(enabled)
         }
     }
 

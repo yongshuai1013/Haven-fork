@@ -71,6 +71,7 @@ class UserPreferencesRepository @Inject constructor(
     private val imeFlagNoExtractUiKey = booleanPreferencesKey("ime_flag_no_extract_ui")
     private val imeFlagNoPersonalizedLearningKey = booleanPreferencesKey("ime_flag_no_personalized_learning")
     private val interceptCtrlShiftVKey = booleanPreferencesKey("intercept_ctrl_shift_v")
+    private val reflowTerminalOnKeyboardKey = booleanPreferencesKey("reflow_terminal_on_keyboard")
     private val showTerminalTabBarKey = booleanPreferencesKey("show_terminal_tab_bar")
     private val reorderHintShownKey = booleanPreferencesKey("reorder_hint_shown")
     private val screenOrderKey = stringPreferencesKey("screen_order")
@@ -429,6 +430,26 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setInterceptCtrlShiftV(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[interceptCtrlShiftVKey] = enabled
+        }
+    }
+
+    /**
+     * Resize the terminal (reflow / SIGWINCH) to fit above the soft keyboard
+     * when it opens, instead of keeping the row count and render-shifting the
+     * view up (#206). Off by default — the render-shift keeps a plain shell
+     * stable when the keyboard toggles. Turn it on for a full-screen TUI that
+     * draws a status/header line at the *top*: without the resize, the
+     * render-shift pushes that top row off-screen (#242). The alternate screen
+     * and mouse-tracking apps reflow regardless; this extends reflow to plain
+     * primary-buffer TUIs the heuristics can't detect.
+     */
+    val reflowTerminalOnKeyboard: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[reflowTerminalOnKeyboardKey] ?: false
+    }
+
+    suspend fun setReflowTerminalOnKeyboard(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[reflowTerminalOnKeyboardKey] = enabled
         }
     }
 

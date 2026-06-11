@@ -406,6 +406,8 @@ fun HavenNavHost(
     } else null
     val interceptCtrlShiftV by preferencesRepository.interceptCtrlShiftV
         .collectAsState(initial = true)
+    val reflowTerminalOnKeyboard by preferencesRepository.reflowTerminalOnKeyboard
+        .collectAsState(initial = false)
     val showTerminalTabBar by preferencesRepository.showTerminalTabBar
         .collectAsState(initial = true)
     val desktopInputMode by preferencesRepository.desktopInputMode
@@ -584,6 +586,7 @@ fun HavenNavHost(
                             }
                         },
                         interceptCtrlShiftV = interceptCtrlShiftV,
+                        reflowTerminalOnKeyboard = reflowTerminalOnKeyboard,
                         showTabBar = showTerminalTabBar,
                         onFullscreenChanged = { terminalFullscreen = it },
                         onNavigateToConnections = {

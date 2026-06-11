@@ -187,6 +187,7 @@ fun SettingsScreen(
     val rawKeyboardMode by viewModel.rawKeyboardMode.collectAsState()
     val keyboardCustomMode by viewModel.keyboardCustomMode.collectAsState()
     val interceptCtrlShiftV by viewModel.interceptCtrlShiftV.collectAsState()
+    val reflowTerminalOnKeyboard by viewModel.reflowTerminalOnKeyboard.collectAsState()
     val showTerminalTabBar by viewModel.showTerminalTabBar.collectAsState()
     val backupStatus by viewModel.backupStatus.collectAsState()
     val waylandShellCommand by viewModel.waylandShellCommand.collectAsState()
@@ -628,6 +629,13 @@ fun SettingsScreen(
             subtitle = stringResource(R.string.settings_show_terminal_tab_bar_subtitle),
             checked = showTerminalTabBar,
             onCheckedChange = viewModel::setShowTerminalTabBar,
+        )
+        SettingsToggleItem(
+            icon = Icons.Filled.Keyboard,
+            title = stringResource(R.string.settings_reflow_on_keyboard_title),
+            subtitle = stringResource(R.string.settings_reflow_on_keyboard_subtitle),
+            checked = reflowTerminalOnKeyboard,
+            onCheckedChange = viewModel::setReflowTerminalOnKeyboard,
         )
 
         }

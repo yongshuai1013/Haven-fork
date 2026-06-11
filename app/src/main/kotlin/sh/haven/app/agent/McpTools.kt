@@ -4912,6 +4912,10 @@ internal class McpTools(
         "terminal_font_size",
         "mouse_input_enabled",
         "terminal_right_click",
+        // Resize the terminal (reflow/SIGWINCH) to fit above the soft keyboard
+        // instead of render-shifting (#206/#242). MCP-drivable so the reflow
+        // path is testable without driving the Settings UI.
+        "reflow_terminal_on_keyboard",
         // Terminal colour scheme group (#139/#165). Values are
         // TerminalColorScheme enum names (e.g. DRACULA, NORD). When
         // auto-switch is on the active scheme follows the system light/dark
@@ -4957,6 +4961,7 @@ internal class McpTools(
             "terminal_font_size" -> preferencesRepository.terminalFontSize.first()
             "mouse_input_enabled" -> preferencesRepository.mouseInputEnabled.first()
             "terminal_right_click" -> preferencesRepository.terminalRightClick.first()
+            "reflow_terminal_on_keyboard" -> preferencesRepository.reflowTerminalOnKeyboard.first()
             "terminal_color_scheme" -> preferencesRepository.terminalColorScheme.first().name
             "terminal_auto_switch_scheme" -> preferencesRepository.terminalAutoSwitchScheme.first()
             "terminal_light_color_scheme" -> preferencesRepository.terminalLightColorScheme.first().name
@@ -5021,6 +5026,7 @@ internal class McpTools(
             "terminal_tap_to_position_cursor" -> preferencesRepository.setTerminalTapToPositionCursor(coerceBool())
             "mouse_input_enabled" -> preferencesRepository.setMouseInputEnabled(coerceBool())
             "terminal_right_click" -> preferencesRepository.setTerminalRightClick(coerceBool())
+            "reflow_terminal_on_keyboard" -> preferencesRepository.setReflowTerminalOnKeyboard(coerceBool())
             "terminal_color_scheme" -> preferencesRepository.setTerminalColorScheme(coerceScheme())
             "terminal_auto_switch_scheme" -> preferencesRepository.setTerminalAutoSwitchScheme(coerceBool())
             "terminal_light_color_scheme" -> preferencesRepository.setTerminalLightColorScheme(coerceScheme())

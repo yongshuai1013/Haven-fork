@@ -162,6 +162,13 @@ fun TerminalScreen(
      */
     customKeyboardFlags: sh.haven.core.terminal.ImeFlagSet? = null,
     interceptCtrlShiftV: Boolean = true,
+    /**
+     * User opt-in to resize the PTY (reflow / SIGWINCH) on a soft-keyboard
+     * toggle even on the primary buffer, so a full-screen TUI's top status row
+     * isn't shifted off-screen (#242). Default off keeps the #206 render-shift
+     * for plain shells. OR'd with the mouse-mode heuristic below.
+     */
+    reflowTerminalOnKeyboard: Boolean = false,
     showTabBar: Boolean = true,
     onFullscreenChanged: (Boolean) -> Unit = {},
     onNavigateToConnections: () -> Unit = {},
@@ -1038,8 +1045,11 @@ fun TerminalScreen(
                                 // primary-buffer signal — Haven forces `mouse on`
                                 // for tmux/byobu and zellij uses the alt screen,
                                 // so this covers the multiplexers. A plain shell
-                                // (no mouse) keeps the no-resize render-shift.
-                                reflowOnKeyboard = isMouseMode,
+                                // (no mouse) keeps the no-resize render-shift —
+                                // unless the user opts every session into reflow
+                                // (#242) for a primary-buffer TUI the heuristic
+                                // can't detect.
+                                reflowOnKeyboard = isMouseMode || reflowTerminalOnKeyboard,
                                 backgroundColor = terminalBg,
                                 foregroundColor = terminalFg,
                                 focusRequester = focusRequester,
