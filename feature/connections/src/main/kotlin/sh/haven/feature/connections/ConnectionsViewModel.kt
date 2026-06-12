@@ -1307,7 +1307,7 @@ class ConnectionsViewModel @Inject constructor(
         // a touch and aren't loadable private material), so don't let their mere
         // presence suppress the password prompt.
         val unencryptedKeys = sshKeyRepository.getAllDecrypted()
-            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
+            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") && it.enabledForAuth }
         if (unencryptedKeys.isNotEmpty()) return null
         return jp
     }
@@ -3476,6 +3476,16 @@ class ConnectionsViewModel @Inject constructor(
         // specs and the legacy/explicit-key callers.
         if (profile.ignoreSavedKeys) return ConnectionConfig.AuthMethod.Password(password)
         val specs = profile.authMethodSpecs
+        // A single explicit-key spec must be honoured via the SPEC's keyId.
+        // The legacy resolveAuthMethod reads profile.keyId, which can be out of
+        // sync with the spec — e.g. a profile pinned via MCP authMethods, or a
+        // UI save that didn't mirror the spec to the legacy field. When unsynced
+        // (keyId null) it silently fell back to "any saved key" and ignored the
+        // pin, so a connection set to require one specific key authenticated
+        // with whatever other key the server accepted.
+        (specs.singleOrNull() as? ConnectionProfile.AuthMethodSpec.Key)?.keyId?.let { kid ->
+            resolveExplicitKey(kid, password)?.let { return it }
+        }
         if (specs.size <= 1) return resolveAuthMethod(profile, password)
 
         val methods = specs.mapNotNull { spec ->
@@ -3616,7 +3626,7 @@ class ConnectionsViewModel @Inject constructor(
      */
     private suspend fun resolveAnyUnencryptedKeys(): ConnectionConfig.AuthMethod? {
         val keys = sshKeyRepository.getAllDecrypted()
-            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
+            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") && it.enabledForAuth }
         if (keys.isEmpty()) return null
         return ConnectionConfig.AuthMethod.PrivateKeys(
             keys = keys.map { key ->
@@ -3683,7 +3693,7 @@ class ConnectionsViewModel @Inject constructor(
         // Exclude SK/FIDO keys: their bytes are a credential handle (rawKeyToPem
         // would throw "Invalid Key"), and a hardware key can't be forwarded as a
         // software agent identity anyway.
-        val usable = allKeys.filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
+        val usable = allKeys.filter { !it.isEncrypted && !it.keyType.startsWith("sk-") && it.enabledForAuth }
         return AgentIdentitiesResult(
             keys = usable.map { key -> key.label to rawKeyToPem(key.privateKeyBytes, key.keyType) },
             skippedEncryptedCount = allKeys.count { it.isEncrypted },
