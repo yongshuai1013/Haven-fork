@@ -3597,7 +3597,16 @@ private fun AuthMethodsEditor(
                     var expanded by remember { mutableStateOf(false) }
                     Box(modifier = Modifier.weight(1f)) {
                         OutlinedButton(onClick = { expanded = true }) {
-                            Text(sshKeys.firstOrNull { it.id == spec.keyId }?.label ?: stringResource(R.string.connections_auth_key_any))
+                            // Read as a picker ("Key: Any ▾" / "Key: yubi nano ▾"),
+                            // not a bare "Any" that doesn't look tappable — a
+                            // hardware-key user has no reason to guess otherwise.
+                            Text(
+                                stringResource(
+                                    R.string.connections_auth_key_picker,
+                                    sshKeys.firstOrNull { it.id == spec.keyId }?.label
+                                        ?: stringResource(R.string.connections_auth_key_any),
+                                ),
+                            )
                         }
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             DropdownMenuItem(

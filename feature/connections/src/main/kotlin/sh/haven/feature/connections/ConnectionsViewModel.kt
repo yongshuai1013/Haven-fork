@@ -1303,8 +1303,11 @@ class ConnectionsViewModel @Inject constructor(
         // so the prompt is the only credential path; fire it (#121).
         if (jp.ignoreSavedKeys) return jp
         if (jp.keyId != null) return null
+        // SK/FIDO keys aren't usable as an auto-offered jump-host key (they need
+        // a touch and aren't loadable private material), so don't let their mere
+        // presence suppress the password prompt.
         val unencryptedKeys = sshKeyRepository.getAllDecrypted()
-            .filter { !it.isEncrypted }
+            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
         if (unencryptedKeys.isNotEmpty()) return null
         return jp
     }
@@ -3603,9 +3606,17 @@ class ConnectionsViewModel @Inject constructor(
      * "try them all" bundle, or null if none. Encrypted keys are skipped (no
      * passphrase here); biometric-protected keys are included (each prompts via
      * its keystore gate).
+     *
+     * FIDO2/SK keys (`sk-ssh-ed25519@openssh.com` etc.) are excluded: their
+     * `privateKeyBytes` hold a credential handle, not loadable private-key
+     * material, so PEM-encoding one throws "Invalid Key" — and a hardware key
+     * shouldn't be silently tried (with a touch prompt) on every connect. SK
+     * keys are used only when explicitly assigned to a profile, where
+     * [resolveExplicitKey] resolves them to a [ConnectionConfig.AuthMethod.FidoKey].
      */
     private suspend fun resolveAnyUnencryptedKeys(): ConnectionConfig.AuthMethod? {
-        val keys = sshKeyRepository.getAllDecrypted().filter { !it.isEncrypted }
+        val keys = sshKeyRepository.getAllDecrypted()
+            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
         if (keys.isEmpty()) return null
         return ConnectionConfig.AuthMethod.PrivateKeys(
             keys = keys.map { key ->
@@ -3669,10 +3680,13 @@ class ConnectionsViewModel @Inject constructor(
             )
         }
         val allKeys = sshKeyRepository.getAllDecrypted()
-        val usable = allKeys.filter { !it.isEncrypted }
+        // Exclude SK/FIDO keys: their bytes are a credential handle (rawKeyToPem
+        // would throw "Invalid Key"), and a hardware key can't be forwarded as a
+        // software agent identity anyway.
+        val usable = allKeys.filter { !it.isEncrypted && !it.keyType.startsWith("sk-") }
         return AgentIdentitiesResult(
             keys = usable.map { key -> key.label to rawKeyToPem(key.privateKeyBytes, key.keyType) },
-            skippedEncryptedCount = allKeys.size - usable.size,
+            skippedEncryptedCount = allKeys.count { it.isEncrypted },
             hadNoStoredKeys = allKeys.isEmpty(),
             forwardAgentEnabled = true,
         )
@@ -4024,11 +4038,18 @@ class ConnectionsViewModel @Inject constructor(
             // avoid leaving an orphan jump connection behind.
             var autoCreatedJumpSessionId: String? = null
             try {
+                // Authenticate the deploy connection with the profile's own
+                // configured auth (existing SSH key, key+password chain, …) —
+                // not a forced password. This is the ssh-copy-id case: use a
+                // credential the server already trusts to append the new key,
+                // so deploying to a key-only / YubiKey-only server works. The
+                // password is only consumed if the profile's chain includes a
+                // password element (or for a key passphrase / jump host).
                 val config = ConnectionConfig(
                     host = profile.host,
                     port = profile.port,
                     username = profile.username,
-                    authMethod = ConnectionConfig.AuthMethod.Password(password),
+                    authMethod = resolveAuthMethods(profile, password),
                 )
                 val proxy = withContext(Dispatchers.IO) {
                     resolveDeployProxy(profile, password) { autoCreated ->

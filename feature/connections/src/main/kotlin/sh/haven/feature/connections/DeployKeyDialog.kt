@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,15 +75,21 @@ fun DeployKeyDialog(
                     }
                 }
 
+                Text(
+                    text = stringResource(R.string.connections_deploy_password_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
                 PasswordField(
                     value = password,
                     onValueChange = { password = it },
-                    label = stringResource(R.string.common_password),
+                    label = stringResource(R.string.connections_deploy_field_password_optional),
                     imeAction = ImeAction.Go,
                     onImeAction = { selectedKey?.let { onDeploy(it.id, password) } },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp),
+                        .padding(top = 8.dp),
                 )
             }
         },
