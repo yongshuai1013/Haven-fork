@@ -105,4 +105,10 @@ class SshKeyRepository @Inject constructor(
         val key = sshKeyDao.getById(id) ?: return
         sshKeyDao.upsert(key.copy(label = label))
     }
+
+    /** Enable/disable a key's participation in "any saved key" auto-auth. */
+    suspend fun setEnabledForAuth(id: String, enabled: Boolean) {
+        val key = sshKeyDao.getById(id) ?: return
+        sshKeyDao.upsert(key.copy(enabledForAuth = enabled))
+    }
 }

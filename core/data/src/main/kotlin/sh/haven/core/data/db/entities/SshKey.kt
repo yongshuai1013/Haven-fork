@@ -47,6 +47,14 @@ data class SshKey(
      * itself (which step-ca controls). Null for keys without a cert.
      */
     val certIssuedAt: Long? = null,
+    /**
+     * Whether this key takes part in "any saved key" auto-auth (the OpenSSH-
+     * style offer-all default). When false the key is skipped by the try-all
+     * bundle, the jump-host auto-key heuristic, and agent forwarding — it is
+     * still used when a profile pins it explicitly. Default true; toggled per
+     * key on the Keys screen.
+     */
+    val enabledForAuth: Boolean = true,
 ) {
     // Structural equality — NOT id-only. An id-only equals() means a row
     // whose label (or cert) changed is `.equals()` to its old self, so a
@@ -69,7 +77,8 @@ data class SshKey(
             biometricProtected == other.biometricProtected &&
             certificateBytes.contentEquals(other.certificateBytes) &&
             caConfigId == other.caConfigId &&
-            certIssuedAt == other.certIssuedAt
+            certIssuedAt == other.certIssuedAt &&
+            enabledForAuth == other.enabledForAuth
     }
 
     override fun hashCode(): Int {
@@ -85,6 +94,7 @@ data class SshKey(
         result = 31 * result + (certificateBytes?.contentHashCode() ?: 0)
         result = 31 * result + (caConfigId?.hashCode() ?: 0)
         result = 31 * result + (certIssuedAt?.hashCode() ?: 0)
+        result = 31 * result + enabledForAuth.hashCode()
         return result
     }
 }

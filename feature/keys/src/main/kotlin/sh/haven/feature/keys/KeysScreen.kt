@@ -311,6 +311,9 @@ fun KeysScreen(
                             onBiometricToggle = { protected ->
                                 viewModel.setBiometricProtected(sshKey.id, protected)
                             },
+                            onEnabledForAuthToggle = { enabled ->
+                                viewModel.setKeyEnabledForAuth(sshKey.id, enabled)
+                            },
                             onAttachCertificate = { viewModel.requestAttachCertificate(sshKey.id) },
                             onRemoveCertificate = { viewModel.removeCertificate(sshKey.id) },
                             onExportCertificate = { viewModel.requestCertExport(sshKey.id) },
@@ -1018,6 +1021,7 @@ private fun SshKeyAuditRow(
     onExportPrivate: () -> Unit,
     onDelete: () -> Unit,
     onBiometricToggle: (Boolean) -> Unit,
+    onEnabledForAuthToggle: (Boolean) -> Unit,
     onAttachCertificate: () -> Unit,
     onRemoveCertificate: () -> Unit,
     onExportCertificate: () -> Unit,
@@ -1107,6 +1111,23 @@ private fun SshKeyAuditRow(
                     checked = KeystoreFlag.BIOMETRIC_PROTECTED in flags,
                     onCheckedChange = onBiometricToggle,
                 )
+            }
+            // Per-key opt-out of "any saved key" auto-auth (the OpenSSH-style
+            // offer-all default). Hidden for SK/FIDO keys: those are never
+            // auto-offered (pin them to a profile to use them), so the toggle
+            // would be a no-op there.
+            if (!sshKey.keyType.startsWith("sk-")) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.keys_offer_for_connections),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = sshKey.enabledForAuth,
+                        onCheckedChange = onEnabledForAuthToggle,
+                    )
+                }
             }
         }
 

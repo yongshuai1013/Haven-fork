@@ -440,6 +440,17 @@ class KeysViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Enable/disable a key's participation in "any saved key" auto-auth.
+     * A disabled key is skipped by the offer-all bundle, the jump-host
+     * heuristic, and agent forwarding; it still works when a profile pins it.
+     */
+    fun setKeyEnabledForAuth(keyId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setEnabledForAuth(keyId, enabled)
+        }
+    }
+
     // ---------- FIDO resident key discovery (#152) ----------
 
     /** Set true while [discoverFromSecurityKey] is running. UI hides the
