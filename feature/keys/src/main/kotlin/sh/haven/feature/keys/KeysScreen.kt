@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -39,7 +40,6 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Refresh
@@ -80,6 +80,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import sh.haven.core.data.db.entities.SshKey
 import sh.haven.core.security.KeystoreEntry
 import sh.haven.core.security.KeystoreFlag
@@ -114,6 +116,8 @@ fun KeysScreen(
     var showAddKeyDialog by remember { mutableStateOf(false) }
     var showGenerateDialog by remember { mutableStateOf(false) }
     var showStepCaDialog by remember { mutableStateOf(false) }
+    var showSecurityKeyChooser by remember { mutableStateOf(false) }
+    var showRegisterSkDialog by remember { mutableStateOf(false) }
     val stepCaConfigs by viewModel.stepCaConfigs.collectAsState()
     val totpSecrets by viewModel.totpSecrets.collectAsState()
     // CA section ViewModel — separate hilt instance, shared with the
@@ -375,9 +379,9 @@ fun KeysScreen(
                 showAddKeyDialog = false
                 filePickerLauncher.launch(arrayOf("*/*"))
             },
-            onDiscoverFromSecurityKey = {
+            onSecurityKey = {
                 showAddKeyDialog = false
-                viewModel.discoverFromSecurityKey()
+                showSecurityKeyChooser = true
             },
             onPaste = {
                 showAddKeyDialog = false
@@ -426,6 +430,30 @@ fun KeysScreen(
             onGenerate = { label, caId, principals ->
                 viewModel.generateViaStepCa(label, caId, principals)
                 showStepCaDialog = false
+            },
+        )
+    }
+
+    if (showSecurityKeyChooser) {
+        SecurityKeyChooser(
+            onSetUp = {
+                showSecurityKeyChooser = false
+                showRegisterSkDialog = true
+            },
+            onImport = {
+                showSecurityKeyChooser = false
+                viewModel.discoverFromSecurityKey()
+            },
+            onDismiss = { showSecurityKeyChooser = false },
+        )
+    }
+
+    if (showRegisterSkDialog) {
+        RegisterOnSecurityKeyDialog(
+            onDismiss = { showRegisterSkDialog = false },
+            onRegister = { label, verifyRequired, pin ->
+                viewModel.registerOnSecurityKey(label, verifyRequired, pin)
+                showRegisterSkDialog = false
             },
         )
     }
@@ -516,7 +544,7 @@ private fun AddKeyChooser(
     onGenerate: () -> Unit,
     onGenerateStepCa: () -> Unit,
     onImport: () -> Unit,
-    onDiscoverFromSecurityKey: () -> Unit,
+    onSecurityKey: () -> Unit,
     onPaste: () -> Unit,
     onAddTotpPaste: () -> Unit,
     onScanTotpQr: () -> Unit,
@@ -573,13 +601,13 @@ private fun AddKeyChooser(
                     },
                 )
                 ListItem(
-                    modifier = Modifier.clickable { onDiscoverFromSecurityKey() },
-                    headlineContent = { Text(stringResource(R.string.keys_discover_from_security_key)) },
+                    modifier = Modifier.clickable { onSecurityKey() },
+                    headlineContent = { Text(stringResource(R.string.keys_security_key)) },
                     supportingContent = {
-                        Text(stringResource(R.string.keys_discover_from_security_key_hint))
+                        Text(stringResource(R.string.keys_security_key_hint))
                     },
                     leadingContent = {
-                        Icon(Icons.Filled.Usb, contentDescription = null)
+                        Icon(Icons.Filled.VpnKey, contentDescription = null)
                     },
                 )
                 ListItem(
@@ -613,6 +641,132 @@ private fun AddKeyChooser(
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.common_cancel))
             }
+        },
+    )
+}
+
+/**
+ * Two-option chooser shown when the user picks "Security key (YubiKey)" — keeps
+ * the add-key menu to one obvious entry instead of two near-identical FIDO
+ * items. "Set up" creates a new credential on the key (CTAP2 MakeCredential);
+ * "Import" enumerates resident creds already on it (#152).
+ */
+@Composable
+private fun SecurityKeyChooser(
+    onSetUp: () -> Unit,
+    onImport: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.keys_security_key)) },
+        text = {
+            Column {
+                ListItem(
+                    modifier = Modifier.clickable { onSetUp() },
+                    headlineContent = { Text(stringResource(R.string.keys_security_key_setup)) },
+                    supportingContent = { Text(stringResource(R.string.keys_security_key_setup_hint)) },
+                    leadingContent = { Icon(Icons.Filled.Add, contentDescription = null) },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { onImport() },
+                    headlineContent = { Text(stringResource(R.string.keys_security_key_import)) },
+                    supportingContent = { Text(stringResource(R.string.keys_security_key_import_hint)) },
+                    leadingContent = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
+}
+
+/**
+ * Collect label + verify-required + PIN, then register (create) a new SSH-SK
+ * credential on a connected/tapped security key (CTAP2 MakeCredential). The PIN
+ * is gathered here (not mid-exchange) so the whole CTAP exchange runs as one
+ * continuous tap — USB: plug & touch; NFC: tap & hold. The touch step itself is
+ * rendered by the shared [KeysFidoTouchPromptDialog]. To enrol several keys,
+ * register, swap the key, and repeat.
+ */
+@Composable
+private fun RegisterOnSecurityKeyDialog(
+    onDismiss: () -> Unit,
+    onRegister: (label: String, verifyRequired: Boolean, pin: String) -> Unit,
+) {
+    var label by remember { mutableStateOf("") }
+    var verifyRequired by remember { mutableStateOf(true) }
+    var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    val mismatch = confirm.isNotEmpty() && pin != confirm
+    val canRegister = pin.length >= 4 && pin == confirm
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.keys_register_on_security_key)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    stringResource(R.string.keys_register_on_security_key_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text(stringResource(R.string.common_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.keys_register_verify_required))
+                    Switch(checked = verifyRequired, onCheckedChange = { verifyRequired = it })
+                }
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { pin = it },
+                    label = { Text(stringResource(R.string.keys_register_pin)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { confirm = it },
+                    label = { Text(stringResource(R.string.keys_register_pin_confirm)) },
+                    singleLine = true,
+                    isError = mismatch,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    stringResource(
+                        if (mismatch) R.string.keys_register_pin_mismatch
+                        else R.string.keys_register_pin_hint,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (mismatch) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onRegister(label, verifyRequired, pin) },
+                enabled = canRegister,
+            ) {
+                Text(stringResource(R.string.keys_register_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

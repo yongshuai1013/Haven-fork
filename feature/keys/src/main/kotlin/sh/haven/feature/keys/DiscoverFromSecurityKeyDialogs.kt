@@ -97,16 +97,31 @@ private fun TouchDialog(prompt: FidoTouchPrompt) {
 @Composable
 private fun PinEntryDialog(prompt: FidoTouchPrompt.EnterPin) {
     var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    val settingNew = prompt.settingNew
     val retriesNote = prompt.retriesRemaining?.let {
         stringResource(R.string.keys_fido_pin_wrong, it)
     }
+    // When configuring the first PIN on a fresh key, require a matching
+    // confirmation and a 4+ char PIN; when entering an existing PIN, any
+    // non-empty value is sent (the key reports a wrong PIN itself).
+    val mismatch = settingNew && confirm.isNotEmpty() && pin != confirm
+    val canSubmit = if (settingNew) pin.length >= 4 && pin == confirm else pin.isNotEmpty()
     AlertDialog(
         onDismissRequest = { prompt.submit(null) },
-        title = { Text(stringResource(R.string.keys_fido_pin_title)) },
+        title = {
+            Text(
+                stringResource(
+                    if (settingNew) R.string.keys_fido_pin_set_title else R.string.keys_fido_pin_title,
+                ),
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    stringResource(R.string.keys_fido_pin_help),
+                    stringResource(
+                        if (settingNew) R.string.keys_fido_pin_set_help else R.string.keys_fido_pin_help,
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (retriesNote != null) {
@@ -124,12 +139,30 @@ private fun PinEntryDialog(prompt: FidoTouchPrompt.EnterPin) {
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
+                if (settingNew) {
+                    OutlinedTextField(
+                        value = confirm,
+                        onValueChange = { confirm = it },
+                        label = { Text(stringResource(R.string.keys_fido_pin_confirm_label)) },
+                        singleLine = true,
+                        isError = mismatch,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    )
+                    if (mismatch) {
+                        Text(
+                            stringResource(R.string.keys_fido_pin_mismatch),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { prompt.submit(pin) },
-                enabled = pin.isNotEmpty(),
+                enabled = canSubmit,
             ) { Text(stringResource(android.R.string.ok)) }
         },
         dismissButton = {

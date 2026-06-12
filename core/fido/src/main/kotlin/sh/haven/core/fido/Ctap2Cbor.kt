@@ -16,10 +16,15 @@ import java.nio.ByteBuffer
 object Ctap2Cbor {
 
     // CTAP2 command bytes
+    const val CMD_MAKE_CREDENTIAL: Byte = 0x01
     const val CMD_GET_ASSERTION: Byte = 0x02
     const val CMD_GET_INFO: Byte = 0x04
     const val CMD_CLIENT_PIN: Byte = 0x06
     const val CMD_CREDENTIAL_MANAGEMENT: Byte = 0x0A
+
+    // COSE algorithm identifiers (used in MakeCredential pubKeyCredParams)
+    const val COSE_ALG_EDDSA = -8   // Ed25519 -> sk-ssh-ed25519@openssh.com
+    const val COSE_ALG_ES256 = -7   // ECDSA P-256 -> sk-ecdsa-sha2-nistp256@openssh.com
 
     // CTAP2 status codes
     const val STATUS_OK: Byte = 0x00
@@ -36,12 +41,20 @@ object Ctap2Cbor {
 
     // clientPIN subcommand codes
     const val PIN_SUB_GET_KEY_AGREEMENT = 2
+    const val PIN_SUB_SET_PIN = 3
+    const val PIN_SUB_CHANGE_PIN = 4
     const val PIN_SUB_GET_PIN_TOKEN_LEGACY = 5
     const val PIN_SUB_GET_PIN_TOKEN_WITH_PERMS = 9
 
     // PIN/UV permission bits (FIDO2 §6.5.5.7)
+    const val PERMISSION_MAKE_CREDENTIAL = 0x01
     const val PERMISSION_GET_ASSERTION = 0x02
     const val PERMISSION_CREDENTIAL_MANAGEMENT = 0x04
+
+    // authenticatorData flag bits (WebAuthn §6.1)
+    const val AUTHDATA_FLAG_USER_PRESENT = 0x01
+    const val AUTHDATA_FLAG_USER_VERIFIED = 0x04
+    const val AUTHDATA_FLAG_ATTESTED_CREDENTIAL_DATA = 0x40
 
     // authenticatorCredentialManagement subcommands (CTAP 2.1 §6.8.2)
     const val CM_SUB_GET_CREDS_METADATA = 1
@@ -148,6 +161,144 @@ object Ctap2Cbor {
         requireNotNull(authData) { "GetAssertion response missing authData (key 2)" }
         requireNotNull(signature) { "GetAssertion response missing signature (key 3)" }
         return AssertionResponse(authData, signature)
+    }
+
+    // ---------- authenticatorMakeCredential ----------
+
+    /** A credential's COSE public key plus its handle, parsed from authData. */
+    data class AttestedCredential(
+        val aaguid: ByteArray,
+        val credentialId: ByteArray,
+        val publicKey: CosePublicKey,
+        val flags: Byte,
+        val signCount: Int,
+    )
+
+    /** Parsed authenticatorMakeCredential response (only the fields Haven uses). */
+    data class MakeCredentialResponse(
+        val fmt: String?,
+        val authData: ByteArray,
+    )
+
+    /**
+     * Encode authenticatorMakeCredential (0x01) for SSH-SK registration.
+     *
+     * Request map:
+     *   1: clientDataHash, 2: rp{id,name}, 3: user{id,name,displayName},
+     *   4: pubKeyCredParams [{alg,type}...], 7: options{rk} (when [residentKey]),
+     *   8: pinUvAuthParam + 9: pinUvAuthProtocol (when [pinUvAuthParam] set).
+     *
+     * Providing [pinUvAuthParam] is how UV is conveyed; `options.uv` is left
+     * unset per CTAP2. [algorithms] are COSE alg ids in preference order
+     * (e.g. [COSE_ALG_EDDSA] for sk-ssh-ed25519).
+     */
+    fun encodeMakeCredentialCommand(
+        clientDataHash: ByteArray,
+        rpId: String,
+        rpName: String,
+        userId: ByteArray,
+        userName: String,
+        userDisplayName: String,
+        algorithms: List<Int>,
+        residentKey: Boolean,
+        pinUvAuthParam: ByteArray? = null,
+        pinUvAuthProtocol: Int? = null,
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(CMD_MAKE_CREDENTIAL.toInt())
+
+        var entries = 4 // keys 1..4 always present
+        if (residentKey) entries++            // 7: options
+        if (pinUvAuthParam != null) entries += 2 // 8 + 9
+        encodeMapHeader(out, entries)
+
+        // 1: clientDataHash
+        encodeUint(out, 1); encodeByteString(out, clientDataHash)
+
+        // 2: rp { id, name }
+        encodeUint(out, 2)
+        encodeMapHeader(out, 2)
+        encodeTextString(out, "id"); encodeTextString(out, rpId)
+        encodeTextString(out, "name"); encodeTextString(out, rpName)
+
+        // 3: user { id, name, displayName }
+        encodeUint(out, 3)
+        encodeMapHeader(out, 3)
+        encodeTextString(out, "id"); encodeByteString(out, userId)
+        encodeTextString(out, "name"); encodeTextString(out, userName)
+        encodeTextString(out, "displayName"); encodeTextString(out, userDisplayName)
+
+        // 4: pubKeyCredParams [ { alg, type } ]
+        encodeUint(out, 4)
+        encodeArrayHeader(out, algorithms.size)
+        for (alg in algorithms) {
+            encodeMapHeader(out, 2)
+            encodeTextString(out, "alg"); encodeInt(out, alg)
+            encodeTextString(out, "type"); encodeTextString(out, "public-key")
+        }
+
+        // 7: options { rk: true }
+        if (residentKey) {
+            encodeUint(out, 7)
+            encodeMapHeader(out, 1)
+            encodeTextString(out, "rk"); encodeBoolean(out, true)
+        }
+
+        // 8, 9: pinUvAuthParam + protocol
+        if (pinUvAuthParam != null) {
+            requireNotNull(pinUvAuthProtocol) { "pinUvAuthProtocol required when pinUvAuthParam set" }
+            encodeUint(out, 8); encodeByteString(out, pinUvAuthParam)
+            encodeUint(out, 9); encodeUint(out, pinUvAuthProtocol)
+        }
+        return out.toByteArray()
+    }
+
+    /** Decode an authenticatorMakeCredential response payload (status byte stripped). */
+    fun decodeMakeCredentialResponse(data: ByteArray): MakeCredentialResponse {
+        val buf = ByteBuffer.wrap(data)
+        val mapSize = readMapHeader(buf)
+        var fmt: String? = null
+        var authData: ByteArray? = null
+        for (i in 0 until mapSize) {
+            val key = readSignedInt(buf)
+            when (key) {
+                1 -> fmt = readTextString(buf)
+                2 -> authData = readByteString(buf)
+                else -> skipValue(buf) // 3: attStmt (unused — no attestation verification)
+            }
+        }
+        requireNotNull(authData) { "MakeCredential response missing authData (key 2)" }
+        return MakeCredentialResponse(fmt, authData)
+    }
+
+    /**
+     * Parse the attestedCredentialData out of a MakeCredential authData:
+     *   rpIdHash(32) | flags(1) | signCount(4) | aaguid(16) |
+     *   credIdLen(2, big-endian) | credentialId | credentialPublicKey(COSE).
+     * Requires the AT (attested-credential-data) flag bit to be set.
+     */
+    fun parseAttestedCredentialData(authData: ByteArray): AttestedCredential {
+        require(authData.size >= 37 + 16 + 2) {
+            "authData too short for attested credential: ${authData.size}"
+        }
+        val flags = authData[32]
+        require(flags.toInt() and AUTHDATA_FLAG_ATTESTED_CREDENTIAL_DATA != 0) {
+            "authData has no attested credential data (AT flag unset)"
+        }
+        val signCount = ((authData[33].toInt() and 0xFF) shl 24) or
+            ((authData[34].toInt() and 0xFF) shl 16) or
+            ((authData[35].toInt() and 0xFF) shl 8) or
+            (authData[36].toInt() and 0xFF)
+        val aaguid = authData.copyOfRange(37, 53)
+        val credIdLen = ((authData[53].toInt() and 0xFF) shl 8) or (authData[54].toInt() and 0xFF)
+        val credIdStart = 55
+        val credIdEnd = credIdStart + credIdLen
+        require(credIdEnd <= authData.size) { "credentialId length $credIdLen overruns authData" }
+        val credentialId = authData.copyOfRange(credIdStart, credIdEnd)
+        // The credential public key is the trailing COSE_Key CBOR map.
+        val coseBuf = ByteBuffer.wrap(authData, credIdEnd, authData.size - credIdEnd)
+        val publicKey = decodeCoseAuthenticatorPublicKey(coseBuf)
+        return AttestedCredential(aaguid, credentialId, publicKey, flags, signCount)
     }
 
     // ---------- authenticatorGetInfo ----------
@@ -257,6 +408,32 @@ object Ctap2Cbor {
         if (rpId != null) {
             encodeUint(out, 10); encodeTextString(out, rpId)
         }
+        return out.toByteArray()
+    }
+
+    /**
+     * clientPIN subcommand 3 (setPIN — configure the first PIN on a key that
+     * has none):
+     *   { 1: protocol, 2: 3, 3: platformKeyAgreement, 4: pinUvAuthParam,
+     *     5: newPinEnc }
+     * where `newPinEnc = encrypt(sharedSecret, pin-padded-to-64)` and
+     * `pinUvAuthParam = authenticate(sharedSecret, newPinEnc)` — both keyed on
+     * the ECDH shared secret, not a pinUvAuthToken (none exists yet).
+     */
+    fun encodeClientPinSetPin(
+        protocol: Int,
+        platformKeyAgreement: CoseEcdhPubKey,
+        pinUvAuthParam: ByteArray,
+        newPinEnc: ByteArray,
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(CMD_CLIENT_PIN.toInt())
+        encodeMapHeader(out, 5)
+        encodeUint(out, 1); encodeUint(out, protocol)
+        encodeUint(out, 2); encodeUint(out, PIN_SUB_SET_PIN)
+        encodeUint(out, 3); encodeCoseEcdhKey(out, platformKeyAgreement)
+        encodeUint(out, 4); encodeByteString(out, pinUvAuthParam)
+        encodeUint(out, 5); encodeByteString(out, newPinEnc)
         return out.toByteArray()
     }
 
@@ -538,6 +715,11 @@ object Ctap2Cbor {
     private fun encodeNint(out: ByteArrayOutputStream, value: Int) {
         require(value < 0) { "encodeNint requires negative value, got $value" }
         encodeMajor(out, 1, -1 - value)
+    }
+
+    /** Encode a possibly-negative integer (e.g. a COSE alg id like -8). */
+    private fun encodeInt(out: ByteArrayOutputStream, value: Int) {
+        if (value < 0) encodeNint(out, value) else encodeUint(out, value)
     }
 
     private fun encodeByteString(out: ByteArrayOutputStream, data: ByteArray) {

@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbEndpoint
+import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.nfc.NfcAdapter
 import android.nfc.Tag
@@ -25,6 +27,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.lang.ref.WeakReference
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
 import javax.inject.Inject
@@ -97,11 +100,16 @@ sealed class FidoTouchPrompt {
      * field and call [submit] with the entered PIN, or [submit] with null
      * to cancel. [retriesRemaining] is the authenticator-reported count
      * after a previous wrong PIN attempt; null on the first attempt.
+     *
+     * When [settingNew] is true this is a *registration* prompt: the key has
+     * no PIN configured and the user is choosing one (the UI should show a
+     * "create a PIN" + confirm flow, not "enter your PIN").
      */
     data class EnterPin(
         val submit: (String?) -> Unit,
         val retriesRemaining: Int? = null,
         override val keyLabel: String? = null,
+        val settingNew: Boolean = false,
     ) : FidoTouchPrompt()
 }
 
@@ -309,6 +317,251 @@ class FidoAuthenticator @Inject constructor(
             error("unreachable")
         } finally {
             currentKeyLabel = null
+        }
+    }
+
+    /**
+     * Register a NEW SSH-SK credential on a connected security key via CTAP2
+     * authenticatorMakeCredential, and return it as an [SkKeyData] ready for
+     * the SSH key store (same shape as a file-imported or discovered key).
+     *
+     * Creates a *resident* (discoverable) Ed25519 credential under the
+     * [application] RP id (the SSH "ssh:" convention). Resident creation
+     * requires the key to have a FIDO2 PIN; if it has none, the user is
+     * prompted to set one first ([FidoTouchPrompt.EnterPin] with
+     * `settingNew = true`). When [verifyRequired] the stored flags include
+     * user-verification so the SSH signing path later prompts for the PIN.
+     *
+     * Blocks until a key is plugged in (USB) or tapped (NFC), the user sets/
+     * enters the PIN, and touches the key to authorise the registration.
+     */
+    suspend fun makeCredential(
+        application: String = "ssh:",
+        userName: String,
+        userDisplayName: String = userName,
+        verifyRequired: Boolean,
+        pin: String,
+        keyLabel: String? = null,
+    ): SkKeyData = withContext(Dispatchers.IO) {
+        lastAssertionError = null
+        currentKeyLabel = keyLabel
+        Log.d(TAG, "FIDO2 makeCredential requested: app=$application, user=$userName, " +
+            "verifyRequired=$verifyRequired")
+        try {
+            withDiscoveredFidoDevice { device ->
+                when (device) {
+                    is ConnectedDevice.Usb -> withUsbCtapTransport(device.device) { transport ->
+                        runMakeCredentialExchange(
+                            application, userName, userDisplayName, verifyRequired, pin,
+                            FidoTouchPrompt.TouchKey.Transport.USB,
+                        ) { cmd ->
+                            transport.sendCborCommand(cmd) {
+                                _touchPrompt.value = FidoTouchPrompt.TouchKey(
+                                    FidoTouchPrompt.TouchKey.Transport.USB, currentKeyLabel,
+                                )
+                            }
+                        }
+                    }
+                    is ConnectedDevice.Nfc -> {
+                        val isoDep = IsoDep.get(device.tag)
+                            ?: throw IOException("Tag does not support ISO-DEP")
+                        CtapNfcTransport(isoDep).use { transport ->
+                            transport.connect()
+                            transport.select()
+                            runMakeCredentialExchange(
+                                application, userName, userDisplayName, verifyRequired, pin,
+                                FidoTouchPrompt.TouchKey.Transport.NFC,
+                            ) { cmd -> transport.sendCborCommand(cmd) }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "makeCredential failed: ${e.javaClass.simpleName}: ${e.message}")
+            // NFC tag lost (TagLostException, or the framework's "Tag is out of
+            // date" SecurityException) — the key left the field before the
+            // exchange finished. With the PIN supplied up front the whole
+            // exchange is one continuous burst, so this now just means "held
+            // too briefly"; give a clear hold-it-still message.
+            val nfcLost = e is android.nfc.TagLostException ||
+                (e.message?.contains("out of date", ignoreCase = true) == true)
+            if (nfcLost) {
+                val msg = "NFC tap was lost before registration finished — hold the key flat " +
+                    "on the phone's back until it completes (it takes a moment), or plug it in " +
+                    "over USB."
+                lastAssertionError = msg
+                throw IOException(msg, e)
+            }
+            if (lastAssertionError == null) lastAssertionError = e.message
+            throw e
+        } finally {
+            currentKeyLabel = null
+        }
+    }
+
+    /**
+     * Shared MakeCredential exchange (USB + NFC). Ensures a PIN exists
+     * (setting one if needed), obtains a makeCredential-permission token,
+     * sends authenticatorMakeCredential for a resident Ed25519 credential,
+     * and parses the attested credential into an [SkKeyData].
+     */
+    private suspend fun runMakeCredentialExchange(
+        application: String,
+        userName: String,
+        userDisplayName: String,
+        verifyRequired: Boolean,
+        pin: String,
+        touchTransport: FidoTouchPrompt.TouchKey.Transport,
+        send: (ByteArray) -> ByteArray,
+    ): SkKeyData {
+        // 1. GetInfo — PIN state + supported protocols.
+        val infoResp = send(Ctap2Cbor.encodeGetInfoCommand())
+        ensureOk(infoResp, "GetInfo")
+        val info = Ctap2Cbor.decodeGetInfoResponse(infoResp.copyOfRange(1, infoResp.size))
+        val protocol = Ctap2PinProtocol.pick(info.pinUvAuthProtocols)
+            ?: throw IOException("Authenticator does not support PIN protocol v1 or v2")
+        Log.d(TAG, "MakeCredential GetInfo: clientPinSet=${info.clientPinSet}, " +
+            "protocols=${info.pinUvAuthProtocols}")
+
+        // 2. A resident credential requires a PIN. Use the PIN the user supplied
+        //    up front (set it if the key has none) — NO mid-exchange prompt, so
+        //    the whole exchange runs as one continuous tap (NFC-safe).
+        if (!info.clientPinSet) {
+            Log.d(TAG, "Key has no PIN — setting the supplied one")
+            setNewPin(protocol, send, pin)
+        }
+
+        // 3. makeCredential-permission token, scoped to this rpId, using the
+        //    supplied PIN. A wrong PIN fails cleanly (no prompt loop).
+        val (token, _) = runUvPinProtocol(
+            rpId = application,
+            permission = Ctap2Cbor.PERMISSION_MAKE_CREDENTIAL,
+            send = send,
+            knownPin = pin,
+            allowPrompt = false,
+        )
+
+        // 4. Build + send MakeCredential. There is no server in the SSH
+        //    registration flow, so the clientDataHash is a fresh random
+        //    challenge; SSH only consumes the resulting handle + public key.
+        val rng = SecureRandom()
+        val clientDataHash = ByteArray(32).also { rng.nextBytes(it) }
+        val userId = ByteArray(32).also { rng.nextBytes(it) }
+        val pinUvAuthParam = protocol.authenticate(token, clientDataHash)
+
+        _touchPrompt.value = FidoTouchPrompt.TouchKey(touchTransport, currentKeyLabel)
+        Log.d(TAG, "Sending MakeCredential (rpId=$application, resident, uv)")
+        val resp = send(
+            Ctap2Cbor.encodeMakeCredentialCommand(
+                clientDataHash = clientDataHash,
+                rpId = application,
+                rpName = application,
+                userId = userId,
+                userName = userName,
+                userDisplayName = userDisplayName,
+                algorithms = listOf(Ctap2Cbor.COSE_ALG_EDDSA),
+                residentKey = true,
+                pinUvAuthParam = pinUvAuthParam,
+                pinUvAuthProtocol = protocol.version,
+            )
+        )
+        if (resp.isEmpty()) throw IOException("MakeCredential: empty CTAP response")
+        val status = resp[0]
+        if (status != Ctap2Cbor.STATUS_OK) {
+            throw IOException("MakeCredential failed: CTAP2 error 0x${"%02x".format(status)}")
+        }
+        val mc = Ctap2Cbor.decodeMakeCredentialResponse(resp.copyOfRange(1, resp.size))
+        val attested = Ctap2Cbor.parseAttestedCredentialData(mc.authData)
+        Log.d(TAG, "MakeCredential OK: credId=${attested.credentialId.size}b, " +
+            "pubKey=${attested.publicKey.javaClass.simpleName}")
+
+        // 5. Synthesise the SSH-SK key (same builder as the discover path).
+        val flags: Byte = if (verifyRequired) {
+            (Ctap2Cbor.AUTHDATA_FLAG_USER_PRESENT or Ctap2Cbor.AUTHDATA_FLAG_USER_VERIFIED).toByte()
+        } else {
+            Ctap2Cbor.AUTHDATA_FLAG_USER_PRESENT.toByte()
+        }
+        val credEntry = Ctap2Cbor.CredentialEntry(
+            credentialId = attested.credentialId,
+            publicKey = attested.publicKey,
+            userId = userId,
+            userName = userName,
+            userDisplayName = userDisplayName,
+        )
+        return SkKeyParser.buildFromCtapCredential(credEntry, rpId = application, flags = flags)
+    }
+
+    /**
+     * Configure the first FIDO2 PIN on a key that has none (CTAP2 clientPIN
+     * setPIN) using the caller-supplied [newPin], derives the ECDH shared
+     * secret, and submits the encrypted, zero-padded PIN. The PIN is collected
+     * up front (in the registration dialog), not prompted mid-exchange, so the
+     * whole CTAP exchange runs as one continuous tap — required for NFC.
+     */
+    private suspend fun setNewPin(
+        protocol: Ctap2PinProtocol,
+        send: (ByteArray) -> ByteArray,
+        newPin: String,
+    ) {
+        val pinBytes = newPin.toByteArray(Charsets.UTF_8)
+        if (pinBytes.size < 4 || pinBytes.size > 63) {
+            throw IOException("PIN must be 4–63 characters")
+        }
+        // keyAgreement → ECDH shared secret (the setPIN auth key).
+        val kaResp = send(Ctap2Cbor.encodeClientPinGetKeyAgreement(protocol.version))
+        ensureOk(kaResp, "clientPIN getKeyAgreement")
+        val cose = Ctap2Cbor.decodeClientPinKeyAgreementResponse(kaResp.copyOfRange(1, kaResp.size))
+        val authenticatorPub = protocol.coseKeyToEcPublic(cose.x, cose.y)
+        val ephemeral = protocol.generateEphemeralKeyPair()
+        val z = protocol.ecdh(ephemeral.private as ECPrivateKey, authenticatorPub)
+        val sharedSecret = protocol.deriveSharedSecret(z)
+        val (ephX, ephY) = protocol.ecPublicToCoseCoords(ephemeral.public as ECPublicKey)
+        val platformKa = Ctap2Cbor.CoseEcdhPubKey(ephX, ephY)
+
+        // CTAP2: newPin is UTF-8, zero-padded to a minimum of 64 bytes.
+        val padded = ByteArray(64)
+        pinBytes.copyInto(padded)
+        val newPinEnc = protocol.encrypt(sharedSecret, padded)
+        val pinUvAuthParam = protocol.authenticate(sharedSecret, newPinEnc)
+
+        val resp = send(
+            Ctap2Cbor.encodeClientPinSetPin(
+                protocol = protocol.version,
+                platformKeyAgreement = platformKa,
+                pinUvAuthParam = pinUvAuthParam,
+                newPinEnc = newPinEnc,
+            )
+        )
+        if (resp.isEmpty()) throw IOException("setPIN: empty CTAP response")
+        when (val status = resp[0]) {
+            Ctap2Cbor.STATUS_OK -> Log.d(TAG, "New FIDO2 PIN configured on key")
+            Ctap2Cbor.STATUS_PIN_POLICY_VIOLATION -> throw IOException(
+                "That PIN doesn't meet the key's policy (too short or too simple). " +
+                    "Choose a longer PIN and try again."
+            )
+            else -> throw IOException("Failed to set PIN: CTAP2 error 0x${"%02x".format(status)}")
+        }
+    }
+
+    /**
+     * Open a CTAPHID transport over [device] (USB permission + HID interface
+     * claim + CTAPHID init), run [block], and close the transport after. Used
+     * by [makeCredential]; the assertion/enumerate paths inline the same steps
+     * (a shared helper there is a follow-up).
+     */
+    private suspend fun <R> withUsbCtapTransport(
+        device: UsbDevice,
+        block: suspend (CtapHidTransport) -> R,
+    ): R {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        ensureUsbPermission(usbManager, device)
+        val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
+        val connection = usbManager.openDevice(device)
+            ?: throw IOException("Failed to open USB device")
+        connection.claimInterface(hidInterface, true)
+        return CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
+            transport.init()
+            block(transport)
         }
     }
 
@@ -570,21 +823,9 @@ class FidoAuthenticator @Inject constructor(
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
         ensureUsbPermission(usbManager, device)
 
-        // Find HID interface and endpoints
-        val hidInterface = (0 until device.interfaceCount)
-            .map { device.getInterface(it) }
-            .firstOrNull { it.interfaceClass == UsbConstants.USB_CLASS_HID }
-            ?: throw IOException("No HID interface on FIDO device")
-
-        var endpointIn: android.hardware.usb.UsbEndpoint? = null
-        var endpointOut: android.hardware.usb.UsbEndpoint? = null
-        for (i in 0 until hidInterface.endpointCount) {
-            val ep = hidInterface.getEndpoint(i)
-            if (ep.direction == UsbConstants.USB_DIR_IN) endpointIn = ep
-            if (ep.direction == UsbConstants.USB_DIR_OUT) endpointOut = ep
-        }
-        requireNotNull(endpointIn) { "No IN endpoint on HID interface" }
-        requireNotNull(endpointOut) { "No OUT endpoint on HID interface" }
+        // Select the CTAPHID interface (HID with both IN+OUT), not the first
+        // HID interface — a YubiKey OTP+FIDO+CCID's keyboard HID has no OUT.
+        val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
 
         val connection = usbManager.openDevice(device)
             ?: throw IOException("Failed to open USB device")
@@ -714,19 +955,7 @@ class FidoAuthenticator @Inject constructor(
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
         ensureUsbPermission(usbManager, device)
 
-        val hidInterface = (0 until device.interfaceCount)
-            .map { device.getInterface(it) }
-            .firstOrNull { it.interfaceClass == UsbConstants.USB_CLASS_HID }
-            ?: throw IOException("No HID interface on FIDO device")
-        var endpointIn: android.hardware.usb.UsbEndpoint? = null
-        var endpointOut: android.hardware.usb.UsbEndpoint? = null
-        for (i in 0 until hidInterface.endpointCount) {
-            val ep = hidInterface.getEndpoint(i)
-            if (ep.direction == UsbConstants.USB_DIR_IN) endpointIn = ep
-            if (ep.direction == UsbConstants.USB_DIR_OUT) endpointOut = ep
-        }
-        requireNotNull(endpointIn) { "No IN endpoint on HID interface" }
-        requireNotNull(endpointOut) { "No OUT endpoint on HID interface" }
+        val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
 
         val connection = usbManager.openDevice(device)
             ?: throw IOException("Failed to open USB device")
@@ -915,6 +1144,8 @@ class FidoAuthenticator @Inject constructor(
         rpId: String?,
         permission: Int,
         send: (ByteArray) -> ByteArray,
+        knownPin: String? = null,
+        allowPrompt: Boolean = true,
     ): Pair<ByteArray, Ctap2PinProtocol> {
         // 1. authenticatorGetInfo to learn supported protocols and PIN state
         val infoResp = send(Ctap2Cbor.encodeGetInfoCommand())
@@ -955,11 +1186,21 @@ class FidoAuthenticator @Inject constructor(
         val platformKa = Ctap2Cbor.CoseEcdhPubKey(ephX, ephY)
 
         // 4. Loop: prompt PIN → getPinUvAuthToken. On wrong PIN, retry until
-        //    the user cancels or the authenticator returns a hard failure.
+        //    the user cancels or the authenticator returns a hard failure. A
+        //    [knownPin] (e.g. one collected up front for registration) is used
+        //    for the first attempt without prompting. When [allowPrompt] is
+        //    false (registration's one-shot, NFC-safe path) the supplied PIN is
+        //    the only attempt — a wrong PIN fails cleanly instead of prompting
+        //    mid-exchange, which would drop the NFC tap.
         var retriesNote: Int? = null
+        var pinToTry: String? = knownPin
         while (true) {
-            val pin = promptPin(retriesNote)
-                ?: throw IOException("PIN entry cancelled")
+            val pin = pinToTry
+                ?: (if (allowPrompt) promptPin(retriesNote) else null)
+                ?: throw IOException(
+                    if (allowPrompt) "PIN entry cancelled" else "Incorrect security-key PIN",
+                )
+            pinToTry = null
             if (pin.length < 4) throw IOException("PIN must be at least 4 characters")
 
             val pinHash = MessageDigest.getInstance("SHA-256")
@@ -997,6 +1238,14 @@ class FidoAuthenticator @Inject constructor(
                     Log.w(TAG, "Wrong PIN; ~$retriesNote attempts remain (estimated)")
                     if (retriesNote <= 0) {
                         throw IOException("Too many wrong PIN attempts.")
+                    }
+                    if (!allowPrompt) {
+                        // One-shot path (registration): don't loop/prompt — the
+                        // supplied PIN was wrong; surface it and stop.
+                        throw IOException(
+                            "Incorrect security-key PIN (about $retriesNote attempts left " +
+                                "before the key locks).",
+                        )
                     }
                     // Loop and prompt again.
                 }
@@ -1082,5 +1331,37 @@ class FidoAuthenticator @Inject constructor(
             }
         }
         return false
+    }
+
+    /**
+     * Find the FIDO CTAPHID interface on [device] and its interrupt IN/OUT
+     * endpoints.
+     *
+     * A composite "YubiKey OTP+FIDO+CCID" exposes SEVERAL HID interfaces —
+     * the keyboard (OTP) interface has only an IN endpoint, so picking "the
+     * first HID interface" lands on it and fails with "No OUT endpoint on HID
+     * interface". The CTAPHID interface is the HID interface that has BOTH an
+     * IN and an OUT endpoint; select on that, skipping keyboard-style HIDs.
+     */
+    private fun findCtapHidInterface(
+        device: UsbDevice,
+    ): Triple<UsbInterface, UsbEndpoint, UsbEndpoint> {
+        for (i in 0 until device.interfaceCount) {
+            val iface = device.getInterface(i)
+            if (iface.interfaceClass != UsbConstants.USB_CLASS_HID) continue
+            var epIn: UsbEndpoint? = null
+            var epOut: UsbEndpoint? = null
+            for (j in 0 until iface.endpointCount) {
+                val ep = iface.getEndpoint(j)
+                if (ep.direction == UsbConstants.USB_DIR_IN) epIn = ep
+                if (ep.direction == UsbConstants.USB_DIR_OUT) epOut = ep
+            }
+            if (epIn != null && epOut != null) return Triple(iface, epIn, epOut)
+        }
+        throw IOException(
+            "No FIDO CTAPHID interface on this device. A multi-interface key " +
+                "(OTP+FIDO+CCID) exposes a keyboard HID with no OUT endpoint — " +
+                "need the HID interface that has both IN and OUT endpoints."
+        )
     }
 }

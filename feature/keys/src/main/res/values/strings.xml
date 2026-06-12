@@ -151,6 +151,25 @@
     <string name="keys_discover_picker_body">Pick which resident credentials to import. Each becomes a new SSH key entry; the security key itself still holds the private material.</string>
     <string name="keys_discover_import_selected">Import selected</string>
 
+    <!-- Security key (YubiKey) — one menu entry, two paths -->
+    <string name="keys_security_key">Security key (YubiKey)</string>
+    <string name="keys_security_key_hint">Set up a new SSH key on a FIDO2 key, or import keys already on it.</string>
+    <string name="keys_security_key_setup">Set up a new key on it</string>
+    <string name="keys_security_key_setup_hint">Create an SSH key on the security key (sets a PIN if it is new). No laptop or ssh-keygen.</string>
+    <string name="keys_security_key_import">Import keys already on it</string>
+    <string name="keys_security_key_import_hint">Add resident SSH-SK credentials already stored on the key (made elsewhere with ssh-keygen -O resident).</string>
+
+    <!-- FIDO2 on-device registration (CTAP2 MakeCredential) -->
+    <string name="keys_register_on_security_key">Set up SSH key on security key</string>
+    <string name="keys_register_on_security_key_body">Creates a resident sk-ssh-ed25519 credential on the security key. Then: plug it in over USB and press it, or tap &amp; hold it on the back for NFC.</string>
+    <string name="keys_register_verify_required">Require PIN at every sign-in</string>
+    <string name="keys_register_verify_required_hint">On: the key asks for its PIN each time it signs an SSH login (verify-required — stronger). Off: touch only.</string>
+    <string name="keys_register_pin">Security key PIN</string>
+    <string name="keys_register_pin_confirm">Confirm PIN</string>
+    <string name="keys_register_pin_hint">Choose a PIN if the key is new, or enter its existing PIN. 4+ characters.</string>
+    <string name="keys_register_pin_mismatch">PINs do not match</string>
+    <string name="keys_register_action">Register</string>
+
     <!-- TOTP / Authenticator -->
     <string name="keys_totp_section_header">Authenticator (TOTP) · %1$d</string>
     <string name="keys_totp_delete_desc">Delete authenticator</string>
@@ -164,6 +183,10 @@
     <string name="keys_fido_pin_label">PIN</string>
     <string name="keys_fido_pin_help">Enter the PIN configured on your security key to continue.</string>
     <string name="keys_fido_pin_wrong">Wrong PIN. %1$d attempts remaining before the key locks.</string>
+    <string name="keys_fido_pin_set_title">Create a security-key PIN</string>
+    <string name="keys_fido_pin_set_help">This security key has no PIN yet. Choose one (4–63 characters) — you will enter it when the key signs.</string>
+    <string name="keys_fido_pin_confirm_label">Confirm PIN</string>
+    <string name="keys_fido_pin_mismatch">PINs do not match</string>
     <string name="keys_fido_waiting_title">Security key required</string>
     <string name="keys_fido_waiting_body">Plug in your security key over USB, or tap it on the back of the device for NFC. Haven will continue automatically once it is detected.</string>
     <string name="keys_fido_touch_usb_title">Touch your security key</string>

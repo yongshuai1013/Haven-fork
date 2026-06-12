@@ -534,6 +534,49 @@ class KeysViewModel @Inject constructor(
         _discoveredCredentials.value = emptyList()
     }
 
+    // ---------- FIDO on-device registration (CTAP2 MakeCredential) ----------
+
+    /** True while [registerOnSecurityKey] is running; UI shows the FIDO
+     *  touch/PIN dialog ([fidoTouchPrompt]) while set. */
+    private val _registerInProgress = MutableStateFlow(false)
+    val registerInProgress: StateFlow<Boolean> = _registerInProgress.asStateFlow()
+
+    /**
+     * Register (create) a NEW resident SSH-SK credential directly on a
+     * connected security key via CTAP2 MakeCredential, then save it as an
+     * SSH key under [label]. [pin] is collected up front (in the dialog) and
+     * used to set the key's PIN if it has none, or to unlock it if it already
+     * has one — so the whole CTAP exchange runs as one continuous tap (USB or
+     * NFC) with no mid-exchange prompt. When [verifyRequired], the key requires
+     * the PIN at every SSH sign (stored UV flag). Lets a user enrol fresh
+     * YubiKeys on the phone with no laptop or `ssh-keygen`. Re-runnable across
+     * several keys (swap and register again).
+     */
+    fun registerOnSecurityKey(label: String, verifyRequired: Boolean, pin: String) {
+        if (_registerInProgress.value || _discoverInProgress.value) return
+        viewModelScope.launch {
+            _registerInProgress.value = true
+            try {
+                val trimmed = label.trim().ifBlank { "FIDO2 key" }
+                val sk = fidoAuthenticator.makeCredential(
+                    application = "ssh:",
+                    userName = trimmed,
+                    verifyRequired = verifyRequired,
+                    pin = pin,
+                    keyLabel = trimmed,
+                )
+                saveSkKey(sk, trimmed)
+                _message.value = "Registered \"$trimmed\" on the security key"
+                Log.d("KeysViewModel", "Registered SK key: ${sk.algorithmName}, verifyRequired=$verifyRequired")
+            } catch (e: Exception) {
+                Log.e("KeysViewModel", "registerOnSecurityKey failed", e)
+                _error.value = "Security key registration failed: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                _registerInProgress.value = false
+            }
+        }
+    }
+
     fun cancelImport() {
         _importResult.value = null
         _needsPassphrase.value = false
