@@ -5126,6 +5126,11 @@ internal class McpTools(
         // Master switch for inbound-email automation (Mail Rules). MCP-drivable so
         // the engine can be armed without the Settings UI.
         "mail_automation_enabled",
+        // Keyboard toolbar layout (JSON: array of rows; strings = built-in key
+        // ids, {label,send} objects = custom snippet keys). MCP-drivable so the
+        // toolbar can be reconfigured without the Settings GUI — get returns the
+        // current JSON, set validates and replaces it. See ToolbarLayout.
+        "toolbar_layout",
     )
 
     private suspend fun getPreference(args: JSONObject): JSONObject {
@@ -5152,6 +5157,7 @@ internal class McpTools(
             "mcp_wireguard_tunnel_config_id" -> preferencesRepository.mcpWireguardTunnelConfigId.first() ?: ""
             "usb_guest_exposure_enabled" -> preferencesRepository.usbGuestExposureEnabled.first()
             "mail_automation_enabled" -> preferencesRepository.mailAutomationEnabled.first()
+            "toolbar_layout" -> preferencesRepository.toolbarLayoutJson.first()
             else -> throw McpError(-32602, "Preference $key is not in the whitelist")
         }
         return JSONObject().apply {
@@ -5219,6 +5225,12 @@ internal class McpTools(
                 preferencesRepository.setMcpWireguardTunnelConfigId((rawValue as? String)?.ifBlank { null })
             "usb_guest_exposure_enabled" -> preferencesRepository.setUsbGuestExposureEnabled(coerceBool())
             "mail_automation_enabled" -> preferencesRepository.setMailAutomationEnabled(coerceBool())
+            "toolbar_layout" -> {
+                val json = (rawValue as? String)
+                    ?: throw McpError(-32602, "value must be a toolbar-layout JSON string for $key")
+                ToolbarLayout.validate(json)?.let { throw McpError(-32602, "Invalid toolbar layout: $it") }
+                preferencesRepository.setToolbarLayoutJson(json)
+            }
         }
         return JSONObject().apply {
             put("key", key)
