@@ -166,6 +166,8 @@ class SshClient : Closeable {
                 val candidates = fidoAuths.map { SkKeyData.deserialize(it.skKeyData) }
                 val detected = try {
                     runBlocking { fidoAuthenticator?.detectPresentSkKey(candidates, keyLabel = null) }
+                } catch (e: sh.haven.core.fido.FidoCancelledException) {
+                    throw e // user cancelled the key prompt — abort the connect, don't fall back
                 } catch (e: Exception) {
                     Log.w(TAG, "Either/or SK detection failed: ${e.message}")
                     null
@@ -267,6 +269,10 @@ class SshClient : Closeable {
             try { sess.disconnect() } catch (_: Throwable) { /* best effort */ }
             if (capturedHostKey != null) throw HostKeyAuthFailure(capturedHostKey, e)
             throw e
+        } finally {
+            // Release any NFC field held open for the one-tap either/or sign so
+            // it can't outlive this connect attempt (#237).
+            fidoAuthenticator?.releaseHeldNfc()
         }
         session = sess
         registerAgentIdentities(config)
@@ -413,6 +419,8 @@ class SshClient : Closeable {
             try { sess.disconnect() } catch (_: Throwable) { /* best effort */ }
             if (capturedHostKey != null) throw HostKeyAuthFailure(capturedHostKey, e)
             throw e
+        } finally {
+            fidoAuthenticator?.releaseHeldNfc()
         }
         session = sess
         registerAgentIdentities(config)

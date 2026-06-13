@@ -183,6 +183,28 @@ class FidoAuthenticator @Inject constructor(
     private var pendingDevice: CompletableDeferred<ConnectedDevice>? = null
 
     /**
+     * The transport of the in-flight assertion (USB CTAPHID or NFC ISO-DEP),
+     * set while a GetAssertion is waiting for the user's touch. [pendingDevice]
+     * only covers the pre-discovery wait; closing this transport is what lets
+     * Cancel abort the **touch-wait** too — e.g. when an already-plugged key was
+     * auto-selected and the sign prompt is sitting there waiting for a touch
+     * (#237). Closing it makes the blocking transceive error out so the flow
+     * unwinds.
+     */
+    private val activeTransport = java.util.concurrent.atomic.AtomicReference<AutoCloseable?>(null)
+
+    /**
+     * One-tap NFC either/or (#237): an NFC ISO-DEP transport left OPEN after
+     * [detectPresentSkKey] identifies the tapped key, so the follow-on sign in
+     * [getAssertion] reuses the same field instead of asking for a second tap.
+     * Best-effort — survives only while the tag stays on the phone; if it's
+     * lifted (or the link is slow enough that the RF link drops) the sign falls
+     * back to a fresh tap. Always released by [releaseHeldNfc] after the connect
+     * attempt so a half-held field can't leak past one connect.
+     */
+    private var heldNfcTransport: CtapNfcTransport? = null
+
+    /**
      * Weak reference to the currently-resumed foreground [Activity], used
      * as the host for NFC reader mode during an in-flight assertion. Set
      * by the activity's `onResume` / cleared on `onPause`. NFC reader
@@ -241,6 +263,24 @@ class FidoAuthenticator @Inject constructor(
      */
     fun cancelPending() {
         pendingDevice?.completeExceptionally(FidoCancelledException())
+        // Also tear down an in-flight assertion's transport so a touch-wait
+        // (e.g. an auto-selected plugged key) actually cancels.
+        activeTransport.getAndSet(null)?.let { runCatching { it.close() } }
+        releaseHeldNfc()
+    }
+
+    /**
+     * Close any NFC transport held open across the detect→sign hand-off (the
+     * one-tap either/or path, see [heldNfcTransport]). Idempotent; called by
+     * [getAssertion] once it has consumed the held field and by the SSH connect
+     * path in a finally so a held field never outlives one connect attempt.
+     */
+    fun releaseHeldNfc() {
+        heldNfcTransport?.let {
+            activeTransport.compareAndSet(it, null)
+            runCatching { it.close() }
+        }
+        heldNfcTransport = null
     }
 
     /**
@@ -286,6 +326,30 @@ class FidoAuthenticator @Inject constructor(
             promptPin(null) ?: throw IOException("PIN entry cancelled")
         } else {
             null
+        }
+
+        // One-tap NFC either/or (#237): if detection left an NFC field open on
+        // the key the user already tapped, sign on that same transport so they
+        // don't tap twice. Best-effort — if the tag has lifted the transceive
+        // errors out and we fall through to the normal fresh-tap flow below.
+        heldNfcTransport?.let { held ->
+            heldNfcTransport = null
+            try {
+                activeTransport.set(held)
+                val result = runGetAssertionExchange(
+                    rpId, clientDataHash, listOf(credentialId), requireUv, prePin,
+                    FidoTouchPrompt.TouchKey.Transport.NFC,
+                ) { cmd -> held.sendCborCommand(cmd) }
+                Log.d(TAG, "FIDO2 assertion success (one-tap held NFC): sig=${result.signature.size}b")
+                return@withContext result
+            } catch (e: Exception) {
+                Log.w(TAG, "Held-NFC one-tap sign failed (${e.javaClass.simpleName}: ${e.message}); " +
+                    "falling back to a fresh tap")
+            } finally {
+                activeTransport.compareAndSet(held, null)
+                runCatching { held.close() }
+                _touchPrompt.value = null
+            }
         }
 
         // A key that doesn't hold this credential answers NO_CREDENTIALS. Rather
@@ -849,10 +913,12 @@ class FidoAuthenticator @Inject constructor(
     }
 
     /**
-     * Either/or detection (#237 follow-up): present ANY of the [candidates]
-     * security keys and return the one actually presented, so a profile that
-     * lists several SK keys accepts whichever the user has to hand instead of
-     * insisting on the first-listed one.
+     * Either/or auto-select (#237 follow-up): present ANY of the [candidates]
+     * security keys and return the one detected, so a profile listing several
+     * SK keys accepts whichever the user has to hand. Whatever is plugged in (or
+     * tapped) is auto-selected — one touch when a key is plugged — and the user
+     * uses **Cancel** to bail out (e.g. to unplug a USB key and tap NFC instead;
+     * Cancel works through the sign touch-wait, see [cancelPending]/[activeTransport]).
      *
      * Probes with a presence-free (`up = false`) GetAssertion whose allowList
      * holds every candidate's credential — the key answers with the credential
@@ -861,14 +927,14 @@ class FidoAuthenticator @Inject constructor(
      * to even assert, so they're left to the order-based fallback. Credentials
      * are grouped by rpId (one GetAssertion can only carry one rpId).
      *
-     * Returns the matched [SkKeyData], or null if nothing was detected (caller
-     * falls back to offering all keys in order — the pre-existing behaviour).
+     * Returns the matched [SkKeyData], null if nothing was detected (caller
+     * falls back to offering all keys in order), or throws
+     * [FidoCancelledException] if the user cancels the key wait.
      */
     suspend fun detectPresentSkKey(
         candidates: List<SkKeyData>,
         keyLabel: String? = null,
     ): SkKeyData? = withContext(Dispatchers.IO) {
-        // Only presence-only credentials can be probed touch/PIN-free.
         val probeable = candidates.filter { (it.flags.toInt() and 0x04) == 0 }
         if (probeable.size < 2) return@withContext null
         currentKeyLabel = keyLabel
@@ -877,36 +943,97 @@ class FidoAuthenticator @Inject constructor(
         Log.d(TAG, "Either/or detect: ${probeable.size} candidate key(s), ${byRpId.size} rpId group(s)")
         try {
             withDiscoveredFidoDevice { device ->
-                for ((rpId, group) in byRpId) {
-                    val creds = group.map { it.credentialId }
-                    val result = try {
-                        when (device) {
-                            is ConnectedDevice.Usb -> performUsbAssertion(
-                                device.device, rpId, dummyHash, creds, requireUv = false, prePin = null, up = false,
-                            )
-                            is ConnectedDevice.Nfc -> performNfcAssertion(
-                                device.tag, rpId, dummyHash, creds, requireUv = false, prePin = null, up = false,
-                            )
-                        }
-                    } catch (_: FidoNoMatchingCredentialException) {
-                        continue // the present key holds none of this rpId group — try the next
-                    }
-                    // With >1 allowList entry the key reports which credential it
-                    // used; with exactly one the field is omitted, so it's that one.
-                    val used = result.usedCredentialId ?: creds.singleOrNull()
-                    val match = group.firstOrNull { used != null && it.credentialId.contentEquals(used) }
-                    if (match != null) {
-                        Log.d(TAG, "Either/or detect: present key holds credential ${match.credentialId.size}b (rpId=$rpId)")
-                        return@withDiscoveredFidoDevice match
-                    }
+                when (device) {
+                    is ConnectedDevice.Usb -> detectMatchUsb(device.device, byRpId, dummyHash)
+                    is ConnectedDevice.Nfc -> detectMatchNfcHold(device.tag, byRpId, dummyHash)
                 }
-                null
             }
+        } catch (e: FidoCancelledException) {
+            throw e // user cancelled the key wait — let the connect abort
         } catch (e: Exception) {
             Log.w(TAG, "Either/or key detection failed (${e.javaClass.simpleName}: ${e.message}); falling back to ordered keys")
             null
         } finally {
             _touchPrompt.value = null
+        }
+    }
+
+    /** Probe each rpId group on a plugged USB key; return the matched candidate. */
+    private suspend fun detectMatchUsb(
+        device: UsbDevice,
+        byRpId: Map<String, List<SkKeyData>>,
+        dummyHash: ByteArray,
+    ): SkKeyData? {
+        for ((rpId, group) in byRpId) {
+            val creds = group.map { it.credentialId }
+            val result = try {
+                performUsbAssertion(device, rpId, dummyHash, creds, requireUv = false, prePin = null, up = false)
+            } catch (_: FidoNoMatchingCredentialException) {
+                continue // the present key holds none of this rpId group — try the next
+            }
+            matchDetectedCredential(group, result, creds)?.let { return it }
+        }
+        return null
+    }
+
+    /**
+     * Probe each rpId group on the tapped NFC key over ONE ISO-DEP session and,
+     * on a match, leave that transport OPEN ([heldNfcTransport]) so the follow-on
+     * sign reuses the same tap — one continuous tap instead of detect-tap +
+     * sign-tap (#237 one-tap either/or). A generous transceive timeout covers the
+     * SSH PK_OK round-trip between detect and sign.
+     */
+    private suspend fun detectMatchNfcHold(
+        tag: Tag,
+        byRpId: Map<String, List<SkKeyData>>,
+        dummyHash: ByteArray,
+    ): SkKeyData? {
+        val isoDep = IsoDep.get(tag) ?: throw IOException("Tag does not support ISO-DEP")
+        isoDep.timeout = 5000
+        val transport = CtapNfcTransport(isoDep)
+        transport.connect()
+        transport.select()
+        activeTransport.set(transport)
+        var keep = false
+        try {
+            for ((rpId, group) in byRpId) {
+                val creds = group.map { it.credentialId }
+                val result = try {
+                    runGetAssertionExchange(
+                        rpId, dummyHash, creds, requireUv = false, prePin = null,
+                        FidoTouchPrompt.TouchKey.Transport.NFC, up = false,
+                    ) { cmd -> transport.sendCborCommand(cmd) }
+                } catch (_: FidoNoMatchingCredentialException) {
+                    continue
+                }
+                matchDetectedCredential(group, result, creds)?.let {
+                    heldNfcTransport = transport // keep the field open for the sign
+                    keep = true
+                    return it
+                }
+            }
+            return null
+        } finally {
+            if (!keep) {
+                activeTransport.compareAndSet(transport, null)
+                runCatching { transport.close() }
+            }
+        }
+    }
+
+    /**
+     * Resolve which configured key answered a detection assertion: with >1
+     * allowList entry the key reports the credential it used; with exactly one
+     * the field is omitted, so it's that one.
+     */
+    private fun matchDetectedCredential(
+        group: List<SkKeyData>,
+        result: FidoAssertionResult,
+        creds: List<ByteArray>,
+    ): SkKeyData? {
+        val used = result.usedCredentialId ?: creds.singleOrNull()
+        return group.firstOrNull { used != null && it.credentialId.contentEquals(used) }?.also {
+            Log.d(TAG, "Either/or detect: present key holds credential ${it.credentialId.size}b")
         }
     }
 
@@ -934,14 +1061,19 @@ class FidoAuthenticator @Inject constructor(
             CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
                 Log.d(TAG, "CTAPHID init...")
                 transport.init()
-                return runGetAssertionExchange(
-                    rpId, clientDataHash, credentialIds, requireUv, prePin,
-                    FidoTouchPrompt.TouchKey.Transport.USB, up = up,
-                ) { cmd ->
-                    transport.sendCborCommand(cmd) {
-                        _touchPrompt.value =
-                            FidoTouchPrompt.TouchKey(FidoTouchPrompt.TouchKey.Transport.USB, currentKeyLabel)
+                activeTransport.set(transport) // so cancelPending() can break the touch-wait
+                try {
+                    return runGetAssertionExchange(
+                        rpId, clientDataHash, credentialIds, requireUv, prePin,
+                        FidoTouchPrompt.TouchKey.Transport.USB, up = up,
+                    ) { cmd ->
+                        transport.sendCborCommand(cmd) {
+                            _touchPrompt.value =
+                                FidoTouchPrompt.TouchKey(FidoTouchPrompt.TouchKey.Transport.USB, currentKeyLabel)
+                        }
                     }
+                } finally {
+                    activeTransport.compareAndSet(transport, null)
                 }
             }
         } catch (e: Exception) {
@@ -965,10 +1097,15 @@ class FidoAuthenticator @Inject constructor(
         CtapNfcTransport(isoDep).use { transport ->
             transport.connect()
             transport.select()
-            return runGetAssertionExchange(
-                rpId, clientDataHash, credentialIds, requireUv, prePin,
-                FidoTouchPrompt.TouchKey.Transport.NFC, up = up,
-            ) { cmd -> transport.sendCborCommand(cmd) }
+            activeTransport.set(transport) // so cancelPending() can break a stuck tap-wait
+            try {
+                return runGetAssertionExchange(
+                    rpId, clientDataHash, credentialIds, requireUv, prePin,
+                    FidoTouchPrompt.TouchKey.Transport.NFC, up = up,
+                ) { cmd -> transport.sendCborCommand(cmd) }
+            } finally {
+                activeTransport.compareAndSet(transport, null)
+            }
         }
     }
 
