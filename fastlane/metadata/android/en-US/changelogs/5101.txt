@@ -1,0 +1,1 @@
+Security keys: when a connection lists more than one FIDO2 key, Cancel now works while a plugged-in key is waiting for your touch (it aborts the connect instead of doing nothing). And tapping an NFC key is a single continuous tap — hold the key on the phone through the whole connect and it detects and signs in one go instead of asking for two taps. USB stays one touch.
