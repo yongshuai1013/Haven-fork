@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.Minimize
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.ScreenLockLandscape
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -181,6 +182,8 @@ fun VncSessionContent(
     /** App-window fullscreen: 3-finger pinch → live cage output scale. See [VncViewer]. */
     onChangeScale: ((Float) -> Unit)? = null,
     currentScale: Float = 1f,
+    /** App-window fullscreen: persist the current output scale as the app's default. See [VncViewer]. */
+    onSaveDefault: ((Float) -> Unit)? = null,
 ) {
     val connectedState by connected.collectAsState()
     val frameState by frame.collectAsState()
@@ -263,6 +266,7 @@ fun VncSessionContent(
             twoFingerZoom = twoFingerZoom,
             onChangeScale = onChangeScale,
             currentScale = currentScale,
+            onSaveDefault = onSaveDefault,
         )
     } else {
         VncPlaceholder(
@@ -502,6 +506,12 @@ private fun VncViewer(
      */
     onChangeScale: ((Float) -> Unit)? = null,
     currentScale: Float = 1f,
+    /**
+     * App-window fullscreen only: when non-null, the overlay shows a "Save as
+     * default" button that persists the current cage output scale as this app's
+     * per-app default. Receives the current applied scale.
+     */
+    onSaveDefault: ((Float) -> Unit)? = null,
 ) {
     val orientationMode = OrientationMode.fromActivityValue(currentOrientation)
     val orientationDesc = when (orientationMode) {
@@ -1287,6 +1297,18 @@ private fun VncViewer(
                             Icon(
                                 Icons.AutoMirrored.Filled.HelpOutline,
                                 contentDescription = stringResource(R.string.vnc_cd_gesture_help),
+                            )
+                        }
+                    }
+                    // App windows: pin the current output scale as this app's default.
+                    onSaveDefault?.let { save ->
+                        IconButton(onClick = {
+                            overlayVisible = false
+                            save(lastSentScale)
+                        }) {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = stringResource(R.string.vnc_cd_save_default),
                             )
                         }
                     }

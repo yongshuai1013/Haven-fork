@@ -10,6 +10,7 @@ import android.graphics.pdf.PdfRenderer
 import android.media.MediaPlayer
 import android.os.ParcelFileDescriptor
 import android.view.MotionEvent
+import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
@@ -294,6 +295,14 @@ internal fun PresentationHost(viewModel: PresentationHostViewModel = hiltViewMod
                             currentScale = current.scale,
                             onChangeScale = { s ->
                                 current.sessionId?.let { viewModel.changeAppWindowScale(it, s) }
+                            },
+                            onSaveDefault = { s ->
+                                current.sessionId?.let { viewModel.changeAppWindowScale(it, s) }
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.app_window_scale_saved),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             },
                             autoFit = current.resolution == "auto",
                             onFitToScreen = { w, h ->
@@ -630,6 +639,8 @@ private fun AppWindowContent(
     onPictureInPicture: () -> Unit,
     currentScale: Float,
     onChangeScale: (Float) -> Unit,
+    /** Persist the current output scale as this app's per-app default. */
+    onSaveDefault: (Float) -> Unit,
     /** App resolution is "auto" → refit the cage to the screen on enter/rotation. */
     autoFit: Boolean,
     onFitToScreen: (Int, Int) -> Unit,
@@ -691,7 +702,7 @@ private fun AppWindowContent(
             }
             Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
                 Box(modifier = Modifier.fillMaxSize().then(insetMod)) {
-                    AppWindowVnc(controller, true, onFullscreenChange, onDismiss, onMinimize, onPictureInPicture, currentScale, onChangeScale)
+                    AppWindowVnc(controller, true, onFullscreenChange, onDismiss, onMinimize, onPictureInPicture, currentScale, onChangeScale, onSaveDefault)
                 }
             }
         }
@@ -700,7 +711,7 @@ private fun AppWindowContent(
         Box(modifier = Modifier.fillMaxWidth().height(420.dp))
     } else {
         Box(modifier = Modifier.fillMaxWidth().height(420.dp)) {
-            AppWindowVnc(controller, false, onFullscreenChange, onDismiss, onMinimize, onPictureInPicture, currentScale, onChangeScale)
+            AppWindowVnc(controller, false, onFullscreenChange, onDismiss, onMinimize, onPictureInPicture, currentScale, onChangeScale, onSaveDefault)
         }
     }
 }
@@ -716,6 +727,7 @@ private fun AppWindowVnc(
     onPictureInPicture: () -> Unit,
     currentScale: Float,
     onChangeScale: (Float) -> Unit,
+    onSaveDefault: (Float) -> Unit,
 ) {
     VncSessionContent(
         connected = controller.connected,
@@ -749,5 +761,6 @@ private fun AppWindowVnc(
         // 3-finger fullscreen pinch → live cage output scale.
         currentScale = currentScale,
         onChangeScale = onChangeScale,
+        onSaveDefault = onSaveDefault,
     )
 }

@@ -21,6 +21,7 @@
     <string name="vnc_orientation_portrait_desc">Lock portrait (tap to switch to auto)</string>
     <string name="vnc_orientation_auto_desc">Auto rotate (tap to switch to landscape)</string>
     <string name="vnc_cd_gesture_help">Touch gestures</string>
+    <string name="vnc_cd_save_default">Save current size as this app\'s default</string>
     <string name="vnc_gesture_help_title">Touch gestures</string>
     <string name="vnc_gesture_help_two_finger">Pinch with two fingers to zoom and pan.</string>
     <string name="vnc_gesture_help_three_finger">Pinch with three fingers to resize the app while staying fullscreen.</string>
