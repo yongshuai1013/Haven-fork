@@ -530,6 +530,22 @@ private fun VncViewer(
     var outputScale by remember { mutableFloatStateOf(currentScale) }
     var lastSentScale by remember { mutableFloatStateOf(currentScale) }
 
+    // A framebuffer resize — the fullscreen refit's re-mode (on enter/rotate),
+    // a per-app resolution change, or any cage output `mode` change — leaves the
+    // digital zoom/pan expressed in the *previous* framebuffer's coordinate
+    // space. The pan-clamp in the gesture handler only re-runs while a gesture
+    // is active, so a stale offset pans the freshly-rendered app off-screen and
+    // reads as a black screen (e.g. pinch-zoom, then a 3-finger/rotation re-mode).
+    // Snap back to the fitted view (zoom 1, no pan) on any size change. App-window
+    // mode only — the desktop viewer keeps its free pan + mario-camera.
+    if (twoFingerZoom) {
+        LaunchedEffect(frame.width, frame.height) {
+            zoom = 1f
+            panX = 0f
+            panY = 0f
+        }
+    }
+
     // Mario-camera viewport pan: when in touchpad mode and zoomed, snap the
     // pan so the cursor always stays inside the inner dead-zone of the view.
     LaunchedEffect(pointerPos, inputMode, zoom, viewSize, frame.width, frame.height) {
