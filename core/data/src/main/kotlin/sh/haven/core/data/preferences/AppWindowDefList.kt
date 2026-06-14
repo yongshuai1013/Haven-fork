@@ -29,6 +29,10 @@ data class AppWindowDef(
     val lastUsed: Long = System.currentTimeMillis(),
     /** Open the window filling the whole screen instead of the bottom sheet. */
     val fullscreen: Boolean = false,
+    /** Cage headless-output resolution: `"auto"`, a `"WxH"` token, or null = use the global default. */
+    val resolution: String? = null,
+    /** Cage output scale factor (wlroots HiDPI), or null = use the global default. */
+    val scale: Float? = null,
 )
 
 /** Persisted ordered list of [AppWindowDef], JSON-encoded into DataStore. */
@@ -45,6 +49,8 @@ data class AppWindowDefList(val items: List<AppWindowDef>) {
                     put("createdBy", d.createdBy.id)
                     put("lastUsed", d.lastUsed)
                     put("fullscreen", d.fullscreen)
+                    if (d.resolution != null) put("resolution", d.resolution)
+                    if (d.scale != null) put("scale", d.scale.toDouble())
                 },
             )
         }
@@ -67,6 +73,8 @@ data class AppWindowDefList(val items: List<AppWindowDef>) {
                     createdBy = AppWindowOrigin.fromId(o.optString("createdBy", "user")),
                     lastUsed = o.optLong("lastUsed", 0L),
                     fullscreen = o.optBoolean("fullscreen", false),
+                    resolution = o.optString("resolution", "").ifEmpty { null },
+                    scale = if (o.has("scale")) o.optDouble("scale", 1.0).toFloat() else null,
                 )
             }
             AppWindowDefList(items)

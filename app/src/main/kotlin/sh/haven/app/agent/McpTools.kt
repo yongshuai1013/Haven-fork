@@ -842,6 +842,14 @@ internal class McpTools(
                         put("type", "boolean")
                         put("description", "Open the window filling the whole screen (immersive) instead of the bottom sheet. Default false.")
                     })
+                    put("resolution", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Cage display resolution: 'auto' (portrait, fills the screen — default) or a 'WxH' token like '1280x720'. Lower resolution = bigger fonts.")
+                    })
+                    put("scale", JSONObject().apply {
+                        put("type", "number")
+                        put("description", "Output scale factor (wlroots HiDPI; foot/GTK honour it). 1.0 default; 1.5/2 enlarge fonts + UI.")
+                    })
                 })
                 put("required", JSONArray().put("command"))
             },
@@ -4642,11 +4650,16 @@ internal class McpTools(
         }
         val caption = args.optString("caption", "").ifEmpty { null }
         val fullscreen = args.optBoolean("fullscreen", false)
+        // null = use the global default; the persisted def keeps that choice.
+        val resolutionArg = args.optString("resolution", "").ifEmpty { null }
+        val scaleArg = if (args.has("scale")) args.optDouble("scale").toFloat() else null
         if (!prootManager.isRootfsInstalled) {
             throw McpError(-32603, "Active distro '${prootManager.activeDistroId}' has no installed rootfs")
         }
         val dm = localSessionManager.desktopManager
-        val session = withContext(Dispatchers.IO) { dm.startAppWindow(command) }
+        val resolution = resolutionArg ?: preferencesRepository.appWindowDefaultResolution.first()
+        val scale = scaleArg ?: preferencesRepository.appWindowDefaultScale.first()
+        val session = withContext(Dispatchers.IO) { dm.startAppWindow(command, resolution, scale) }
         if (session.state == sh.haven.core.local.DesktopManager.DesktopState.RUNNING) {
             presentationManager.presentAppWindow(
                 host = "127.0.0.1",
@@ -4664,6 +4677,8 @@ internal class McpTools(
                     command = command,
                     createdBy = sh.haven.core.data.preferences.AppWindowOrigin.AGENT,
                     fullscreen = fullscreen,
+                    resolution = resolutionArg,
+                    scale = scaleArg,
                 )
             }
             return JSONObject().apply {

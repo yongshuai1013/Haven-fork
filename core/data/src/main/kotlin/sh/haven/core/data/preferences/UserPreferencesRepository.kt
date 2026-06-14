@@ -42,6 +42,8 @@ class UserPreferencesRepository @Inject constructor(
     private val snippetLibraryKey = stringPreferencesKey("snippet_library")
     private val toolbarMinButtonWidthKey = intPreferencesKey("toolbar_min_button_width")
     private val appWindowDefsKey = stringPreferencesKey("app_window_defs")
+    private val appWindowDefaultResolutionKey = stringPreferencesKey("app_window_default_resolution")
+    private val appWindowDefaultScaleKey = floatPreferencesKey("app_window_default_scale")
     private val navBlockModeKey = stringPreferencesKey("nav_block_mode")
     private val editModeControlsPlacementKey = stringPreferencesKey("edit_mode_controls_placement")
     private val sessionCommandOverrideKey = stringPreferencesKey("session_command_override")
@@ -1044,15 +1046,25 @@ class UserPreferencesRepository @Inject constructor(
         command: String,
         createdBy: AppWindowOrigin,
         fullscreen: Boolean = false,
+        resolution: String? = null,
+        scale: Float? = null,
     ) {
         dataStore.edit { prefs ->
             val current = prefs[appWindowDefsKey]?.let { AppWindowDefList.fromJson(it) }
                 ?: AppWindowDefList.EMPTY
             val now = System.currentTimeMillis()
             val items = if (current.items.any { it.command == command }) {
+                // Preserve an existing entry's resolution/scale unless explicitly
+                // given (launching shouldn't bake the global default into the def).
                 current.items.map {
                     if (it.command == command) {
-                        it.copy(lastUsed = now, label = label.ifBlank { it.label }, fullscreen = fullscreen)
+                        it.copy(
+                            lastUsed = now,
+                            label = label.ifBlank { it.label },
+                            fullscreen = fullscreen,
+                            resolution = resolution ?: it.resolution,
+                            scale = scale ?: it.scale,
+                        )
                     } else it
                 }
             } else {
@@ -1062,6 +1074,8 @@ class UserPreferencesRepository @Inject constructor(
                     createdBy = createdBy,
                     lastUsed = now,
                     fullscreen = fullscreen,
+                    resolution = resolution,
+                    scale = scale,
                 )
             }
             prefs[appWindowDefsKey] = AppWindowDefList(items).toJson()
@@ -1088,24 +1102,48 @@ class UserPreferencesRepository @Inject constructor(
         id: String,
         label: String,
         command: String,
-        fullscreen: Boolean? = null,
+        fullscreen: Boolean = false,
+        resolution: String? = null,
+        scale: Float? = null,
     ) {
         dataStore.edit { prefs ->
             val current = prefs[appWindowDefsKey]?.let { AppWindowDefList.fromJson(it) }
                 ?: AppWindowDefList.EMPTY
             val now = System.currentTimeMillis()
+            // Full replace from the edit dialog: resolution/scale null = "use the
+            // global default" (a real value), so these are set directly, not merged.
             val items = current.items.map {
                 if (it.id == id) {
                     it.copy(
                         label = label.ifBlank { command },
                         command = command,
                         lastUsed = now,
-                        fullscreen = fullscreen ?: it.fullscreen,
+                        fullscreen = fullscreen,
+                        resolution = resolution,
+                        scale = scale,
                     )
                 } else it
             }
             prefs[appWindowDefsKey] = AppWindowDefList(items).toJson()
         }
+    }
+
+    /** Global default cage resolution for app windows that don't set their own. */
+    val appWindowDefaultResolution: Flow<String> = dataStore.data.map { prefs ->
+        prefs[appWindowDefaultResolutionKey] ?: "auto"
+    }
+
+    suspend fun setAppWindowDefaultResolution(resolution: String) {
+        dataStore.edit { it[appWindowDefaultResolutionKey] = resolution }
+    }
+
+    /** Global default cage output scale for app windows that don't set their own. */
+    val appWindowDefaultScale: Flow<Float> = dataStore.data.map { prefs ->
+        prefs[appWindowDefaultScaleKey] ?: 1f
+    }
+
+    suspend fun setAppWindowDefaultScale(scale: Float) {
+        dataStore.edit { it[appWindowDefaultScaleKey] = scale }
     }
 
     val navBlockMode: Flow<NavBlockMode> = dataStore.data.map { prefs ->

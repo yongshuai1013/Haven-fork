@@ -110,6 +110,17 @@
     <string name="app_desktop_installed_app_fullscreen_on_cd">%1$s opens fullscreen — tap for windowed</string>
     <string name="app_desktop_installed_app_fullscreen_off_cd">%1$s opens windowed — tap for fullscreen</string>
 
+    <!-- App-window resolution + scaling -->
+    <string name="app_desktop_app_window_fullscreen">Open fullscreen</string>
+    <string name="app_desktop_app_window_resolution">Resolution</string>
+    <string name="app_desktop_app_window_scale">Scale</string>
+    <string name="app_desktop_opt_default">Default</string>
+    <string name="app_desktop_res_auto">Auto</string>
+    <string name="app_desktop_res_landscape">Landscape</string>
+    <string name="app_desktop_res_custom">Custom</string>
+    <string name="app_desktop_res_custom_hint">Width×Height, e.g. 1024x600</string>
+    <string name="app_desktop_app_window_defaults">Default display (all app windows)</string>
+
     <!-- Desktop manager: distro / rootfs -->
     <string name="app_desktop_open_shell_cd">Open shell in %1$s</string>
     <string name="app_desktop_delete_distro_cd">Delete %1$s</string>

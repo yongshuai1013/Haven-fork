@@ -59,6 +59,20 @@ class AppWindowDefListTest {
     }
 
     @Test
+    fun resolutionAndScaleRoundTripAndDefaultNullForOldJson() {
+        val list = AppWindowDefList(
+            listOf(AppWindowDef(id = "id-1", label = "GIMP", command = "gimp", resolution = "1280x720", scale = 1.5f)),
+        )
+        val restored = AppWindowDefList.fromJson(list.toJson()).items[0]
+        assertEquals("1280x720", restored.resolution)
+        assertEquals(1.5f, restored.scale)
+        // Pre-feature JSON has neither → both null (use global default).
+        val old = AppWindowDefList.fromJson("""[{"command":"gimp"}]""").items[0]
+        assertEquals(null, old.resolution)
+        assertEquals(null, old.scale)
+    }
+
+    @Test
     fun fullscreenFlagRoundTripsAndDefaultsFalseForOldJson() {
         val list = AppWindowDefList(
             listOf(AppWindowDef(id = "id-1", label = "GIMP", command = "gimp", fullscreen = true)),

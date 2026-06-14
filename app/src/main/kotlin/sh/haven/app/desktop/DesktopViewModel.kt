@@ -379,6 +379,22 @@ class DesktopViewModel @Inject constructor(
     private val _launchingIds = MutableStateFlow<Set<String>>(emptySet())
     val launchingIds: StateFlow<Set<String>> = _launchingIds.asStateFlow()
 
+    /** Global default cage resolution/scale, applied when a def doesn't set its own. */
+    val appWindowDefaultResolution: StateFlow<String> =
+        preferencesRepository.appWindowDefaultResolution
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "auto")
+    val appWindowDefaultScale: StateFlow<Float> =
+        preferencesRepository.appWindowDefaultScale
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1f)
+
+    fun setAppWindowDefaultResolution(resolution: String) {
+        viewModelScope.launch { preferencesRepository.setAppWindowDefaultResolution(resolution) }
+    }
+
+    fun setAppWindowDefaultScale(scale: Float) {
+        viewModelScope.launch { preferencesRepository.setAppWindowDefaultScale(scale) }
+    }
+
     /**
      * Launch a saved app window into the present_media overlay — the same
      * surface the agent's `present_app` uses. Mirrors `McpTools.presentApp`:
@@ -389,7 +405,9 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _launchingIds.update { it + def.id }
             try {
-                val session = desktopManager.startAppWindow(def.command)
+                val resolution = def.resolution ?: appWindowDefaultResolution.value
+                val scale = def.scale ?: appWindowDefaultScale.value
+                val session = desktopManager.startAppWindow(def.command, resolution, scale)
                 if (session.state == DesktopManager.DesktopState.RUNNING) {
                     presentationManager.presentAppWindow(
                         host = "127.0.0.1",
@@ -398,7 +416,10 @@ class DesktopViewModel @Inject constructor(
                         caption = def.label,
                         fullscreen = def.fullscreen,
                     )
-                    preferencesRepository.upsertAppWindowDef(def.label, def.command, def.createdBy, def.fullscreen)
+                    // Preserve the def's own resolution/scale choice (null = use global).
+                    preferencesRepository.upsertAppWindowDef(
+                        def.label, def.command, def.createdBy, def.fullscreen, def.resolution, def.scale,
+                    )
                 } else {
                     _userMessages.emit(
                         "Couldn't launch ${def.label}: ${session.errorMessage ?: "failed to start"}",
@@ -410,9 +431,11 @@ class DesktopViewModel @Inject constructor(
         }
     }
 
-    fun addAppWindow(label: String, command: String) {
+    fun addAppWindow(label: String, command: String, fullscreen: Boolean, resolution: String?, scale: Float?) {
         viewModelScope.launch {
-            preferencesRepository.upsertAppWindowDef(label, command, AppWindowOrigin.USER)
+            preferencesRepository.upsertAppWindowDef(
+                label, command, AppWindowOrigin.USER, fullscreen, resolution, scale,
+            )
         }
     }
 
@@ -420,8 +443,17 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch { preferencesRepository.deleteAppWindowDef(id) }
     }
 
-    fun updateAppWindow(id: String, label: String, command: String) {
-        viewModelScope.launch { preferencesRepository.updateAppWindowDef(id, label, command) }
+    fun updateAppWindow(
+        id: String,
+        label: String,
+        command: String,
+        fullscreen: Boolean,
+        resolution: String?,
+        scale: Float?,
+    ) {
+        viewModelScope.launch {
+            preferencesRepository.updateAppWindowDef(id, label, command, fullscreen, resolution, scale)
+        }
     }
 
     // --- Installed-app launcher ("Browse installed apps", xfce4-style menu) ---
@@ -456,7 +488,9 @@ class DesktopViewModel @Inject constructor(
     /** Launch a discovered app in a cage window, recording it as a saved def. */
     fun launchInstalledApp(app: InstalledApp, fullscreen: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val session = desktopManager.startAppWindow(app.exec)
+            val session = desktopManager.startAppWindow(
+                app.exec, appWindowDefaultResolution.value, appWindowDefaultScale.value,
+            )
             if (session.state == DesktopManager.DesktopState.RUNNING) {
                 presentationManager.presentAppWindow(
                     host = "127.0.0.1",

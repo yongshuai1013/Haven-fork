@@ -3,6 +3,8 @@ package sh.haven.app.desktop
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,12 +38,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -108,6 +112,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     val launchingIds by viewModel.launchingIds.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
     val scanningApps by viewModel.scanningApps.collectAsState()
+    val defaultResolution by viewModel.appWindowDefaultResolution.collectAsState()
+    val defaultScale by viewModel.appWindowDefaultScale.collectAsState()
 
     Column(
         modifier = Modifier
@@ -138,11 +144,15 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
         AppWindowsSection(
             defs = appWindowDefs,
             launchingIds = launchingIds,
+            defaultResolution = defaultResolution,
+            defaultScale = defaultScale,
             onLaunch = { viewModel.launchAppWindow(it) },
             onEdit = { editingApp = it },
             onDelete = { viewModel.deleteAppWindow(it.id) },
             onAdd = { showAddAppDialog = true },
             onBrowse = { showInstalledApps = true },
+            onSetDefaultResolution = { viewModel.setAppWindowDefaultResolution(it) },
+            onSetDefaultScale = { viewModel.setAppWindowDefaultScale(it) },
         )
     }
 
@@ -164,8 +174,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     if (showAddAppDialog) {
         AppWindowDialog(
             initial = null,
-            onSave = { label, command ->
-                viewModel.addAppWindow(label, command)
+            onSave = { label, command, fullscreen, resolution, scale ->
+                viewModel.addAppWindow(label, command, fullscreen, resolution, scale)
                 showAddAppDialog = false
             },
             onDismiss = { showAddAppDialog = false },
@@ -175,8 +185,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     editingApp?.let { def ->
         AppWindowDialog(
             initial = def,
-            onSave = { label, command ->
-                viewModel.updateAppWindow(def.id, label, command)
+            onSave = { label, command, fullscreen, resolution, scale ->
+                viewModel.updateAppWindow(def.id, label, command, fullscreen, resolution, scale)
                 editingApp = null
             },
             onDismiss = { editingApp = null },
@@ -218,11 +228,15 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
 private fun AppWindowsSection(
     defs: List<AppWindowDef>,
     launchingIds: Set<String>,
+    defaultResolution: String,
+    defaultScale: Float,
     onLaunch: (AppWindowDef) -> Unit,
     onEdit: (AppWindowDef) -> Unit,
     onDelete: (AppWindowDef) -> Unit,
     onAdd: () -> Unit,
     onBrowse: () -> Unit,
+    onSetDefaultResolution: (String) -> Unit,
+    onSetDefaultScale: (Float) -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -295,28 +309,77 @@ private fun AppWindowsSection(
                 Spacer(Modifier.width(8.dp))
                 TextButton(onClick = onAdd) { Text(stringResource(AppR.string.app_desktop_add_app_window)) }
             }
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            AppWindowDefaultsRow(
+                resolution = defaultResolution,
+                scale = defaultScale,
+                onSetResolution = onSetDefaultResolution,
+                onSetScale = onSetDefaultScale,
+            )
         }
     }
 }
 
+/** The global "Default display" defaults (resolution + scale) for all app windows. */
+@Composable
+private fun AppWindowDefaultsRow(
+    resolution: String,
+    scale: Float,
+    onSetResolution: (String) -> Unit,
+    onSetScale: (Float) -> Unit,
+) {
+    val isPreset = resolution in APP_WINDOW_RES_PRESETS
+    var customMode by remember(resolution) { mutableStateOf(!isPreset) }
+    var customText by remember(resolution) { mutableStateOf(if (!isPreset) resolution else "") }
+    Text(stringResource(AppR.string.app_desktop_app_window_defaults), style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(AppR.string.app_desktop_app_window_resolution), style = MaterialTheme.typography.labelMedium)
+    ResolutionChips(
+        includeDefault = false,
+        token = if (customMode) null else resolution,
+        customMode = customMode,
+        customRes = customText,
+        onPickPreset = { customMode = false; onSetResolution(it ?: "auto") },
+        onPickCustom = { customMode = true },
+        onCustomResChange = { customText = it; if (WXH_REGEX.matches(it.trim())) onSetResolution(it.trim().lowercase()) },
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(stringResource(AppR.string.app_desktop_app_window_scale), style = MaterialTheme.typography.labelMedium)
+    ScaleChips(includeDefault = false, scale = scale, onPick = { onSetScale(it ?: 1f) })
+}
+
+/** Preset resolution tokens the chips offer (everything else is "Custom"). */
+private val APP_WINDOW_RES_PRESETS = setOf("auto", "720x1280", "1080x1920", "1280x720")
+private val WXH_REGEX = Regex("""\d{2,5}x\d{2,5}""", RegexOption.IGNORE_CASE)
+
 /**
- * Add (when [initial] is null) or edit an app-window definition. Prefills
- * from [initial] when editing; [onSave] gets the trimmed label + command.
+ * Add (when [initial] is null) or edit an app-window definition. Prefills from
+ * [initial]; [onSave] gets label, command, fullscreen, the resolution token
+ * (null = use the global default) and scale (null = use the global default).
  */
 @Composable
 private fun AppWindowDialog(
     initial: AppWindowDef?,
-    onSave: (label: String, command: String) -> Unit,
+    onSave: (label: String, command: String, fullscreen: Boolean, resolution: String?, scale: Float?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var command by remember { mutableStateOf(initial?.command ?: "") }
+    var fullscreen by remember { mutableStateOf(initial?.fullscreen ?: false) }
+    val initRes = initial?.resolution
+    val initCustom = initRes != null && initRes !in APP_WINDOW_RES_PRESETS
+    var resToken by remember { mutableStateOf(if (initCustom) null else initRes) }
+    var customMode by remember { mutableStateOf(initCustom) }
+    var customRes by remember { mutableStateOf(if (initCustom) initRes!! else "") }
+    var scale by remember { mutableStateOf(initial?.scale) }
     val editing = initial != null
+    val customValid = !customMode || WXH_REGEX.matches(customRes.trim())
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (editing) stringResource(AppR.string.app_desktop_edit_app_window_title) else stringResource(AppR.string.app_desktop_add_app_window_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
@@ -334,18 +397,107 @@ private fun AppWindowDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(AppR.string.app_desktop_app_window_fullscreen), modifier = Modifier.weight(1f))
+                    Switch(checked = fullscreen, onCheckedChange = { fullscreen = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(AppR.string.app_desktop_app_window_resolution), style = MaterialTheme.typography.labelMedium)
+                ResolutionChips(
+                    includeDefault = true,
+                    token = resToken,
+                    customMode = customMode,
+                    customRes = customRes,
+                    onPickPreset = { resToken = it; customMode = false },
+                    onPickCustom = { customMode = true },
+                    onCustomResChange = { customRes = it },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(AppR.string.app_desktop_app_window_scale), style = MaterialTheme.typography.labelMedium)
+                ScaleChips(includeDefault = true, scale = scale, onPick = { scale = it })
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(label.trim(), command.trim()) },
-                enabled = command.isNotBlank(),
+                onClick = {
+                    val resolution = if (customMode) customRes.trim().lowercase().ifBlank { null } else resToken
+                    onSave(label.trim(), command.trim(), fullscreen, resolution, scale)
+                },
+                enabled = command.isNotBlank() && customValid,
             ) { Text(if (editing) stringResource(R.string.common_save) else stringResource(R.string.common_add)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     )
+}
+
+/** Resolution chip row (+ a custom WxH field when Custom is picked). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ResolutionChips(
+    includeDefault: Boolean,
+    token: String?,
+    customMode: Boolean,
+    customRes: String,
+    onPickPreset: (String?) -> Unit,
+    onPickCustom: () -> Unit,
+    onCustomResChange: (String) -> Unit,
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (includeDefault) {
+            FilterChip(
+                selected = !customMode && token == null,
+                onClick = { onPickPreset(null) },
+                label = { Text(stringResource(AppR.string.app_desktop_opt_default)) },
+            )
+        }
+        FilterChip(
+            selected = !customMode && token == "auto",
+            onClick = { onPickPreset("auto") },
+            label = { Text(stringResource(AppR.string.app_desktop_res_auto)) },
+        )
+        FilterChip(selected = !customMode && token == "720x1280", onClick = { onPickPreset("720x1280") }, label = { Text("720p") })
+        FilterChip(selected = !customMode && token == "1080x1920", onClick = { onPickPreset("1080x1920") }, label = { Text("1080p") })
+        FilterChip(
+            selected = !customMode && token == "1280x720",
+            onClick = { onPickPreset("1280x720") },
+            label = { Text(stringResource(AppR.string.app_desktop_res_landscape)) },
+        )
+        FilterChip(
+            selected = customMode,
+            onClick = onPickCustom,
+            label = { Text(stringResource(AppR.string.app_desktop_res_custom)) },
+        )
+    }
+    if (customMode) {
+        OutlinedTextField(
+            value = customRes,
+            onValueChange = onCustomResChange,
+            singleLine = true,
+            placeholder = { Text(stringResource(AppR.string.app_desktop_res_custom_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Scale chip row (1×/1.5×/2×, plus Default when [includeDefault]). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScaleChips(includeDefault: Boolean, scale: Float?, onPick: (Float?) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (includeDefault) {
+            FilterChip(
+                selected = scale == null,
+                onClick = { onPick(null) },
+                label = { Text(stringResource(AppR.string.app_desktop_opt_default)) },
+            )
+        }
+        FilterChip(selected = scale == 1f, onClick = { onPick(1f) }, label = { Text("1×") })
+        FilterChip(selected = scale == 1.5f, onClick = { onPick(1.5f) }, label = { Text("1.5×") })
+        FilterChip(selected = scale == 2f, onClick = { onPick(2f) }, label = { Text("2×") })
+    }
 }
 
 @Composable

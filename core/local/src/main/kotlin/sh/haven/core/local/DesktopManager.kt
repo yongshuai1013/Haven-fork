@@ -794,11 +794,23 @@ class DesktopManager @Inject constructor(
      * and is torn down independently by [stopAppWindow]. The UI keeps one
      * focused in the overlay and the rest docked as edge icons.
      */
-    fun startAppWindow(command: String, timeoutMs: Long = 15_000): AppWindowSession {
+    fun startAppWindow(
+        command: String,
+        resolution: String = "auto",
+        scale: Float = 1f,
+        timeoutMs: Long = 15_000,
+    ): AppWindowSession {
 
         val sessionId = "appwin-${System.currentTimeMillis()}"
         val display = allocateDisplay()
         val port = 5900 + display
+        // Headless output geometry: matching the framebuffer to the device aspect
+        // makes the VNC viewer fill the screen (no letterbox); `scale` enlarges
+        // fonts/UI (wlroots HiDPI, honoured by foot/GTK). "auto" derives a portrait
+        // framebuffer at a ~720p budget so the pixman software renderer stays light.
+        val dm = context.resources.displayMetrics
+        val (outW, outH) = resolveCageResolution(resolution, dm.widthPixels, dm.heightPixels)
+        val scaleStr = formatCageScale(scale)
         // cage 0.1.4 (Debian Bookworm) does its own scan-out / back_buffer
         // management that aborts on the headless backend (assert back_buffer
         // != NULL when it direct-scans-out the single view; == NULL when it
@@ -811,6 +823,9 @@ class DesktopManager @Inject constructor(
         val kioskConfig = File(context.cacheDir, "haven-kiosk-$display.config")
         kioskConfig.writeText(
             """
+            |output HEADLESS-1 mode ${outW}x${outH}@60Hz
+            |output HEADLESS-1 scale $scaleStr
+            |output HEADLESS-1 enable
             |default_border none
             |default_floating_border none
             |hide_edge_borders both
@@ -1248,4 +1263,66 @@ class DesktopManager @Inject constructor(
             }
         }
     }
+}
+
+// --- Cage headless-output geometry (pure, unit-tested) ---
+
+/** Round up to the nearest even integer (encoders/VNC prefer even dimensions). */
+private fun evenUp(n: Int): Int = if (n % 2 == 0) n else n + 1
+
+/**
+ * Resolve a cage [resolution] token to an even (width, height) for the sway
+ * headless output. `"WxH"` is parsed (clamped, even); anything else (incl.
+ * `"auto"`) derives a framebuffer matching the device aspect via
+ * [computeAutoResolution].
+ */
+internal fun resolveCageResolution(
+    resolution: String,
+    deviceW: Int,
+    deviceH: Int,
+    shortEdgeBudget: Int = 720,
+    longEdgeCap: Int = 1600,
+): Pair<Int, Int> =
+    parseWxH(resolution) ?: computeAutoResolution(deviceW, deviceH, shortEdgeBudget, longEdgeCap)
+
+/**
+ * A framebuffer matching the device aspect with the **short edge** at
+ * [shortEdgeBudget] (capping the long edge at [longEdgeCap]), preserving the
+ * device's orientation. Matching the aspect lets the VNC viewer fill the screen
+ * without letterboxing; the modest budget keeps the pixman software renderer light.
+ */
+internal fun computeAutoResolution(
+    deviceW: Int,
+    deviceH: Int,
+    shortEdgeBudget: Int = 720,
+    longEdgeCap: Int = 1600,
+): Pair<Int, Int> {
+    val w = if (deviceW > 0) deviceW else 1080
+    val h = if (deviceH > 0) deviceH else 1920
+    val shortPx = minOf(w, h).toDouble()
+    val longPx = maxOf(w, h).toDouble()
+    var shortOut = shortEdgeBudget
+    var longOut = Math.round(shortEdgeBudget * longPx / shortPx).toInt()
+    if (longOut > longEdgeCap) {
+        longOut = longEdgeCap
+        shortOut = Math.round(longEdgeCap * shortPx / longPx).toInt()
+    }
+    val es = evenUp(shortOut)
+    val el = evenUp(longOut)
+    // Portrait device (h >= w) → (width=short, height=long); landscape → swapped.
+    return if (h >= w) es to el else el to es
+}
+
+/** Parse a `"WxH"` token to a clamped, even (w, h), or null if not that shape. */
+internal fun parseWxH(token: String): Pair<Int, Int>? {
+    val m = Regex("""^(\d{2,5})x(\d{2,5})$""").matchEntire(token.trim()) ?: return null
+    val w = evenUp(m.groupValues[1].toInt().coerceIn(160, 4096))
+    val h = evenUp(m.groupValues[2].toInt().coerceIn(160, 4096))
+    return w to h
+}
+
+/** Format a wlroots output scale for the sway config (`1`, `1.5`, `2`). */
+internal fun formatCageScale(scale: Float): String {
+    val c = scale.coerceIn(0.5f, 3f)
+    return if (c == c.toInt().toFloat()) c.toInt().toString() else c.toString()
 }
