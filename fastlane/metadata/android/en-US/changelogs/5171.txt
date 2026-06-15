@@ -1,0 +1,3 @@
+App windows (Cage):
+
+- X11/GLX apps now run in an app window. The Sway cage runtime installs Xwayland, so X11-only apps (e.g. glxgears and older GL tools) work alongside native Wayland ones. Applies to newly installed cage runtimes.
