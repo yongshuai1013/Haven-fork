@@ -306,7 +306,7 @@ A tight scope is how a small project stays coherent. Haven deliberately does not
 - **Build collaboration** — shared sessions, voice, screen sharing. Out of scope for a single-developer project and orthogonal to the identity.
 - **Optimise for tablets/desktops first** — get the phone-in-one-hand experience right before chasing form factors.
 - **Ship an AI assistant** — Haven provides the substrate agents run on; it does not ship its own model, API, or chat UI. The user brings the agent.
-- **Bundle, advertise, or name any specific vendor's agent CLI** — no "Install Claude Code" button, no "Configure OpenAI" section, no Anthropic/OpenAI/Google branding or endorsements anywhere in the app, the docs, the ROADMAP, or the README. Haven is a generic Linux environment plus a generic MCP endpoint; what you point at it is your private choice and none of the app's business. Corporate neutrality is part of the GPL/privacy identity and is non-negotiable.
+- **Bundle, advertise, or name any specific vendor's agent CLI** — no "Install Claude Code" button, no "Configure OpenAI" section, no Anthropic/OpenAI/Google branding or endorsements anywhere in the app, the docs, or the README. Haven is a generic Linux environment plus a generic MCP endpoint; what you point at it is your private choice and none of the app's business. Corporate neutrality is part of the GPL/privacy identity and is non-negotiable.
 
 ## Architectural direction
 
