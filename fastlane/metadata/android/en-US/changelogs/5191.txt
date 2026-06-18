@@ -1,0 +1,3 @@
+Keyboard toolbar settings: fixed how custom snippet rows render. A long or multi-line snippet (like a whole shell-script snippet) used to wrap one character per line and balloon the row height; shorter ones were squeezed to an unreadable "…". Each snippet now shows its label and a one-line preview above its R1/R2/Off placement chips, so the list stays compact and legible.
+
+Also: fixed a rare crash when closing an SFTP-over-Reticulum session while a request was still in flight.
