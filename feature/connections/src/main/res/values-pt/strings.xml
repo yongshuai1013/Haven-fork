@@ -471,4 +471,22 @@
     <string name="connections_field_imap_port">Porta IMAP</string>
     <string name="connections_field_smtp_port">Porta SMTP</string>
     <string name="connections_toggle_imap_tls">Usar TLS (SSL implícito)</string>
+
+    <!-- USB forwarding, deploy password, FIDO auth, MCP toggle (#250) -->
+    <string name="connections_section_usb_forward">Encaminhamento de dispositivo USB</string>
+    <string name="connections_helper_usb_forward">Exporta para este host um dispositivo USB conectado ao telefone via USB/IP ao conectar. Um YubiKey aparece no host para ssh-keygen -t ed25519-sk, com o toque feito no telefone. A vinculação automática requer usbip e sudo sem senha no host; caso contrário, a exportação e o túnel são estabelecidos e você executa o comando de vinculação exibido.</string>
+    <string name="connections_field_usb_forward">Encaminhar dispositivo USB</string>
+    <string name="connections_usb_forward_none">Nenhum</string>
+    <string name="connections_usb_forward_unattached">%1$s (não vinculado)</string>
+    <string name="connections_deploy_field_password_optional">Senha (opcional)</string>
+    <string name="connections_deploy_password_hint">Deixe em branco para implantar com a chave salva deste perfil. Uma senha só é necessária se o servidor autenticar por senha (ou para desbloquear a frase secreta de uma chave / um host de salto).</string>
+    <string name="connections_fido_key_label">Chave: %1$s</string>
+    <string name="connections_fido_wrong_title">Chave de segurança incorreta</string>
+    <string name="connections_fido_wrong_body">Essa chave não contém a credencial solicitada pelo servidor. Apresente a chave solicitada e toque nela.</string>
+    <string name="connections_auth_key_picker">Chave: %1$s ▾</string>
+    <string name="connections_auth_key_only">✓ Usar apenas esta chave</string>
+    <string name="connections_mcp_active">O agente está operando nesta conexão — toque para desativar o MCP nela</string>
+    <string name="connections_mcp_disabled">MCP desativado para esta conexão — toque para ativar</string>
+    <string name="connections_toggle_mcp_enabled">Permitir o agente MCP nesta conexão</string>
+    <string name="connections_helper_mcp_enabled">Quando desativado, as ferramentas do agente de IA (MCP) voltadas a esta conexão são recusadas. A conexão continua funcionando normalmente para você.</string>
 </resources>

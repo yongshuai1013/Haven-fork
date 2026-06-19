@@ -166,4 +166,27 @@
     <!-- RenameKeyDialog (#231) -->
     <string name="keys_rename">Renomear</string>
     <string name="keys_rename_title">Renomear chave</string>
+
+    <!-- FIDO2 / security-key registration (#250) -->
+    <string name="keys_offer_for_connections">Oferecer para conexões</string>
+    <string name="keys_sk_require_pin">Exigir PIN ao fazer login</string>
+    <string name="keys_security_key">Chave de segurança (YubiKey)</string>
+    <string name="keys_security_key_hint">Configure uma nova chave SSH em uma chave FIDO2 ou importe chaves já existentes nela.</string>
+    <string name="keys_security_key_setup">Configurar uma nova chave nela</string>
+    <string name="keys_security_key_setup_hint">Crie uma chave SSH na chave de segurança (define um PIN se ela for nova). Sem notebook nem ssh-keygen.</string>
+    <string name="keys_security_key_import">Importar chaves já existentes nela</string>
+    <string name="keys_security_key_import_hint">Adicione credenciais SSH-SK residentes já armazenadas na chave (criadas em outro lugar com ssh-keygen -O resident).</string>
+    <string name="keys_register_on_security_key">Configurar chave SSH na chave de segurança</string>
+    <string name="keys_register_on_security_key_body">Cria uma credencial sk-ssh-ed25519 residente na chave de segurança. Depois: conecte-a via USB e pressione-a, ou encoste-a na parte de trás do telefone para usar NFC.</string>
+    <string name="keys_register_verify_required">Exigir PIN a cada login</string>
+    <string name="keys_register_verify_required_hint">Ativado: a chave pede seu PIN sempre que assina um login SSH (verify-required — mais seguro). Desativado: apenas toque.</string>
+    <string name="keys_register_pin">PIN da chave de segurança</string>
+    <string name="keys_register_pin_confirm">Confirmar PIN</string>
+    <string name="keys_register_pin_hint">Escolha um PIN se a chave for nova, ou digite o PIN atual dela. 4+ caracteres.</string>
+    <string name="keys_register_pin_mismatch">Os PINs não coincidem</string>
+    <string name="keys_register_action">Registrar</string>
+    <string name="keys_fido_pin_set_title">Criar um PIN de chave de segurança</string>
+    <string name="keys_fido_pin_set_help">Esta chave de segurança ainda não tem PIN. Escolha um (4–63 caracteres) — você o digitará quando a chave assinar.</string>
+    <string name="keys_fido_pin_confirm_label">Confirmar PIN</string>
+    <string name="keys_fido_pin_mismatch">Os PINs não coincidem</string>
 </resources>
