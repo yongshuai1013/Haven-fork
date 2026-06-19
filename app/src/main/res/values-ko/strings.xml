@@ -156,4 +156,29 @@
     <!-- Local Linux desktop manager -->
     <string name="app_desktop_manager_title">로컬 Linux 데스크톱</string>
     <string name="app_desktop_manager_description">Haven 안에서 전체 Linux 데스크톱을 실행합니다. 배포판을 선택하고 데스크톱 환경(Xfce4, Openbox 또는 Sway)을 설치한 다음 실행하세요. 별도의 서버나 연결이 필요하지 않습니다.</string>
+
+    <!-- App windows / installed-app launcher (#250) -->
+    <string name="app_desktop_app_window_pin_home_cd">%1$s을(를) 홈 화면에 추가</string>
+    <string name="app_desktop_browse_installed_apps">설치된 앱 보기</string>
+    <string name="app_desktop_installed_apps_title">설치된 앱</string>
+    <string name="app_desktop_installed_apps_search">앱 검색</string>
+    <string name="app_desktop_installed_apps_count">앱 %1$d개 · 아이콘 있음 %2$d개</string>
+    <string name="app_desktop_installed_apps_empty">활성 배포판에서 그래픽 앱을 찾을 수 없습니다.</string>
+    <string name="app_desktop_installed_apps_close_cd">닫기</string>
+    <string name="app_desktop_installed_app_icon_cd">%1$s 아이콘</string>
+    <string name="app_desktop_installed_app_launch_cd">%1$s 실행</string>
+    <string name="app_desktop_installed_app_fullscreen_on_cd">%1$s은(는) 전체 화면으로 열립니다 — 창 모드로 전환하려면 탭</string>
+    <string name="app_desktop_installed_app_fullscreen_off_cd">%1$s은(는) 창 모드로 열립니다 — 전체 화면으로 전환하려면 탭</string>
+    <string name="app_desktop_app_window_fullscreen">전체 화면으로 열기</string>
+    <string name="app_desktop_app_window_run_as_root">root로 실행</string>
+    <string name="app_desktop_app_window_run_as_root_hint">패키지 관리자 및 시스템 도구용 (fakeroot 설치)</string>
+    <string name="app_desktop_app_window_resolution">해상도</string>
+    <string name="app_desktop_app_window_scale">배율</string>
+    <string name="app_desktop_opt_default">기본값</string>
+    <string name="app_desktop_res_auto">자동</string>
+    <string name="app_desktop_res_landscape">가로</string>
+    <string name="app_desktop_res_custom">사용자 지정</string>
+    <string name="app_desktop_res_custom_hint">너비×높이, 예: 1024x600</string>
+    <string name="app_desktop_app_window_defaults">기본 디스플레이 (모든 앱 창)</string>
+    <string name="app_window_scale_saved">이 앱의 기본 크기로 저장됨</string>
 </resources>

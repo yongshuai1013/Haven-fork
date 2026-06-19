@@ -168,4 +168,27 @@
     <!-- RenameKeyDialog (#231) -->
     <string name="keys_rename">이름 바꾸기</string>
     <string name="keys_rename_title">키 이름 바꾸기</string>
+
+    <!-- FIDO2 / security-key registration (#250) -->
+    <string name="keys_offer_for_connections">연결용으로 제공</string>
+    <string name="keys_sk_require_pin">로그인 시 PIN 요구</string>
+    <string name="keys_security_key">보안 키 (YubiKey)</string>
+    <string name="keys_security_key_hint">FIDO2 키에 새 SSH 키를 설정하거나 이미 있는 키를 가져옵니다.</string>
+    <string name="keys_security_key_setup">새 키 설정</string>
+    <string name="keys_security_key_setup_hint">보안 키에 SSH 키를 만듭니다(새 키면 PIN 설정). 노트북이나 ssh-keygen이 필요 없습니다.</string>
+    <string name="keys_security_key_import">이미 있는 키 가져오기</string>
+    <string name="keys_security_key_import_hint">키에 이미 저장된 상주 SSH-SK 자격 증명을 추가합니다(다른 곳에서 ssh-keygen -O resident로 생성된 것).</string>
+    <string name="keys_register_on_security_key">보안 키에 SSH 키 설정</string>
+    <string name="keys_register_on_security_key_body">보안 키에 상주 sk-ssh-ed25519 자격 증명을 만듭니다. 그런 다음 USB로 연결하고 누르거나, NFC는 휴대폰 뒷면에 갖다 대세요.</string>
+    <string name="keys_register_verify_required">로그인할 때마다 PIN 요구</string>
+    <string name="keys_register_verify_required_hint">켜짐: SSH 로그인에 서명할 때마다 키가 PIN을 요구합니다(verify-required — 더 안전). 꺼짐: 터치만.</string>
+    <string name="keys_register_pin">보안 키 PIN</string>
+    <string name="keys_register_pin_confirm">PIN 확인</string>
+    <string name="keys_register_pin_hint">키가 새 것이면 PIN을 선택하고, 아니면 기존 PIN을 입력하세요. 4자 이상.</string>
+    <string name="keys_register_pin_mismatch">PIN이 일치하지 않습니다</string>
+    <string name="keys_register_action">등록</string>
+    <string name="keys_fido_pin_set_title">보안 키 PIN 만들기</string>
+    <string name="keys_fido_pin_set_help">이 보안 키에는 아직 PIN이 없습니다. 하나를 선택하세요(4~63자). 키가 서명할 때 입력하게 됩니다.</string>
+    <string name="keys_fido_pin_confirm_label">PIN 확인</string>
+    <string name="keys_fido_pin_mismatch">PIN이 일치하지 않습니다</string>
 </resources>
