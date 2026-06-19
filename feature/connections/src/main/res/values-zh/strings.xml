@@ -469,4 +469,22 @@
     <string name="connections_field_imap_port">IMAP 端口</string>
     <string name="connections_field_smtp_port">SMTP 端口</string>
     <string name="connections_toggle_imap_tls">使用 TLS（隐式 SSL）</string>
+
+    <!-- USB forwarding, deploy password, FIDO auth, MCP toggle (#250) -->
+    <string name="connections_section_usb_forward">USB 设备转发</string>
+    <string name="connections_helper_usb_forward">连接时通过 USB/IP 将手机上连接的 USB 设备导出到此主机。YubiKey 会出现在主机上供 ssh-keygen -t ed25519-sk 使用，触摸在手机上完成。自动挂载需要主机上有 usbip 和免密码 sudo；否则会建立导出和隧道，由您运行所示的挂载命令。</string>
+    <string name="connections_field_usb_forward">转发 USB 设备</string>
+    <string name="connections_usb_forward_none">无</string>
+    <string name="connections_usb_forward_unattached">%1$s（未挂载）</string>
+    <string name="connections_deploy_field_password_optional">密码（可选）</string>
+    <string name="connections_deploy_password_hint">留空则使用此配置已保存的密钥进行部署。仅当服务器使用密码认证（或需要解锁密钥口令/跳板机）时才需要密码。</string>
+    <string name="connections_fido_key_label">密钥：%1$s</string>
+    <string name="connections_fido_wrong_title">安全密钥不正确</string>
+    <string name="connections_fido_wrong_body">该密钥未持有服务器请求的凭据。请出示所需的密钥并触摸它。</string>
+    <string name="connections_auth_key_picker">密钥：%1$s ▾</string>
+    <string name="connections_auth_key_only">✓ 仅使用此密钥</string>
+    <string name="connections_mcp_active">代理正在此连接上操作——点击可为其禁用 MCP</string>
+    <string name="connections_mcp_disabled">此连接已禁用 MCP——点击可启用</string>
+    <string name="connections_toggle_mcp_enabled">允许 MCP 代理使用此连接</string>
+    <string name="connections_helper_mcp_enabled">关闭时，针对此连接的 AI 代理（MCP）工具将被拒绝。该连接对您仍可正常使用。</string>
 </resources>

@@ -1,1 +1,3 @@
 USB device forwarding hardening. Unplugging a forwarded device — or an ESP board re-enumerating when esptool resets it — now cleanly tears down the export instead of leaving a stale handle. A forwarded export survives an SSH reconnect (the tunnel re-binds and the host re-attaches). Stopping an export releases the device by default, a new detach-from-guest stops a guest USB proxy, and a new tool lists active USB exports.
+
+Simplified Chinese: filled in the untranslated strings on the Desktop, Mail rules, security-key, USB-forwarding, and settings screens.

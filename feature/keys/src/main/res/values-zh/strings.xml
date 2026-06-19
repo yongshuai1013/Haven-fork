@@ -168,4 +168,27 @@
     <!-- RenameKeyDialog (#231) -->
     <string name="keys_rename">重命名</string>
     <string name="keys_rename_title">重命名密钥</string>
+
+    <!-- FIDO2 / security-key registration (#250) -->
+    <string name="keys_offer_for_connections">在连接中提供</string>
+    <string name="keys_sk_require_pin">登录时要求 PIN</string>
+    <string name="keys_security_key">安全密钥（YubiKey）</string>
+    <string name="keys_security_key_hint">在 FIDO2 密钥上设置新的 SSH 密钥，或导入其上已有的密钥。</string>
+    <string name="keys_security_key_setup">在其上设置新密钥</string>
+    <string name="keys_security_key_setup_hint">在安全密钥上创建 SSH 密钥（若为新密钥则设置 PIN）。无需笔记本电脑或 ssh-keygen。</string>
+    <string name="keys_security_key_import">导入其上已有的密钥</string>
+    <string name="keys_security_key_import_hint">添加已存储在密钥上的常驻 SSH-SK 凭据（在其他位置用 ssh-keygen -O resident 创建）。</string>
+    <string name="keys_register_on_security_key">在安全密钥上设置 SSH 密钥</string>
+    <string name="keys_register_on_security_key_body">在安全密钥上创建常驻 sk-ssh-ed25519 凭据。然后：通过 USB 插入并按下密钥，或将其贴在背面并长按以使用 NFC。</string>
+    <string name="keys_register_verify_required">每次登录都要求 PIN</string>
+    <string name="keys_register_verify_required_hint">开启：密钥每次签名 SSH 登录时都会要求 PIN（verify-required——更安全）。关闭：仅需触摸。</string>
+    <string name="keys_register_pin">安全密钥 PIN</string>
+    <string name="keys_register_pin_confirm">确认 PIN</string>
+    <string name="keys_register_pin_hint">若为新密钥请设置 PIN，否则输入其现有 PIN。至少 4 个字符。</string>
+    <string name="keys_register_pin_mismatch">两次 PIN 不一致</string>
+    <string name="keys_register_action">注册</string>
+    <string name="keys_fido_pin_set_title">创建安全密钥 PIN</string>
+    <string name="keys_fido_pin_set_help">此安全密钥尚未设置 PIN。请设置一个（4–63 个字符）——密钥签名时需要输入。</string>
+    <string name="keys_fido_pin_confirm_label">确认 PIN</string>
+    <string name="keys_fido_pin_mismatch">两次 PIN 不一致</string>
 </resources>

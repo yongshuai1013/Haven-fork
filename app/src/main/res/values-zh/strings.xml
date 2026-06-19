@@ -146,4 +146,29 @@
     <!-- Local Linux desktop manager -->
     <string name="app_desktop_manager_title">本地 Linux 桌面</string>
     <string name="app_desktop_manager_description">在 Haven 内运行完整的 Linux 桌面。选择发行版，安装桌面环境（Xfce4、Openbox 或 Sway），然后点击启动——无需单独的服务器或连接。</string>
+
+    <!-- App windows / installed-app launcher (#250) -->
+    <string name="app_desktop_app_window_pin_home_cd">将 %1$s 添加到主屏幕</string>
+    <string name="app_desktop_browse_installed_apps">浏览已安装的应用</string>
+    <string name="app_desktop_installed_apps_title">已安装的应用</string>
+    <string name="app_desktop_installed_apps_search">搜索应用</string>
+    <string name="app_desktop_installed_apps_count">%1$d 个应用 · %2$d 个带图标</string>
+    <string name="app_desktop_installed_apps_empty">在当前发行版中未找到图形界面应用。</string>
+    <string name="app_desktop_installed_apps_close_cd">关闭</string>
+    <string name="app_desktop_installed_app_icon_cd">%1$s 图标</string>
+    <string name="app_desktop_installed_app_launch_cd">启动 %1$s</string>
+    <string name="app_desktop_installed_app_fullscreen_on_cd">%1$s 以全屏打开——点击切换为窗口模式</string>
+    <string name="app_desktop_installed_app_fullscreen_off_cd">%1$s 以窗口模式打开——点击切换为全屏</string>
+    <string name="app_desktop_app_window_fullscreen">以全屏打开</string>
+    <string name="app_desktop_app_window_run_as_root">以 root 运行</string>
+    <string name="app_desktop_app_window_run_as_root_hint">用于包管理器和系统工具（会安装 fakeroot）</string>
+    <string name="app_desktop_app_window_resolution">分辨率</string>
+    <string name="app_desktop_app_window_scale">缩放</string>
+    <string name="app_desktop_opt_default">默认</string>
+    <string name="app_desktop_res_auto">自动</string>
+    <string name="app_desktop_res_landscape">横屏</string>
+    <string name="app_desktop_res_custom">自定义</string>
+    <string name="app_desktop_res_custom_hint">宽×高，例如 1024x600</string>
+    <string name="app_desktop_app_window_defaults">默认显示（所有应用窗口）</string>
+    <string name="app_window_scale_saved">已保存为此应用的默认尺寸</string>
 </resources>
