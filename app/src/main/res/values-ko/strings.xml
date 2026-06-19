@@ -181,4 +181,34 @@
     <string name="app_desktop_res_custom_hint">너비×높이, 예: 1024x600</string>
     <string name="app_desktop_app_window_defaults">기본 디스플레이 (모든 앱 창)</string>
     <string name="app_window_scale_saved">이 앱의 기본 크기로 저장됨</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">완료</string>
+    <string name="agent_summary_connections">연결 %1$d개</string>
+    <string name="agent_summary_sessions">세션 %1$d개</string>
+    <string name="agent_summary_remotes">원격 %1$d개</string>
+    <string name="agent_summary_entries_at">%2$s:%3$s에 %1$d개 항목</string>
+    <string name="agent_summary_entries_via">%2$s을(를) 통해 %3$s에 %1$d개 항목</string>
+    <string name="agent_summary_version">버전 %1$s</string>
+    <string name="agent_summary_dispatched">%1$s 실행함</string>
+    <string name="agent_summary_bytes">%1$d바이트</string>
+    <string name="agent_summary_disconnected">연결 끊김</string>
+    <string name="agent_summary_pf_saved">저장됨</string>
+    <string name="agent_summary_pf_saved_activated">저장 및 활성화됨</string>
+    <string name="agent_summary_pf_bound">%1$s, 포트 %2$d</string>
+    <string name="agent_summary_pf_removed">제거됨</string>
+    <string name="agent_summary_pf_removed_deactivated">제거 및 비활성화됨</string>
+    <string name="agent_summary_uploaded_bytes">%1$d바이트 업로드함</string>
+    <string name="agent_summary_served_bytes">%2$s에서 %1$d바이트 제공함</string>
+    <string name="agent_summary_deleted">삭제됨</string>
+    <string name="agent_summary_uploaded_bytes_via">%2$s을(를) 통해 %1$d바이트 업로드함</string>
+    <string name="agent_summary_deleted_via">%1$s을(를) 통해 삭제함</string>
+    <string name="agent_summary_bytes_typed">%1$d바이트 입력함</string>
+    <string name="agent_summary_converted">%1$d KiB, %2$d밀리초</string>
+    <string name="agent_summary_kib_installed">%1$d KiB 설치함</string>
+    <string name="agent_summary_reused_existing">기존 재사용</string>
+    <string name="agent_summary_opened">열림</string>
+    <string name="agent_summary_mib_installed">%1$d MiB 설치함</string>
+    <string name="agent_summary_enabled_at">%1$s:%2$d에서 활성화함</string>
+    <string name="agent_summary_enabled">활성화됨</string>
 </resources>

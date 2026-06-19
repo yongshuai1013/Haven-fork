@@ -1,6 +1,8 @@
 package sh.haven.app.agent
 
+import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import sh.haven.app.R
 import sh.haven.core.data.db.AgentAuditEventDao
 import sh.haven.core.data.db.entities.AgentAuditEvent
 import javax.inject.Inject
@@ -41,6 +44,7 @@ private const val TRIM_EVERY_N = 32
 @Singleton
 class AgentAuditRecorder @Inject constructor(
     private val dao: AgentAuditEventDao,
+    @ApplicationContext private val context: Context,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -70,7 +74,7 @@ class AgentAuditRecorder @Inject constructor(
             method = method,
             toolName = toolName,
             argsJson = rawArgs?.let { redactJson(it).toString() }?.take(2_000),
-            resultSummary = summariseResult(toolName, result)?.take(240),
+            resultSummary = summariseResult(toolName, result, context)?.take(240),
             durationMs = durationMs,
             outcome = outcome,
             errorMessage = errorMessage?.take(500),
@@ -155,71 +159,72 @@ private fun redactValue(v: Any?): Any? = when (v) {
  * to know exactly what data left Haven, they need to look at the
  * source-of-truth views (connection list, etc.), not at this log.
  */
-private fun summariseResult(toolName: String?, result: JSONObject?): String? {
+private fun summariseResult(toolName: String?, result: JSONObject?, ctx: Context): String? {
     if (result == null) return null
     return when (toolName) {
-        "list_connections" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { "$it connections" }
-        "list_sessions" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { "$it sessions" }
-        "list_rclone_remotes" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { "$it remotes" }
+        "list_connections" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_connections, it) }
+        "list_sessions" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_sessions, it) }
+        "list_rclone_remotes" -> result.optInt("count", -1).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_remotes, it) }
         "list_rclone_directory" -> {
             val n = result.optInt("count", -1)
             val remote = result.optString("remote", "")
             val path = result.optString("path", "")
-            if (n >= 0) "$n entries at $remote:$path" else null
+            if (n >= 0) ctx.getString(R.string.agent_summary_entries_at, n, remote, path) else null
         }
         "list_directory" -> {
             val n = result.optInt("count", -1)
             val backend = result.optString("backend", "")
             val path = result.optString("path", "")
-            if (n >= 0) "$n entries via $backend at $path" else null
+            if (n >= 0) ctx.getString(R.string.agent_summary_entries_via, n, backend, path) else null
         }
-        "get_app_info" -> result.optString("version", "").takeIf { it.isNotEmpty() }?.let { "version $it" }
-        "play_file" -> result.optString("mimeType", "").takeIf { it.isNotEmpty() }?.let { "dispatched $it" }
+        "get_app_info" -> result.optString("version", "").takeIf { it.isNotEmpty() }?.let { ctx.getString(R.string.agent_summary_version, it) }
+        "play_file" -> result.optString("mimeType", "").takeIf { it.isNotEmpty() }?.let { ctx.getString(R.string.agent_summary_dispatched, it) }
         "navigate_sftp_browser" -> {
+            // Pure identifiers (profileId:path) — nothing to translate.
             val pid = result.optString("profileId", "")
             val path = result.optString("path", "")
             if (pid.isNotEmpty()) "$pid:$path" else null
         }
-        "read_terminal_scrollback" -> result.optInt("byteCount", -1).takeIf { it >= 0 }?.let { "$it bytes" }
-        "disconnect_profile" -> "disconnected"
+        "read_terminal_scrollback" -> result.optInt("byteCount", -1).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_bytes, it) }
+        "disconnect_profile" -> ctx.getString(R.string.agent_summary_disconnected)
         "add_port_forward" -> {
             val activated = result.optBoolean("activated", false)
-            val bound = if (result.has("actualBoundPort")) " bound:${result.optInt("actualBoundPort")}" else ""
-            "saved${if (activated) ", activated" else ""}$bound"
+            val base = ctx.getString(if (activated) R.string.agent_summary_pf_saved_activated else R.string.agent_summary_pf_saved)
+            if (result.has("actualBoundPort")) ctx.getString(R.string.agent_summary_pf_bound, base, result.optInt("actualBoundPort")) else base
         }
-        "remove_port_forward" -> if (result.optBoolean("deactivated", false)) "removed and deactivated" else "removed"
-        "upload_file_to_sftp" -> result.optLong("bytesUploaded", -1L).takeIf { it >= 0 }?.let { "uploaded ${it} bytes" }
+        "remove_port_forward" -> ctx.getString(if (result.optBoolean("deactivated", false)) R.string.agent_summary_pf_removed_deactivated else R.string.agent_summary_pf_removed)
+        "upload_file_to_sftp" -> result.optLong("bytesUploaded", -1L).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_uploaded_bytes, it) }
         "serve_file" -> {
             val n = result.optLong("size", -1L)
             val backend = result.optString("backend", "")
-            if (n >= 0) "served $n bytes from $backend" else null
+            if (n >= 0) ctx.getString(R.string.agent_summary_served_bytes, n, backend) else null
         }
-        "delete_sftp_file" -> "deleted"
+        "delete_sftp_file" -> ctx.getString(R.string.agent_summary_deleted)
         "upload_file" -> {
             val n = result.optLong("bytesUploaded", -1L)
             val backend = result.optString("backend", "")
-            if (n >= 0) "uploaded $n bytes via $backend" else null
+            if (n >= 0) ctx.getString(R.string.agent_summary_uploaded_bytes_via, n, backend) else null
         }
-        "delete_file" -> result.optString("backend", "").takeIf { it.isNotEmpty() }?.let { "deleted via $it" } ?: "deleted"
-        "send_terminal_input" -> result.optInt("bytesSent", -1).takeIf { it >= 0 }?.let { "$it bytes typed" }
+        "delete_file" -> result.optString("backend", "").takeIf { it.isNotEmpty() }?.let { ctx.getString(R.string.agent_summary_deleted_via, it) } ?: ctx.getString(R.string.agent_summary_deleted)
+        "send_terminal_input" -> result.optInt("bytesSent", -1).takeIf { it >= 0 }?.let { ctx.getString(R.string.agent_summary_bytes_typed, it) }
         "convert_file" -> {
             val size = result.optLong("sizeBytes", -1L)
             val ms = result.optLong("durationMs", -1L)
-            if (size >= 0 && ms >= 0) "${size / 1024} KiB in ${ms} ms" else null
+            if (size >= 0 && ms >= 0) ctx.getString(R.string.agent_summary_converted, size / 1024, ms) else null
         }
         "set_terminal_font_from_url" -> result.optLong("bytesDownloaded", -1L).takeIf { it >= 0 }?.let {
-            "${it / 1024} KiB installed"
+            ctx.getString(R.string.agent_summary_kib_installed, it / 1024)
         }
-        "open_local_shell" -> if (result.optBoolean("reused", false)) "reused existing" else "opened"
-        "open_developer_settings" -> "opened"
+        "open_local_shell" -> ctx.getString(if (result.optBoolean("reused", false)) R.string.agent_summary_reused_existing else R.string.agent_summary_opened)
+        "open_developer_settings" -> ctx.getString(R.string.agent_summary_opened)
         "install_apk_from_url" -> result.optLong("bytesDownloaded", -1L).takeIf { it >= 0 }?.let {
-            "${it / 1024 / 1024} MiB installed"
+            ctx.getString(R.string.agent_summary_mib_installed, it / 1024 / 1024)
         }
         "enable_wireless_adb" -> {
             val ip = result.optString("ip", "")
             val port = result.optInt("port", -1)
-            if (ip.isNotEmpty() && port > 0) "enabled at $ip:$port" else "enabled"
+            if (ip.isNotEmpty() && port > 0) ctx.getString(R.string.agent_summary_enabled_at, ip, port) else ctx.getString(R.string.agent_summary_enabled)
         }
         else -> null
-    } ?: "ok"
+    } ?: ctx.getString(R.string.agent_summary_ok)
 }

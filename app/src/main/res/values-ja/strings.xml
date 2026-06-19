@@ -171,4 +171,34 @@
     <string name="app_desktop_res_custom_hint">幅×高さ（例: 1024x600）</string>
     <string name="app_desktop_app_window_defaults">デフォルト表示（すべてのアプリウィンドウ）</string>
     <string name="app_window_scale_saved">このアプリのデフォルトサイズとして保存しました</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">完了</string>
+    <string name="agent_summary_connections">接続 %1$d 件</string>
+    <string name="agent_summary_sessions">セッション %1$d 件</string>
+    <string name="agent_summary_remotes">リモート %1$d 件</string>
+    <string name="agent_summary_entries_at">%2$s:%3$s に %1$d 件</string>
+    <string name="agent_summary_entries_via">%2$s 経由で %3$s に %1$d 件</string>
+    <string name="agent_summary_version">バージョン %1$s</string>
+    <string name="agent_summary_dispatched">%1$s を起動</string>
+    <string name="agent_summary_bytes">%1$d バイト</string>
+    <string name="agent_summary_disconnected">切断しました</string>
+    <string name="agent_summary_pf_saved">保存しました</string>
+    <string name="agent_summary_pf_saved_activated">保存して有効化しました</string>
+    <string name="agent_summary_pf_bound">%1$s、ポート %2$d</string>
+    <string name="agent_summary_pf_removed">削除しました</string>
+    <string name="agent_summary_pf_removed_deactivated">削除して無効化しました</string>
+    <string name="agent_summary_uploaded_bytes">%1$d バイトをアップロード</string>
+    <string name="agent_summary_served_bytes">%2$s から %1$d バイトを提供</string>
+    <string name="agent_summary_deleted">削除しました</string>
+    <string name="agent_summary_uploaded_bytes_via">%2$s 経由で %1$d バイトをアップロード</string>
+    <string name="agent_summary_deleted_via">%1$s 経由で削除</string>
+    <string name="agent_summary_bytes_typed">%1$d バイトを入力</string>
+    <string name="agent_summary_converted">%1$d KiB を %2$d ミリ秒で</string>
+    <string name="agent_summary_kib_installed">%1$d KiB をインストール</string>
+    <string name="agent_summary_reused_existing">既存を再利用</string>
+    <string name="agent_summary_opened">開きました</string>
+    <string name="agent_summary_mib_installed">%1$d MiB をインストール</string>
+    <string name="agent_summary_enabled_at">%1$s:%2$d で有効化</string>
+    <string name="agent_summary_enabled">有効化しました</string>
 </resources>

@@ -177,4 +177,34 @@
     <string name="app_desktop_res_custom_hint">Ширина×Высота, напр. 1024x600</string>
     <string name="app_desktop_app_window_defaults">Экран по умолчанию (все окна приложений)</string>
     <string name="app_window_scale_saved">Сохранено как размер по умолчанию для этого приложения</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">готово</string>
+    <string name="agent_summary_connections">%1$d подключений</string>
+    <string name="agent_summary_sessions">%1$d сеансов</string>
+    <string name="agent_summary_remotes">%1$d удалённых</string>
+    <string name="agent_summary_entries_at">%1$d записей в %2$s:%3$s</string>
+    <string name="agent_summary_entries_via">%1$d записей через %2$s в %3$s</string>
+    <string name="agent_summary_version">версия %1$s</string>
+    <string name="agent_summary_dispatched">отправлено %1$s</string>
+    <string name="agent_summary_bytes">%1$d байт</string>
+    <string name="agent_summary_disconnected">отключено</string>
+    <string name="agent_summary_pf_saved">сохранено</string>
+    <string name="agent_summary_pf_saved_activated">сохранено, активировано</string>
+    <string name="agent_summary_pf_bound">%1$s, порт %2$d</string>
+    <string name="agent_summary_pf_removed">удалено</string>
+    <string name="agent_summary_pf_removed_deactivated">удалено и деактивировано</string>
+    <string name="agent_summary_uploaded_bytes">отправлено %1$d байт</string>
+    <string name="agent_summary_served_bytes">отдано %1$d байт из %2$s</string>
+    <string name="agent_summary_deleted">удалено</string>
+    <string name="agent_summary_uploaded_bytes_via">отправлено %1$d байт через %2$s</string>
+    <string name="agent_summary_deleted_via">удалено через %1$s</string>
+    <string name="agent_summary_bytes_typed">введено %1$d байт</string>
+    <string name="agent_summary_converted">%1$d KiB за %2$d мс</string>
+    <string name="agent_summary_kib_installed">установлено %1$d KiB</string>
+    <string name="agent_summary_reused_existing">повторно использовано</string>
+    <string name="agent_summary_opened">открыто</string>
+    <string name="agent_summary_mib_installed">установлено %1$d MiB</string>
+    <string name="agent_summary_enabled_at">включено на %1$s:%2$d</string>
+    <string name="agent_summary_enabled">включено</string>
 </resources>

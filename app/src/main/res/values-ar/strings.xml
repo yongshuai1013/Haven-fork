@@ -171,4 +171,34 @@
     <string name="app_desktop_res_custom_hint">العرض×الارتفاع، مثال: 1024x600</string>
     <string name="app_desktop_app_window_defaults">العرض الافتراضي (جميع نوافذ التطبيقات)</string>
     <string name="app_window_scale_saved">تم الحفظ كحجم افتراضي لهذا التطبيق</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">تم</string>
+    <string name="agent_summary_connections">%1$d اتصالات</string>
+    <string name="agent_summary_sessions">%1$d جلسات</string>
+    <string name="agent_summary_remotes">%1$d مواقع بعيدة</string>
+    <string name="agent_summary_entries_at">%1$d إدخالات في %2$s:%3$s</string>
+    <string name="agent_summary_entries_via">%1$d إدخالات عبر %2$s في %3$s</string>
+    <string name="agent_summary_version">الإصدار %1$s</string>
+    <string name="agent_summary_dispatched">تم إرسال %1$s</string>
+    <string name="agent_summary_bytes">%1$d بايت</string>
+    <string name="agent_summary_disconnected">تم قطع الاتصال</string>
+    <string name="agent_summary_pf_saved">تم الحفظ</string>
+    <string name="agent_summary_pf_saved_activated">تم الحفظ والتفعيل</string>
+    <string name="agent_summary_pf_bound">%1$s، المنفذ %2$d</string>
+    <string name="agent_summary_pf_removed">تمت الإزالة</string>
+    <string name="agent_summary_pf_removed_deactivated">تمت الإزالة والتعطيل</string>
+    <string name="agent_summary_uploaded_bytes">تم رفع %1$d بايت</string>
+    <string name="agent_summary_served_bytes">تم تقديم %1$d بايت من %2$s</string>
+    <string name="agent_summary_deleted">تم الحذف</string>
+    <string name="agent_summary_uploaded_bytes_via">تم رفع %1$d بايت عبر %2$s</string>
+    <string name="agent_summary_deleted_via">تم الحذف عبر %1$s</string>
+    <string name="agent_summary_bytes_typed">تم إدخال %1$d بايت</string>
+    <string name="agent_summary_converted">%1$d KiB في %2$d مللي ثانية</string>
+    <string name="agent_summary_kib_installed">تم تثبيت %1$d KiB</string>
+    <string name="agent_summary_reused_existing">إعادة استخدام الموجود</string>
+    <string name="agent_summary_opened">تم الفتح</string>
+    <string name="agent_summary_mib_installed">تم تثبيت %1$d MiB</string>
+    <string name="agent_summary_enabled_at">تم التفعيل على %1$s:%2$d</string>
+    <string name="agent_summary_enabled">تم التفعيل</string>
 </resources>

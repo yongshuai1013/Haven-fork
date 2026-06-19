@@ -171,4 +171,34 @@
     <string name="app_desktop_res_custom_hint">宽×高，例如 1024x600</string>
     <string name="app_desktop_app_window_defaults">默认显示（所有应用窗口）</string>
     <string name="app_window_scale_saved">已保存为此应用的默认尺寸</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">成功</string>
+    <string name="agent_summary_connections">%1$d 个连接</string>
+    <string name="agent_summary_sessions">%1$d 个会话</string>
+    <string name="agent_summary_remotes">%1$d 个远程</string>
+    <string name="agent_summary_entries_at">%2$s:%3$s 中有 %1$d 项</string>
+    <string name="agent_summary_entries_via">经 %2$s 在 %3$s 中有 %1$d 项</string>
+    <string name="agent_summary_version">版本 %1$s</string>
+    <string name="agent_summary_dispatched">已分发 %1$s</string>
+    <string name="agent_summary_bytes">%1$d 字节</string>
+    <string name="agent_summary_disconnected">已断开连接</string>
+    <string name="agent_summary_pf_saved">已保存</string>
+    <string name="agent_summary_pf_saved_activated">已保存并激活</string>
+    <string name="agent_summary_pf_bound">%1$s，端口 %2$d</string>
+    <string name="agent_summary_pf_removed">已移除</string>
+    <string name="agent_summary_pf_removed_deactivated">已移除并停用</string>
+    <string name="agent_summary_uploaded_bytes">已上传 %1$d 字节</string>
+    <string name="agent_summary_served_bytes">已从 %2$s 提供 %1$d 字节</string>
+    <string name="agent_summary_deleted">已删除</string>
+    <string name="agent_summary_uploaded_bytes_via">经 %2$s 已上传 %1$d 字节</string>
+    <string name="agent_summary_deleted_via">经 %1$s 已删除</string>
+    <string name="agent_summary_bytes_typed">已输入 %1$d 字节</string>
+    <string name="agent_summary_converted">%1$d KiB，耗时 %2$d 毫秒</string>
+    <string name="agent_summary_kib_installed">已安装 %1$d KiB</string>
+    <string name="agent_summary_reused_existing">重用现有</string>
+    <string name="agent_summary_opened">已打开</string>
+    <string name="agent_summary_mib_installed">已安装 %1$d MiB</string>
+    <string name="agent_summary_enabled_at">已在 %1$s:%2$d 启用</string>
+    <string name="agent_summary_enabled">已启用</string>
 </resources>

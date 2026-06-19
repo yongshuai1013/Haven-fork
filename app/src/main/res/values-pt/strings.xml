@@ -171,4 +171,34 @@
     <string name="app_desktop_res_custom_hint">Largura×Altura, ex.: 1024x600</string>
     <string name="app_desktop_app_window_defaults">Exibição padrão (todas as janelas de apps)</string>
     <string name="app_window_scale_saved">Salvo como o tamanho padrão deste app</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">concluído</string>
+    <string name="agent_summary_connections">%1$d conexões</string>
+    <string name="agent_summary_sessions">%1$d sessões</string>
+    <string name="agent_summary_remotes">%1$d remotos</string>
+    <string name="agent_summary_entries_at">%1$d entradas em %2$s:%3$s</string>
+    <string name="agent_summary_entries_via">%1$d entradas via %2$s em %3$s</string>
+    <string name="agent_summary_version">versão %1$s</string>
+    <string name="agent_summary_dispatched">%1$s despachado</string>
+    <string name="agent_summary_bytes">%1$d bytes</string>
+    <string name="agent_summary_disconnected">desconectado</string>
+    <string name="agent_summary_pf_saved">salvo</string>
+    <string name="agent_summary_pf_saved_activated">salvo, ativado</string>
+    <string name="agent_summary_pf_bound">%1$s, porta %2$d</string>
+    <string name="agent_summary_pf_removed">removido</string>
+    <string name="agent_summary_pf_removed_deactivated">removido e desativado</string>
+    <string name="agent_summary_uploaded_bytes">%1$d bytes enviados</string>
+    <string name="agent_summary_served_bytes">%1$d bytes servidos de %2$s</string>
+    <string name="agent_summary_deleted">excluído</string>
+    <string name="agent_summary_uploaded_bytes_via">%1$d bytes enviados via %2$s</string>
+    <string name="agent_summary_deleted_via">excluído via %1$s</string>
+    <string name="agent_summary_bytes_typed">%1$d bytes digitados</string>
+    <string name="agent_summary_converted">%1$d KiB em %2$d ms</string>
+    <string name="agent_summary_kib_installed">%1$d KiB instalados</string>
+    <string name="agent_summary_reused_existing">reutilizado</string>
+    <string name="agent_summary_opened">aberto</string>
+    <string name="agent_summary_mib_installed">%1$d MiB instalados</string>
+    <string name="agent_summary_enabled_at">ativado em %1$s:%2$d</string>
+    <string name="agent_summary_enabled">ativado</string>
 </resources>

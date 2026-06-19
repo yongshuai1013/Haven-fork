@@ -188,4 +188,34 @@
     <string name="app_present_preparing_audio">Preparing audio…</string>
     <string name="app_present_minimize">Minimize</string>
     <string name="app_present_pip">Picture-in-picture</string>
+
+    <!-- Agent Activity log — result summaries shown under each MCP call (#239). Tool names stay in English. -->
+    <string name="agent_summary_ok">ok</string>
+    <string name="agent_summary_connections">%1$d connections</string>
+    <string name="agent_summary_sessions">%1$d sessions</string>
+    <string name="agent_summary_remotes">%1$d remotes</string>
+    <string name="agent_summary_entries_at">%1$d entries at %2$s:%3$s</string>
+    <string name="agent_summary_entries_via">%1$d entries via %2$s at %3$s</string>
+    <string name="agent_summary_version">version %1$s</string>
+    <string name="agent_summary_dispatched">dispatched %1$s</string>
+    <string name="agent_summary_bytes">%1$d bytes</string>
+    <string name="agent_summary_disconnected">disconnected</string>
+    <string name="agent_summary_pf_saved">saved</string>
+    <string name="agent_summary_pf_saved_activated">saved, activated</string>
+    <string name="agent_summary_pf_bound">%1$s, port %2$d</string>
+    <string name="agent_summary_pf_removed">removed</string>
+    <string name="agent_summary_pf_removed_deactivated">removed and deactivated</string>
+    <string name="agent_summary_uploaded_bytes">uploaded %1$d bytes</string>
+    <string name="agent_summary_served_bytes">served %1$d bytes from %2$s</string>
+    <string name="agent_summary_deleted">deleted</string>
+    <string name="agent_summary_uploaded_bytes_via">uploaded %1$d bytes via %2$s</string>
+    <string name="agent_summary_deleted_via">deleted via %1$s</string>
+    <string name="agent_summary_bytes_typed">%1$d bytes typed</string>
+    <string name="agent_summary_converted">%1$d KiB in %2$d ms</string>
+    <string name="agent_summary_kib_installed">%1$d KiB installed</string>
+    <string name="agent_summary_reused_existing">reused existing</string>
+    <string name="agent_summary_opened">opened</string>
+    <string name="agent_summary_mib_installed">%1$d MiB installed</string>
+    <string name="agent_summary_enabled_at">enabled at %1$s:%2$d</string>
+    <string name="agent_summary_enabled">enabled</string>
 </resources>

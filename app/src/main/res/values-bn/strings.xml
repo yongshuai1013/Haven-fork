@@ -171,4 +171,34 @@
     <string name="app_desktop_res_custom_hint">প্রস্থ×উচ্চতা, যেমন 1024x600</string>
     <string name="app_desktop_app_window_defaults">ডিফল্ট ডিসপ্লে (সব অ্যাপ উইন্ডো)</string>
     <string name="app_window_scale_saved">এই অ্যাপের ডিফল্ট আকার হিসেবে সংরক্ষিত</string>
+
+    <!-- Agent Activity log — result summaries (#239) -->
+    <string name="agent_summary_ok">হয়ে গেছে</string>
+    <string name="agent_summary_connections">%1$d সংযোগ</string>
+    <string name="agent_summary_sessions">%1$d সেশন</string>
+    <string name="agent_summary_remotes">%1$d রিমোট</string>
+    <string name="agent_summary_entries_at">%2$s:%3$s-এ %1$d টি এন্ট্রি</string>
+    <string name="agent_summary_entries_via">%2$s-এর মাধ্যমে %3$s-এ %1$d টি এন্ট্রি</string>
+    <string name="agent_summary_version">সংস্করণ %1$s</string>
+    <string name="agent_summary_dispatched">%1$s পাঠানো হয়েছে</string>
+    <string name="agent_summary_bytes">%1$d বাইট</string>
+    <string name="agent_summary_disconnected">সংযোগ বিচ্ছিন্ন</string>
+    <string name="agent_summary_pf_saved">সংরক্ষিত</string>
+    <string name="agent_summary_pf_saved_activated">সংরক্ষিত ও সক্রিয়</string>
+    <string name="agent_summary_pf_bound">%1$s, পোর্ট %2$d</string>
+    <string name="agent_summary_pf_removed">সরানো হয়েছে</string>
+    <string name="agent_summary_pf_removed_deactivated">সরানো ও নিষ্ক্রিয় করা হয়েছে</string>
+    <string name="agent_summary_uploaded_bytes">%1$d বাইট আপলোড হয়েছে</string>
+    <string name="agent_summary_served_bytes">%2$s থেকে %1$d বাইট পরিবেশন করা হয়েছে</string>
+    <string name="agent_summary_deleted">মুছে ফেলা হয়েছে</string>
+    <string name="agent_summary_uploaded_bytes_via">%2$s-এর মাধ্যমে %1$d বাইট আপলোড হয়েছে</string>
+    <string name="agent_summary_deleted_via">%1$s-এর মাধ্যমে মুছে ফেলা হয়েছে</string>
+    <string name="agent_summary_bytes_typed">%1$d বাইট টাইপ করা হয়েছে</string>
+    <string name="agent_summary_converted">%1$d KiB %2$d মিলিসেকেন্ডে</string>
+    <string name="agent_summary_kib_installed">%1$d KiB ইনস্টল করা হয়েছে</string>
+    <string name="agent_summary_reused_existing">বিদ্যমানটি পুনঃব্যবহার</string>
+    <string name="agent_summary_opened">খোলা হয়েছে</string>
+    <string name="agent_summary_mib_installed">%1$d MiB ইনস্টল করা হয়েছে</string>
+    <string name="agent_summary_enabled_at">%1$s:%2$d-এ সক্ষম করা হয়েছে</string>
+    <string name="agent_summary_enabled">সক্ষম করা হয়েছে</string>
 </resources>
