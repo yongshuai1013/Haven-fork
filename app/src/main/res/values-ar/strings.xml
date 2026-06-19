@@ -146,4 +146,29 @@
     <!-- Local Linux desktop manager -->
     <string name="app_desktop_manager_title">سطح مكتب Linux محلي</string>
     <string name="app_desktop_manager_description">شغّل سطح مكتب Linux كاملاً داخل Haven. اختر توزيعة، وثبّت بيئة سطح مكتب (Xfce4 أو Openbox أو Sway)، ثم اضغط تشغيل — دون الحاجة إلى خادم أو اتصال منفصل.</string>
+
+    <!-- App windows / installed-app launcher (#250) -->
+    <string name="app_desktop_app_window_pin_home_cd">إضافة %1$s إلى الشاشة الرئيسية</string>
+    <string name="app_desktop_browse_installed_apps">تصفح التطبيقات المثبتة</string>
+    <string name="app_desktop_installed_apps_title">التطبيقات المثبتة</string>
+    <string name="app_desktop_installed_apps_search">بحث في التطبيقات</string>
+    <string name="app_desktop_installed_apps_count">%1$d تطبيق · %2$d بأيقونات</string>
+    <string name="app_desktop_installed_apps_empty">لم يتم العثور على تطبيقات رسومية في التوزيعة النشطة.</string>
+    <string name="app_desktop_installed_apps_close_cd">إغلاق</string>
+    <string name="app_desktop_installed_app_icon_cd">أيقونة %1$s</string>
+    <string name="app_desktop_installed_app_launch_cd">تشغيل %1$s</string>
+    <string name="app_desktop_installed_app_fullscreen_on_cd">يفتح %1$s بملء الشاشة — انقر للوضع النافذي</string>
+    <string name="app_desktop_installed_app_fullscreen_off_cd">يفتح %1$s في وضع النافذة — انقر لملء الشاشة</string>
+    <string name="app_desktop_app_window_fullscreen">فتح بملء الشاشة</string>
+    <string name="app_desktop_app_window_run_as_root">تشغيل بصلاحية root</string>
+    <string name="app_desktop_app_window_run_as_root_hint">لمديري الحزم وأدوات النظام (يثبّت fakeroot)</string>
+    <string name="app_desktop_app_window_resolution">الدقة</string>
+    <string name="app_desktop_app_window_scale">المقياس</string>
+    <string name="app_desktop_opt_default">افتراضي</string>
+    <string name="app_desktop_res_auto">تلقائي</string>
+    <string name="app_desktop_res_landscape">أفقي</string>
+    <string name="app_desktop_res_custom">مخصص</string>
+    <string name="app_desktop_res_custom_hint">العرض×الارتفاع، مثال: 1024x600</string>
+    <string name="app_desktop_app_window_defaults">العرض الافتراضي (جميع نوافذ التطبيقات)</string>
+    <string name="app_window_scale_saved">تم الحفظ كحجم افتراضي لهذا التطبيق</string>
 </resources>

@@ -166,4 +166,27 @@
     <!-- RenameKeyDialog (#231) -->
     <string name="keys_rename">إعادة تسمية</string>
     <string name="keys_rename_title">إعادة تسمية المفتاح</string>
+
+    <!-- FIDO2 / security-key registration (#250) -->
+    <string name="keys_offer_for_connections">عرضه للاتصالات</string>
+    <string name="keys_sk_require_pin">طلب رمز PIN عند تسجيل الدخول</string>
+    <string name="keys_security_key">مفتاح الأمان (YubiKey)</string>
+    <string name="keys_security_key_hint">أنشئ مفتاح SSH جديدًا على مفتاح FIDO2، أو استورد المفاتيح الموجودة عليه بالفعل.</string>
+    <string name="keys_security_key_setup">إعداد مفتاح جديد عليه</string>
+    <string name="keys_security_key_setup_hint">أنشئ مفتاح SSH على مفتاح الأمان (يضبط رمز PIN إذا كان جديدًا). دون حاسوب محمول أو ssh-keygen.</string>
+    <string name="keys_security_key_import">استيراد المفاتيح الموجودة عليه بالفعل</string>
+    <string name="keys_security_key_import_hint">أضِف بيانات اعتماد SSH-SK المقيمة المخزّنة على المفتاح بالفعل (التي أُنشئت في مكان آخر عبر ssh-keygen -O resident).</string>
+    <string name="keys_register_on_security_key">إعداد مفتاح SSH على مفتاح الأمان</string>
+    <string name="keys_register_on_security_key_body">ينشئ بيانات اعتماد sk-ssh-ed25519 مقيمة على مفتاح الأمان. ثم: وصّله عبر USB واضغط عليه، أو ضعه على الجهة الخلفية للهاتف من أجل NFC.</string>
+    <string name="keys_register_verify_required">طلب رمز PIN في كل تسجيل دخول</string>
+    <string name="keys_register_verify_required_hint">مفعّل: يطلب المفتاح رمز PIN في كل مرة يوقّع فيها تسجيل دخول SSH (verify-required — أكثر أمانًا). معطّل: اللمس فقط.</string>
+    <string name="keys_register_pin">رمز PIN لمفتاح الأمان</string>
+    <string name="keys_register_pin_confirm">تأكيد رمز PIN</string>
+    <string name="keys_register_pin_hint">اختر رمز PIN إذا كان المفتاح جديدًا، أو أدخل رمزه الحالي. 4 أحرف فأكثر.</string>
+    <string name="keys_register_pin_mismatch">رمزا PIN غير متطابقين</string>
+    <string name="keys_register_action">تسجيل</string>
+    <string name="keys_fido_pin_set_title">إنشاء رمز PIN لمفتاح الأمان</string>
+    <string name="keys_fido_pin_set_help">لا يحتوي مفتاح الأمان هذا على رمز PIN بعد. اختر واحدًا (4–63 حرفًا) — ستدخله عندما يوقّع المفتاح.</string>
+    <string name="keys_fido_pin_confirm_label">تأكيد رمز PIN</string>
+    <string name="keys_fido_pin_mismatch">رمزا PIN غير متطابقين</string>
 </resources>
