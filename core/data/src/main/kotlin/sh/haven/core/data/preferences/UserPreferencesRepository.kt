@@ -46,6 +46,7 @@ class UserPreferencesRepository @Inject constructor(
     private val appWindowDefaultScaleKey = floatPreferencesKey("app_window_default_scale")
     private val navBlockModeKey = stringPreferencesKey("nav_block_mode")
     private val editModeControlsPlacementKey = stringPreferencesKey("edit_mode_controls_placement")
+    private val desktopKeyPlacementKey = stringPreferencesKey("desktop_key_placement")
     private val sessionCommandOverrideKey = stringPreferencesKey("session_command_override")
     private val sftpSortModeKey = stringPreferencesKey("sftp_sort_mode")
     private val lockTimeoutKey = stringPreferencesKey("lock_timeout")
@@ -1186,6 +1187,18 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setEditModeControlsPlacement(placement: EditModeControlsPlacement) {
         dataStore.edit { prefs ->
             prefs[editModeControlsPlacementKey] = placement.id
+        }
+    }
+
+    /** Where the auto-shown desktop (VNC/RDP) key sits, or whether it's hidden. (#245) */
+    val desktopKeyPlacement: Flow<DesktopKeyPlacement> = dataStore.data.map { prefs ->
+        prefs[desktopKeyPlacementKey]?.let { DesktopKeyPlacement.fromId(it) }
+            ?: DesktopKeyPlacement.LEFT
+    }
+
+    suspend fun setDesktopKeyPlacement(placement: DesktopKeyPlacement) {
+        dataStore.edit { prefs ->
+            prefs[desktopKeyPlacementKey] = placement.id
         }
     }
 

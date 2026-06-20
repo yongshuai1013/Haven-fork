@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">স্থায়ী নীতি — এই টুলগুলি জিজ্ঞাসা ছাড়াই চলে</string>
     <string name="settings_standing_policy_meta">%1$s · সর্বোচ্চ %2$d কল/মিনিট · %3$s-এ মেয়াদ শেষ</string>
     <string name="settings_standing_policy_revoke">প্রত্যাহার করুন</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">ডেস্কটপ কী</string>
+    <string name="settings_desktop_key_left">বাম</string>
+    <string name="settings_desktop_key_right">ডান</string>
+    <string name="settings_desktop_key_hidden">লুকানো</string>
 </resources>

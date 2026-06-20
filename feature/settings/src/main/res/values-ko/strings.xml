@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">상시 정책 — 이 도구들은 확인 없이 실행됩니다</string>
     <string name="settings_standing_policy_meta">%1$s · 분당 최대 %2$d회 · %3$s에 만료</string>
     <string name="settings_standing_policy_revoke">철회</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">데스크톱 키</string>
+    <string name="settings_desktop_key_left">왼쪽</string>
+    <string name="settings_desktop_key_right">오른쪽</string>
+    <string name="settings_desktop_key_hidden">숨김</string>
 </resources>

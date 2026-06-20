@@ -361,6 +361,8 @@ fun HavenNavHost(
         .collectAsState(initial = sh.haven.core.data.preferences.NavBlockMode.ALIGNED)
     val editModeControlsPlacement by preferencesRepository.editModeControlsPlacement
         .collectAsState(initial = sh.haven.core.data.preferences.EditModeControlsPlacement.LEFT)
+    val desktopKeyPlacement by preferencesRepository.desktopKeyPlacement
+        .collectAsState(initial = sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT)
     val toolbarMinKeyWidth by preferencesRepository.toolbarMinButtonWidth
         .collectAsState(initial = sh.haven.core.data.preferences.UserPreferencesRepository.DEFAULT_TOOLBAR_MIN_BUTTON_WIDTH)
     val showSearchButton by preferencesRepository.showSearchButton
@@ -567,6 +569,7 @@ fun HavenNavHost(
                         toolbarLayout = toolbarLayout,
                         navBlockMode = navBlockMode,
                         editModeControlsPlacement = editModeControlsPlacement,
+                        desktopKeyPlacement = desktopKeyPlacement,
                         toolbarMinKeyWidth = toolbarMinKeyWidth,
                         showSearchButton = showSearchButton,
                         showCopyOutputButton = showCopyOutputButton,

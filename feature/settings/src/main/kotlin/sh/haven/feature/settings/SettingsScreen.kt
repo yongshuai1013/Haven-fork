@@ -136,6 +136,7 @@ import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import sh.haven.core.ui.navigation.Screen
+import sh.haven.core.data.preferences.DesktopKeyPlacement
 import sh.haven.core.data.preferences.EditModeControlsPlacement
 import sh.haven.core.data.preferences.MACRO_PRESETS
 import sh.haven.core.data.preferences.NavBlockMode
@@ -171,6 +172,7 @@ fun SettingsScreen(
     val snippetLibrary by viewModel.snippetLibrary.collectAsState()
     val navBlockMode by viewModel.navBlockMode.collectAsState()
     val editModeControlsPlacement by viewModel.editModeControlsPlacement.collectAsState()
+    val desktopKeyPlacement by viewModel.desktopKeyPlacement.collectAsState()
     val toolbarMinButtonWidth by viewModel.toolbarMinButtonWidth.collectAsState()
     val showSearchButton by viewModel.showSearchButton.collectAsState()
     val showCopyOutputButton by viewModel.showCopyOutputButton.collectAsState()
@@ -1509,6 +1511,7 @@ fun SettingsScreen(
             snippetLibrary = snippetLibrary,
             navBlockMode = navBlockMode,
             editModeControlsPlacement = editModeControlsPlacement,
+            desktopKeyPlacement = desktopKeyPlacement,
             minButtonWidth = toolbarMinButtonWidth,
             onMinButtonWidthChange = { viewModel.setToolbarMinButtonWidth(it) },
             onDismiss = { showToolbarConfigDialog = false },
@@ -1523,6 +1526,7 @@ fun SettingsScreen(
             },
             onNavBlockModeChange = { viewModel.setNavBlockMode(it) },
             onEditControlsPlacementChange = { viewModel.setEditModeControlsPlacement(it) },
+            onDesktopKeyPlacementChange = { viewModel.setDesktopKeyPlacement(it) },
         )
     }
 
@@ -2288,6 +2292,14 @@ private fun editControlsPlacementLabel(placement: EditModeControlsPlacement): In
     EditModeControlsPlacement.RIGHT -> R.string.settings_edit_controls_right
 }
 
+/** String resource for a [DesktopKeyPlacement] chip label. */
+@androidx.annotation.StringRes
+private fun desktopKeyPlacementLabel(placement: DesktopKeyPlacement): Int = when (placement) {
+    DesktopKeyPlacement.LEFT -> R.string.settings_desktop_key_left
+    DesktopKeyPlacement.RIGHT -> R.string.settings_desktop_key_right
+    DesktopKeyPlacement.HIDDEN -> R.string.settings_desktop_key_hidden
+}
+
 @Composable
 private fun ToolbarConfigDialog(
     layout: ToolbarLayout,
@@ -2295,6 +2307,7 @@ private fun ToolbarConfigDialog(
     snippetLibrary: List<ToolbarItem.Custom>,
     navBlockMode: NavBlockMode,
     editModeControlsPlacement: EditModeControlsPlacement,
+    desktopKeyPlacement: DesktopKeyPlacement,
     minButtonWidth: Int,
     onMinButtonWidthChange: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -2303,6 +2316,7 @@ private fun ToolbarConfigDialog(
     onSaveJson: (String) -> Unit,
     onNavBlockModeChange: (NavBlockMode) -> Unit,
     onEditControlsPlacementChange: (EditModeControlsPlacement) -> Unit,
+    onDesktopKeyPlacementChange: (DesktopKeyPlacement) -> Unit,
 ) {
     var advancedMode by remember { mutableStateOf(false) }
 
@@ -2319,6 +2333,7 @@ private fun ToolbarConfigDialog(
             snippetLibrary = snippetLibrary,
             navBlockMode = navBlockMode,
             editModeControlsPlacement = editModeControlsPlacement,
+            desktopKeyPlacement = desktopKeyPlacement,
             minButtonWidth = minButtonWidth,
             onMinButtonWidthChange = onMinButtonWidthChange,
             onDismiss = onDismiss,
@@ -2329,6 +2344,7 @@ private fun ToolbarConfigDialog(
             onAdvancedMode = { advancedMode = true },
             onNavBlockModeChange = onNavBlockModeChange,
             onEditControlsPlacementChange = onEditControlsPlacementChange,
+            onDesktopKeyPlacementChange = onDesktopKeyPlacementChange,
         )
     }
 }
@@ -2344,6 +2360,7 @@ private fun ToolbarSimpleEditor(
     snippetLibrary: List<ToolbarItem.Custom>,
     navBlockMode: NavBlockMode,
     editModeControlsPlacement: EditModeControlsPlacement,
+    desktopKeyPlacement: DesktopKeyPlacement,
     minButtonWidth: Int,
     onMinButtonWidthChange: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -2351,6 +2368,7 @@ private fun ToolbarSimpleEditor(
     onAdvancedMode: () -> Unit,
     onNavBlockModeChange: (NavBlockMode) -> Unit,
     onEditControlsPlacementChange: (EditModeControlsPlacement) -> Unit,
+    onDesktopKeyPlacementChange: (DesktopKeyPlacement) -> Unit,
 ) {
     // Build assignment map from current layout (built-in keys only)
     val row1BuiltIns = remember(layout) {
@@ -2452,6 +2470,26 @@ private fun ToolbarSimpleEditor(
                             onClick = { onEditControlsPlacementChange(placement) },
                             label = {
                                 Text(stringResource(editControlsPlacementLabel(placement)), fontSize = 11.sp)
+                            },
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                        )
+                    }
+                }
+
+                // Desktop (VNC/RDP) key placement — left / right / hidden (#245).
+                Text(
+                    stringResource(R.string.settings_toolbar_desktop_key),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                )
+                Row(modifier = Modifier.padding(bottom = 4.dp)) {
+                    DesktopKeyPlacement.entries.forEach { placement ->
+                        FilterChip(
+                            selected = desktopKeyPlacement == placement,
+                            onClick = { onDesktopKeyPlacementChange(placement) },
+                            label = {
+                                Text(stringResource(desktopKeyPlacementLabel(placement)), fontSize = 11.sp)
                             },
                             modifier = Modifier.padding(horizontal = 2.dp),
                         )

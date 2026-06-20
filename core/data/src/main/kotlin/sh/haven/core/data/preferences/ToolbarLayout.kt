@@ -68,6 +68,25 @@ enum class EditModeControlsPlacement(val id: String) {
     }
 }
 
+/**
+ * Where the auto-shown "open desktop" (VNC/RDP) key sits on the toolbar — or
+ * whether it shows at all. It's not a configurable [ToolbarKey]; it appears
+ * automatically whenever the session can open a desktop, so this is the only
+ * lever a user has over it. (#245)
+ */
+enum class DesktopKeyPlacement(val id: String) {
+    /** Leading edge, stacked under the keyboard toggle (default, legacy behaviour). */
+    LEFT("left"),
+    /** Trailing edge, just before the add-key / reorder controls. */
+    RIGHT("right"),
+    /** Not shown on the toolbar at all. */
+    HIDDEN("hidden");
+
+    companion object {
+        fun fromId(id: String): DesktopKeyPlacement? = entries.find { it.id == id }
+    }
+}
+
 data class MacroPreset(val label: String, val send: String, val description: String)
 
 val MACRO_PRESETS = listOf(

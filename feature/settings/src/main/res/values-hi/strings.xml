@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">स्थायी नीतियाँ — ये टूल बिना पूछे चलते हैं</string>
     <string name="settings_standing_policy_meta">%1$s · अधिकतम %2$d कॉल/मिनट · %3$s को समाप्त</string>
     <string name="settings_standing_policy_revoke">निरस्त करें</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">डेस्कटॉप कुंजी</string>
+    <string name="settings_desktop_key_left">बायाँ</string>
+    <string name="settings_desktop_key_right">दायाँ</string>
+    <string name="settings_desktop_key_hidden">छिपा हुआ</string>
 </resources>

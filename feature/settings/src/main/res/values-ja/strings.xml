@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">常設ポリシー — これらのツールは確認なしで実行されます</string>
     <string name="settings_standing_policy_meta">%1$s・最大 %2$d 回/分・%3$s に期限切れ</string>
     <string name="settings_standing_policy_revoke">取り消し</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">デスクトップキー</string>
+    <string name="settings_desktop_key_left">左</string>
+    <string name="settings_desktop_key_right">右</string>
+    <string name="settings_desktop_key_hidden">非表示</string>
 </resources>

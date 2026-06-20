@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">Dauerhafte Richtlinien — diese Werkzeuge laufen ohne Nachfrage</string>
     <string name="settings_standing_policy_meta">%1$s · bis zu %2$d Aufrufe/Min · läuft ab %3$s</string>
     <string name="settings_standing_policy_revoke">Widerrufen</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">Desktop-Taste</string>
+    <string name="settings_desktop_key_left">Links</string>
+    <string name="settings_desktop_key_right">Rechts</string>
+    <string name="settings_desktop_key_hidden">Ausgeblendet</string>
 </resources>

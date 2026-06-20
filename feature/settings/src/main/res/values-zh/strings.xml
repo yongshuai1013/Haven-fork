@@ -389,4 +389,10 @@
     <string name="settings_standing_policies_header">常驻策略——这些工具无需询问即可运行</string>
     <string name="settings_standing_policy_meta">%1$s · 每分钟最多 %2$d 次调用 · %3$s 过期</string>
     <string name="settings_standing_policy_revoke">撤销</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">桌面键</string>
+    <string name="settings_desktop_key_left">左侧</string>
+    <string name="settings_desktop_key_right">右侧</string>
+    <string name="settings_desktop_key_hidden">隐藏</string>
 </resources>

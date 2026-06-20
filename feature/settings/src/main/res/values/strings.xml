@@ -186,6 +186,10 @@
     <string name="settings_edit_controls_split">Split</string>
     <string name="settings_edit_controls_left">Left</string>
     <string name="settings_edit_controls_right">Right</string>
+    <string name="settings_toolbar_desktop_key">Desktop key</string>
+    <string name="settings_desktop_key_left">Left</string>
+    <string name="settings_desktop_key_right">Right</string>
+    <string name="settings_desktop_key_hidden">Hidden</string>
     <string name="settings_toolbar_min_key_width">Minimum key width: %1$d dp</string>
     <string name="settings_toolbar_function_keys">Function keys</string>
     <string name="settings_toolbar_symbols">Symbols</string>

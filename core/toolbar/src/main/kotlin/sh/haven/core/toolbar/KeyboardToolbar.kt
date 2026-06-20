@@ -213,6 +213,7 @@ fun KeyboardToolbar(
     layout: ToolbarLayout = ToolbarLayout.DEFAULT,
     navBlockMode: sh.haven.core.data.preferences.NavBlockMode = sh.haven.core.data.preferences.NavBlockMode.ALIGNED,
     editModeControlsPlacement: sh.haven.core.data.preferences.EditModeControlsPlacement = sh.haven.core.data.preferences.EditModeControlsPlacement.LEFT,
+    desktopKeyPlacement: sh.haven.core.data.preferences.DesktopKeyPlacement = sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT,
     minKeyWidth: Dp = DEFAULT_MIN_KEY_WIDTH,
     onToggleCtrl: () -> Unit = {},
     onToggleAlt: () -> Unit = {},
@@ -334,7 +335,8 @@ fun KeyboardToolbar(
                     onSave = onToolbarLayoutChanged,
                     onDone = { onReorderModeChanged(false) },
                     onOpenSettings = onOpenSettings,
-                    showVncIcon = onVncTap != null,
+                    showVncIcon = onVncTap != null &&
+                        desktopKeyPlacement != sh.haven.core.data.preferences.DesktopKeyPlacement.HIDDEN,
                     placement = editModeControlsPlacement,
                 )
             } else if (selectionActive && selectionController != null) {
@@ -350,6 +352,7 @@ fun KeyboardToolbar(
                             view = view,
                             onVncTap = onVncTap,
                             vncLoading = vncLoading,
+                            desktopKeyPlacement = desktopKeyPlacement,
                         )
                     }
                     selectionContent?.invoke()
@@ -365,6 +368,7 @@ fun KeyboardToolbar(
                     view = view,
                     onVncTap = onVncTap,
                     vncLoading = vncLoading,
+                    desktopKeyPlacement = desktopKeyPlacement,
                 )
             } else {
                 Column {
@@ -380,6 +384,7 @@ fun KeyboardToolbar(
                                 view = view,
                                 onVncTap = onVncTap,
                                 vncLoading = vncLoading,
+                                desktopKeyPlacement = desktopKeyPlacement,
                             )
                         }
                     }
@@ -433,6 +438,8 @@ private fun AlignedToolbarContent(
     view: android.view.View,
     onVncTap: (() -> Unit)?,
     vncLoading: Boolean = false,
+    desktopKeyPlacement: sh.haven.core.data.preferences.DesktopKeyPlacement =
+        sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT,
 ) {
     val cb = LocalToolbarCallbacks.current
     // Split each row into: left (non-nav), right (non-nav after nav keys)
@@ -514,31 +521,36 @@ private fun AlignedToolbarContent(
             }
         }
 
-        // Col 0: keyboard toggle (top) / VNC-desktop icon (bottom). Skip the
-        // whole column when neither is present so it leaves no empty box (#245).
-        if (r1Keyboard != null || onVncTap != null) {
-            KeyColumn(
-                top = itemRenderer(r1Keyboard),
-                bottom = if (onVncTap != null) {
-                    {
-                        if (vncLoading) {
-                            Box(
-                                modifier = Modifier.size(32.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                androidx.compose.material3.CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                        } else {
-                            ToolbarIconButton(Icons.Filled.DesktopWindows, stringResource(R.string.toolbar_vnc_desktop), onVncTap)
-                        }
+        // The auto-shown desktop (VNC/RDP) key. Placed on the leading edge (LEFT,
+        // under the keyboard toggle), the trailing edge (RIGHT), or hidden (#245).
+        val showDesktop = onVncTap != null &&
+            desktopKeyPlacement != sh.haven.core.data.preferences.DesktopKeyPlacement.HIDDEN
+        val desktopRenderer: (@Composable () -> Unit)? = if (showDesktop) {
+            {
+                if (vncLoading) {
+                    Box(
+                        modifier = Modifier.size(32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
                     }
                 } else {
-                    null
-                },
-            )
+                    ToolbarIconButton(Icons.Filled.DesktopWindows, stringResource(R.string.toolbar_vnc_desktop), onVncTap!!)
+                }
+            }
+        } else {
+            null
+        }
+        val desktopOnLeft = desktopRenderer
+            ?.takeIf { desktopKeyPlacement == sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT }
+
+        // Col 0: keyboard toggle (top) / desktop icon (bottom, when LEFT). Skip the
+        // whole column when neither is present so it leaves no empty box (#245).
+        if (r1Keyboard != null || desktopOnLeft != null) {
+            KeyColumn(top = itemRenderer(r1Keyboard), bottom = desktopOnLeft)
         }
         // Col 1: Attach (top) / Voice toggle (bottom) — only when both are
         // present; a lone survivor reflows into the rest columns below (#245).
@@ -565,6 +577,13 @@ private fun AlignedToolbarContent(
         val rightColumns = maxOf(row1Right.size, row2Right.size)
         for (i in 0 until rightColumns) {
             KeyColumn(top = itemRenderer(row1Right.getOrNull(i)), bottom = itemRenderer(row2Right.getOrNull(i)))
+        }
+        // Desktop key on the trailing edge (RIGHT placement) — bottom row, lined
+        // up with the other row-2 keys, just before the fixed controls (#245).
+        if (desktopRenderer != null &&
+            desktopKeyPlacement == sh.haven.core.data.preferences.DesktopKeyPlacement.RIGHT
+        ) {
+            KeyColumn(top = null, bottom = desktopRenderer)
         }
         Column(modifier = Modifier.align(Alignment.Bottom)) {
             AddKeyButton()
@@ -698,7 +717,26 @@ private fun ToolbarRow(
     view: android.view.View,
     onVncTap: (() -> Unit)? = null,
     vncLoading: Boolean = false,
+    desktopKeyPlacement: sh.haven.core.data.preferences.DesktopKeyPlacement =
+        sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT,
 ) {
+    val showDesktop = onVncTap != null &&
+        desktopKeyPlacement != sh.haven.core.data.preferences.DesktopKeyPlacement.HIDDEN
+    val desktopKey: @Composable () -> Unit = {
+        if (vncLoading) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.size(32.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+            }
+        } else {
+            ToolbarIconButton(Icons.Filled.DesktopWindows, stringResource(R.string.toolbar_vnc_desktop), onVncTap!!)
+        }
+    }
     Row(
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
@@ -708,21 +746,19 @@ private fun ToolbarRow(
         for (item in items) {
             RenderItem(item, focusRequester, ctrlActive, altActive,
                 shiftActive, imeVisible, view)
-            if (item is ToolbarItem.BuiltIn && item.key == ToolbarKey.KEYBOARD && onVncTap != null) {
-                if (vncLoading) {
-                    androidx.compose.foundation.layout.Box(
-                        modifier = Modifier.size(32.dp),
-                        contentAlignment = androidx.compose.ui.Alignment.Center,
-                    ) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                } else {
-                    ToolbarIconButton(Icons.Filled.DesktopWindows, stringResource(R.string.toolbar_vnc_desktop), onVncTap)
-                }
+            // LEFT placement: desktop key follows the keyboard toggle.
+            if (showDesktop &&
+                desktopKeyPlacement == sh.haven.core.data.preferences.DesktopKeyPlacement.LEFT &&
+                item is ToolbarItem.BuiltIn && item.key == ToolbarKey.KEYBOARD
+            ) {
+                desktopKey()
             }
+        }
+        // RIGHT placement: desktop key sits with the trailing controls (#245).
+        if (showDesktop &&
+            desktopKeyPlacement == sh.haven.core.data.preferences.DesktopKeyPlacement.RIGHT
+        ) {
+            desktopKey()
         }
         AddKeyButton()
         ReorderEditButton()

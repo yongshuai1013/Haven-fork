@@ -390,4 +390,10 @@
     <string name="settings_standing_policies_header">Politiques permanentes — ces outils s\'exécutent sans demander</string>
     <string name="settings_standing_policy_meta">%1$s · jusqu\'à %2$d appels/min · expire %3$s</string>
     <string name="settings_standing_policy_revoke">Révoquer</string>
+
+    <!-- Desktop key placement (#245.2) -->
+    <string name="settings_toolbar_desktop_key">Touche bureau</string>
+    <string name="settings_desktop_key_left">Gauche</string>
+    <string name="settings_desktop_key_right">Droite</string>
+    <string name="settings_desktop_key_hidden">Masquée</string>
 </resources>
