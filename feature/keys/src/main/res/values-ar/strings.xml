@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">لا يحتوي مفتاح الأمان هذا على رمز PIN بعد. اختر واحدًا (4–63 حرفًا) — ستدخله عندما يوقّع المفتاح.</string>
     <string name="keys_fido_pin_confirm_label">تأكيد رمز PIN</string>
     <string name="keys_fido_pin_mismatch">رمزا PIN غير متطابقين</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">نقل لأعلى</string>
+    <string name="keys_move_down">نقل لأسفل</string>
 </resources>

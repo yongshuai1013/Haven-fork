@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">Dieser Sicherheitsschlüssel hat noch keine PIN. Wähle eine (4–63 Zeichen) — du gibst sie ein, wenn der Schlüssel signiert.</string>
     <string name="keys_fido_pin_confirm_label">PIN bestätigen</string>
     <string name="keys_fido_pin_mismatch">Die PINs stimmen nicht überein</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">Nach oben</string>
+    <string name="keys_move_down">Nach unten</string>
 </resources>

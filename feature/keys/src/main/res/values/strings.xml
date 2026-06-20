@@ -65,6 +65,8 @@
     <!-- RenameKeyDialog (#231) -->
     <string name="keys_rename">Rename</string>
     <string name="keys_rename_title">Rename key</string>
+    <string name="keys_move_up">Move up</string>
+    <string name="keys_move_down">Move down</string>
 
     <!-- copyPublicKey -->
     <string name="keys_ssh_public_key_clip_label">SSH Public Key</string>

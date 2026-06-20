@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">У этого ключа безопасности ещё нет PIN. Выберите его (4–63 символа) — вы будете вводить его при подписи ключом.</string>
     <string name="keys_fido_pin_confirm_label">Подтвердите PIN</string>
     <string name="keys_fido_pin_mismatch">PIN-коды не совпадают</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">Вверх</string>
+    <string name="keys_move_down">Вниз</string>
 </resources>

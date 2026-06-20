@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -298,7 +301,7 @@ fun KeysScreen(
                     item(key = "ssh-header") {
                         SectionHeader(stringResource(R.string.keys_section_ssh, keys.size))
                     }
-                    items(keys, key = { it.id }) { sshKey ->
+                    itemsIndexed(keys, key = { _, k -> k.id }) { index, sshKey ->
                         SshKeyAuditRow(
                             sshKey = sshKey,
                             entry = keyEntries[sshKey.id],
@@ -324,6 +327,10 @@ fun KeysScreen(
                             onRemoveCertificate = { viewModel.removeCertificate(sshKey.id) },
                             onExportCertificate = { viewModel.requestCertExport(sshKey.id) },
                             onRegenerateViaStepCa = { viewModel.regenerateViaStepCa(sshKey.id) },
+                            canMoveUp = index > 0,
+                            canMoveDown = index < keys.lastIndex,
+                            onMoveUp = { viewModel.moveKey(sshKey.id, up = true) },
+                            onMoveDown = { viewModel.moveKey(sshKey.id, up = false) },
                         )
                         HorizontalDivider()
                     }
@@ -1034,6 +1041,10 @@ private fun SshKeyAuditRow(
     onRemoveCertificate: () -> Unit,
     onExportCertificate: () -> Unit,
     onRegenerateViaStepCa: () -> Unit,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
 ) {
     val flags = entry?.flags ?: emptySet()
     Box(
@@ -1115,6 +1126,22 @@ private fun SshKeyAuditRow(
                 onClick = { onMenuDismiss(); onRename() },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
             )
+            // Reorder the key in the list (#238). Disabled at the edges; the menu
+            // stays open so several moves can be chained.
+            if (canMoveUp) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.keys_move_up)) },
+                    onClick = { onMoveUp() },
+                    leadingIcon = { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = null) },
+                )
+            }
+            if (canMoveDown) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.keys_move_down)) },
+                    onClick = { onMoveDown() },
+                    leadingIcon = { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null) },
+                )
+            }
             HorizontalDivider()
             // Per-key settings — moved off the card into the menu to keep the key
             // rows compact on tall phones; current state shows as a trailing ✓ and

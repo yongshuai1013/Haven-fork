@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">এই সিকিউরিটি কী-তে এখনো কোনো PIN নেই। একটি বেছে নিন (4–63 অক্ষর) — কী স্বাক্ষর করার সময় আপনি এটি লিখবেন।</string>
     <string name="keys_fido_pin_confirm_label">PIN নিশ্চিত করুন</string>
     <string name="keys_fido_pin_mismatch">PIN মিলছে না</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">উপরে সরান</string>
+    <string name="keys_move_down">নিচে সরান</string>
 </resources>

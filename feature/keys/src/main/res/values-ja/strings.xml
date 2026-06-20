@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">このセキュリティキーにはまだ PIN がありません。1 つ選んでください（4〜63 文字）。キーが署名するときに入力します。</string>
     <string name="keys_fido_pin_confirm_label">PIN を確認</string>
     <string name="keys_fido_pin_mismatch">PIN が一致しません</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">上へ移動</string>
+    <string name="keys_move_down">下へ移動</string>
 </resources>

@@ -66,6 +66,7 @@ class KeysViewModel @Inject constructor(
     private val fidoAuthenticator: sh.haven.core.fido.FidoAuthenticator,
     private val totpSecretRepository: sh.haven.core.data.repository.TotpSecretRepository,
     private val barcodeDecoder: sh.haven.core.scan.BarcodeDecoder,
+    private val preferencesRepository: sh.haven.core.data.preferences.UserPreferencesRepository,
     agentUiCommandBus: AgentUiCommandBus,
 ) : ViewModel() {
 
@@ -87,8 +88,21 @@ class KeysViewModel @Inject constructor(
     val stepCaConfigs: StateFlow<List<StepCaConfig>> = stepCaConfigRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val keys: StateFlow<List<SshKey>> = repository.observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val keys: StateFlow<List<SshKey>> = combine(
+        repository.observeAll(),
+        preferencesRepository.sshKeyOrder,
+    ) { list, order ->
+        sh.haven.core.data.preferences.KeyOrdering.applyOrder(list, order) { it.id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Move a key one step up/down in the user-defined order (#238). */
+    fun moveKey(keyId: String, up: Boolean) {
+        viewModelScope.launch {
+            val currentIds = keys.value.map { it.id }
+            val newOrder = sh.haven.core.data.preferences.KeyOrdering.move(currentIds, keyId, up)
+            if (newOrder != currentIds) preferencesRepository.setSshKeyOrder(newOrder)
+        }
+    }
 
     /**
      * Per-SK-key verify-required (PIN) state, for the Keys-tab toggle. Derived

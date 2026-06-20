@@ -79,6 +79,7 @@ class UserPreferencesRepository @Inject constructor(
     private val showTerminalTabBarKey = booleanPreferencesKey("show_terminal_tab_bar")
     private val reorderHintShownKey = booleanPreferencesKey("reorder_hint_shown")
     private val screenOrderKey = stringPreferencesKey("screen_order")
+    private val sshKeyOrderKey = stringPreferencesKey("ssh_key_order")
     private val waylandShellCommandKey = stringPreferencesKey("wayland_shell_command")
     private val batteryPromptDismissedKey = booleanPreferencesKey("battery_prompt_dismissed")
     private val showLinuxVmCardKey = booleanPreferencesKey("show_linux_vm_card")
@@ -502,6 +503,17 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setScreenOrder(routes: List<String>) {
         dataStore.edit { prefs ->
             prefs[screenOrderKey] = routes.joinToString(",")
+        }
+    }
+
+    /** User-defined SSH-key display order as a list of key IDs. (#238) */
+    val sshKeyOrder: Flow<List<String>> = dataStore.data.map { prefs ->
+        prefs[sshKeyOrderKey]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    }
+
+    suspend fun setSshKeyOrder(ids: List<String>) {
+        dataStore.edit { prefs ->
+            prefs[sshKeyOrderKey] = ids.joinToString(",")
         }
     }
 

@@ -191,4 +191,8 @@
     <string name="keys_fido_pin_set_help">此安全密钥尚未设置 PIN。请设置一个（4–63 个字符）——密钥签名时需要输入。</string>
     <string name="keys_fido_pin_confirm_label">确认 PIN</string>
     <string name="keys_fido_pin_mismatch">两次 PIN 不一致</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">上移</string>
+    <string name="keys_move_down">下移</string>
 </resources>

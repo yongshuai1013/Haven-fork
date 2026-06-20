@@ -189,4 +189,8 @@
     <string name="keys_fido_pin_set_help">इस सुरक्षा कुंजी का अभी कोई PIN नहीं है। एक चुनें (4–63 वर्ण) — कुंजी द्वारा हस्ताक्षर करते समय आप इसे दर्ज करेंगे।</string>
     <string name="keys_fido_pin_confirm_label">PIN की पुष्टि करें</string>
     <string name="keys_fido_pin_mismatch">PIN मेल नहीं खाते</string>
+
+    <!-- Key reordering (#238) -->
+    <string name="keys_move_up">ऊपर ले जाएँ</string>
+    <string name="keys_move_down">नीचे ले जाएँ</string>
 </resources>
