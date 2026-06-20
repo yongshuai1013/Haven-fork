@@ -968,6 +968,19 @@ class SftpViewModel @Inject constructor(
             }
         }
 
+    /**
+     * Range-capable opener for SMB media, so ffmpeg/players read over the same
+     * loopback HTTP bridge SFTP uses instead of downloading the whole file
+     * first (VISION §2). [SmbClient.openInputStream] honours the offset, so a
+     * preview probe reads just the moov atom. Re-reads [activeSmbClient] each
+     * call so it survives a reconnect.
+     */
+    private fun smbOpener(path: String): SftpStreamServer.Opener =
+        SftpStreamServer.Opener { offset ->
+            val client = activeSmbClient ?: throw java.io.IOException("SMB not connected")
+            client.openInputStream(path, if (offset > 0) offset else 0L)
+        }
+
     private fun guessContentType(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
         "mp4", "m4v" -> "video/mp4"
         "mkv" -> "video/x-matroska"
@@ -1438,9 +1451,34 @@ class SftpViewModel @Inject constructor(
                         .joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
                     ffmpegInput = "http://127.0.0.1:$port/$encodedPath"
                     Log.d(TAG, "convertFile: streaming rclone via $ffmpegInput")
+                } else if (_isSmbProfile.value && !downloadFirst) {
+                    // Stream SMB via the loopback bridge — ffmpeg reads over Range
+                    // requests instead of pre-downloading the whole file (VISION §2).
+                    val port = withContext(Dispatchers.IO) { sftpStreamServer.start() }
+                    val urlPath = sftpStreamServer.publish(
+                        path = entry.path,
+                        size = entry.size,
+                        contentType = guessContentType(entry.name),
+                        opener = smbOpener(entry.path),
+                    )
+                    ffmpegInput = "http://127.0.0.1:$port$urlPath"
+                    Log.d(TAG, "convertFile: streaming SMB via $ffmpegInput")
+                } else if (!downloadFirst) {
+                    // SFTP — stream via the loopback bridge too (VISION §2). The
+                    // download path below remains the downloadFirst opt-in for a
+                    // long transcode over a flaky link.
+                    val port = withContext(Dispatchers.IO) { sftpStreamServer.start() }
+                    val urlPath = sftpStreamServer.publish(
+                        path = entry.path,
+                        size = entry.size,
+                        contentType = guessContentType(entry.name),
+                        opener = sftpOpener(profileId, entry.path),
+                    )
+                    ffmpegInput = "http://127.0.0.1:$port$urlPath"
+                    Log.d(TAG, "convertFile: streaming SFTP via $ffmpegInput")
                 } else {
-                    // SFTP, SMB, or rclone with downloadFirst=true — pull the
-                    // whole file into cache, then hand the path to ffmpeg.
+                    // rclone/SFTP/SMB with downloadFirst=true — pull the whole
+                    // file into cache, then hand the path to ffmpeg.
                     val dlLabel = "\u2B07 Downloading ${entry.name}"
                     _transferProgress.value = TransferProgress(dlLabel, entry.size, 0)
                     val cacheInput = java.io.File(appContext.cacheDir, "ffmpeg_in_${entry.name}")
@@ -2333,18 +2371,19 @@ class SftpViewModel @Inject constructor(
                         Log.d(TAG, "preparePreview: using rclone HTTP URL $inputSource")
                     }
                     _isSmbProfile.value -> {
-                        // SMB — still downloads to cache; no HTTP bridge yet.
-                        val cached = java.io.File(appContext.cacheDir, "ffmpeg_in_${entry.name}")
-                        if (!cached.exists() || cached.length() == 0L) {
-                            withContext(Dispatchers.IO) {
-                                cached.outputStream().use { out ->
-                                    val client = activeSmbClient ?: throw IllegalStateException("SMB not connected")
-                                    client.download(entry.path, out) { _, _ -> }
-                                }
-                            }
-                        }
-                        inputSource = cached.absolutePath
-                        isRemote = false
+                        // SMB — stream via the same loopback HTTP bridge as SFTP
+                        // so ffmpeg uses Range requests (probe reads just the moov
+                        // atom) instead of downloading the whole file (VISION §2).
+                        val port = withContext(Dispatchers.IO) { sftpStreamServer.start() }
+                        val urlPath = sftpStreamServer.publish(
+                            path = entry.path,
+                            size = entry.size,
+                            contentType = guessContentType(entry.name),
+                            opener = smbOpener(entry.path),
+                        )
+                        inputSource = "http://127.0.0.1:$port$urlPath"
+                        isRemote = true
+                        Log.d(TAG, "preparePreview: using SMB HTTP URL $inputSource")
                     }
                     else -> {
                         // SFTP — stream via loopback HTTP so ffmpeg uses Range
