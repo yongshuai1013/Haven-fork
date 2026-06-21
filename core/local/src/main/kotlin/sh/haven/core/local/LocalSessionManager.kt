@@ -232,6 +232,10 @@ class LocalSessionManager @Inject constructor(
                 "-b", "/proc",
                 "-b", "/sys",
                 "-b", "/storage",
+                // Convenience alias so shared storage is reachable at the
+                // familiar /sdcard, not just /storage/emulated/0 (#256).
+                // Needs Haven's storage permission for content to show.
+                "-b", "/storage/emulated/0:/sdcard",
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
                 "-w", "/root",
             ) + shellArgs
