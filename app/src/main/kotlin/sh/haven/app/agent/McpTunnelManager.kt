@@ -389,14 +389,17 @@ class McpTunnelManager @Inject constructor(
         }
         val auth = resolveHeadlessAuth(profile)
         if (auth == null) {
-            Log.w(
+            // Expected, not a failure: a touch-required / encrypted-only endpoint
+            // (e.g. a FIDO2 key) can't authenticate a *headless* connection. The
+            // agent endpoint is carried by WireGuard (the default carrier); this
+            // SSH -R is only a fallback, and it comes up on the user's interactive
+            // session via that profile's saved MCP rule. So don't write a per-kick
+            // FAILED connection-log entry (it read as a failure storm) — just note
+            // it in logcat and stop the headless attempt.
+            Log.i(
                 TAG,
-                "MCP tunnel endpoint ${profile.label} has no non-interactive auth " +
-                    "(needs an unencrypted key or a stored password) — cannot tunnel headlessly",
-            )
-            connectionLogRepository.logEvent(
-                profile.id, ConnectionLog.Status.FAILED,
-                details = "MCP tunnel: no non-interactive auth available",
+                "MCP -R fallback for ${profile.label} needs an interactive (e.g. key) " +
+                    "connect; endpoint runs over WireGuard meanwhile",
             )
             return Outcome.FATAL
         }

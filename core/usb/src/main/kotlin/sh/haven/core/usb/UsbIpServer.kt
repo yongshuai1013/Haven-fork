@@ -53,6 +53,9 @@ class UsbIpServer @Inject constructor(
 
     private val clients = java.util.concurrent.atomic.AtomicInteger(0)
 
+    /** Live client sockets, so [stop] can close them and unblock their serve() threads. */
+    private val clientSockets = java.util.concurrent.ConcurrentHashMap.newKeySet<Socket>()
+
     /** Remote usbip clients currently connected (>0 ⇒ a host has attached). */
     val clientCount: Int get() = clients.get()
 
@@ -90,13 +93,21 @@ class UsbIpServer @Inject constructor(
         serverSocket?.let { runCatching { it.close() } }
         serverSocket = null
         deviceName = null
+        // Closing the server socket doesn't close already-accepted client sockets,
+        // so without this their serve() threads stay blocked on read/write and
+        // clientCount lingers >0 until the remote's TCP errors. Close them now so
+        // they exit and decrement promptly.
+        clientSockets.forEach { runCatching { it.close() } }
+        clientSockets.clear()
     }
 
     private fun serve(client: Socket, device: String) {
         clients.incrementAndGet()
+        clientSockets.add(client)
         try {
             serveConnection(client, device)
         } finally {
+            clientSockets.remove(client)
             clients.decrementAndGet()
         }
     }
