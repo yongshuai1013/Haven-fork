@@ -112,11 +112,27 @@ class SshKeySection @Inject constructor(
      * Toggle the [SshKey.biometricProtected] flag on a single row.
      * Called from the Settings → Security audit screen's per-entry
      * "Require biometric" switch. Returns true when the row exists
-     * and the value changed; false for unknown id or no-op write.
+     * and the value changed; false for unknown id, no-op write, or a
+     * denied disable-auth (see below).
+     *
+     * Disabling protection is itself a protected action (#252):
+     * without this gate, anyone with the unlocked app could strip the
+     * biometric requirement and then export the key with no prompt,
+     * defeating the protection entirely. So clearing the flag requires
+     * a fresh biometric auth and fails closed (flag stays on) on a
+     * denied/unavailable prompt. Enabling needs no gate — there's no
+     * protection to bypass yet.
      */
     suspend fun setBiometricProtected(entryId: String, protected: Boolean): Boolean {
         val row = sshKeyDao.getById(entryId) ?: return false
         if (row.biometricProtected == protected) return false
+        if (row.biometricProtected && !protected) {
+            val decision = biometricGate.request(
+                label = "Disable biometric lock for ${row.label}",
+                detail = row.fingerprintSha256,
+            )
+            if (decision != BiometricGate.Decision.ALLOW) return false
+        }
         sshKeyDao.upsert(row.copy(biometricProtected = protected))
         return true
     }

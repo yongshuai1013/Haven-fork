@@ -317,6 +317,78 @@ class SshKeySectionTest {
     }
 
     @Test
+    fun `disabling biometric protection without auth fails closed (#252)`() = runTest {
+        // The flaw: stripping the gate must itself be gated. With a
+        // foreground-inactive gate, request() short-circuits to
+        // UNAVAILABLE — the disable must be refused and the flag must
+        // stay on (no upsert).
+        val row = SshKey(
+            id = "k-strip", label = "high-security",
+            keyType = "Ed25519",
+            privateKeyBytes = "-----BEGIN".toByteArray(),
+            publicKeyOpenSsh = "ssh-ed25519 …",
+            fingerprintSha256 = "SHA256:strip",
+            biometricProtected = true,
+        )
+        val gate = BiometricGate() // foregroundActive=false by default
+        val (section, dao) = newSectionWithGate(listOf(row), gate)
+        assertFalse(section.setBiometricProtected("k-strip", false))
+        coVerify(exactly = 0) { dao.upsert(any()) }
+    }
+
+    @Test
+    fun `disabling biometric protection with allowed prompt clears the flag`() = runTest {
+        val row = SshKey(
+            id = "k-strip-ok", label = "high-security",
+            keyType = "Ed25519",
+            privateKeyBytes = "-----BEGIN".toByteArray(),
+            publicKeyOpenSsh = "ssh-ed25519 …",
+            fingerprintSha256 = "SHA256:strip-ok",
+            biometricProtected = true,
+        )
+        val gate = BiometricGate().apply { setForegroundActive(true) }
+        val (section, dao) = newSectionWithGate(listOf(row), gate)
+        val captured = slot<SshKey>()
+        coEvery { dao.upsert(capture(captured)) } returns Unit
+
+        // Auto-ALLOW the disable prompt as soon as it lands.
+        val ok = coroutineScope {
+            val responder = launch {
+                gate.pending.collect { pending ->
+                    pending.firstOrNull()?.let { gate.respond(it.id, BiometricGate.Decision.ALLOW) }
+                }
+            }
+            try {
+                section.setBiometricProtected("k-strip-ok", false)
+            } finally {
+                responder.cancel()
+            }
+        }
+        assertTrue(ok)
+        assertEquals(false, captured.captured.biometricProtected)
+    }
+
+    @Test
+    fun `enabling biometric protection needs no auth`() = runTest {
+        // Enabling has no protection to bypass — a foreground-inactive
+        // gate (which would deny any prompt) must NOT block turning it on.
+        val row = SshKey(
+            id = "k-enable", label = "plain",
+            keyType = "Ed25519",
+            privateKeyBytes = "-----BEGIN".toByteArray(),
+            publicKeyOpenSsh = "ssh-ed25519 …",
+            fingerprintSha256 = "SHA256:enable",
+            biometricProtected = false,
+        )
+        val gate = BiometricGate() // foregroundActive=false
+        val (section, dao) = newSectionWithGate(listOf(row), gate)
+        val captured = slot<SshKey>()
+        coEvery { dao.upsert(capture(captured)) } returns Unit
+        assertTrue(section.setBiometricProtected("k-enable", true))
+        assertEquals(true, captured.captured.biometricProtected)
+    }
+
+    @Test
     fun `fetch on biometric-protected key with no foreground returns Failed`() = runTest {
         val row = SshKey(
             id = "k-bio-fail", label = "off",

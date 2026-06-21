@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import sh.haven.core.data.agent.AgentConsentManager
 import sh.haven.core.data.backup.BackupService
@@ -41,6 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val terminalFontInstaller: TerminalFontInstaller,
     private val connectionRepository: ConnectionRepository,
     private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
+    private val biometricGate: sh.haven.core.data.keystore.BiometricGate,
 ) : ViewModel() {
 
     /**
@@ -483,6 +485,18 @@ class SettingsViewModel @Inject constructor(
 
     fun setBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch {
+            // Turning the app lock OFF must itself be authenticated (#252):
+            // otherwise anyone with the unlocked app strips the lock and
+            // gains unprompted access to everything it guards. Enabling
+            // needs no prior auth. Fail closed — a denied prompt leaves
+            // the lock on (the bound switch reverts to its real state).
+            if (!enabled && preferencesRepository.biometricEnabled.first()) {
+                val decision = biometricGate.request(
+                    label = "Disable app lock",
+                    detail = "Authenticate to turn off biometric app lock",
+                )
+                if (decision != sh.haven.core.data.keystore.BiometricGate.Decision.ALLOW) return@launch
+            }
             preferencesRepository.setBiometricEnabled(enabled)
         }
     }
