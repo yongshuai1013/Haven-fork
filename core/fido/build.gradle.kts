@@ -24,6 +24,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:usb"))
     implementation(libs.jsch)
     implementation(libs.bouncycastle)
     implementation(libs.coroutines.core)

@@ -67,7 +67,7 @@ class UsbBrokerTest {
             every { registerReceiver(any(), any()) } returns null
             every { registerReceiver(any(), any(), any<Int>()) } returns null
         }
-        return UsbBroker(context)
+        return UsbBroker(context, UsbAccessGate())
     }
 
     @Test
@@ -133,7 +133,7 @@ class UsbBrokerTest {
             every { registerReceiver(capture(recvSlot), any()) } returns null
             every { registerReceiver(any(), any(), any<Int>()) } returns null
         }
-        val broker = UsbBroker(context)
+        val broker = UsbBroker(context, UsbAccessGate())
 
         broker.openDevice(dev.deviceName)
         assertTrue(broker.isOpen(dev.deviceName))

@@ -181,6 +181,9 @@ internal fun ctap2AssertionErrorForStatus(status: Byte): Exception? = when (stat
 @Singleton
 class FidoAuthenticator @Inject constructor(
     @ApplicationContext private val context: Context,
+    // Pauses the USB/IP export's transfers on the key while we authenticate on
+    // our own connection, so their CTAPHID frames don't interleave (#FIDO-storm).
+    private val usbAccessGate: sh.haven.core.usb.UsbAccessGate,
 ) {
     /** Sealed type for connected security key transport. */
     private sealed class ConnectedDevice {
@@ -691,12 +694,17 @@ class FidoAuthenticator @Inject constructor(
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
         ensureUsbPermission(usbManager, device)
         val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
-        val connection = usbManager.openDevice(device)
-            ?: throw IOException("Failed to open USB device")
-        connection.claimInterface(hidInterface, true)
-        return CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
-            transport.init()
-            block(transport)
+        usbAccessGate.acquire(device.deviceName)
+        try {
+            val connection = usbManager.openDevice(device)
+                ?: throw IOException("Failed to open USB device")
+            connection.claimInterface(hidInterface, true)
+            return CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
+                transport.init()
+                block(transport)
+            }
+        } finally {
+            usbAccessGate.release(device.deviceName)
         }
     }
 
@@ -1097,11 +1105,11 @@ class FidoAuthenticator @Inject constructor(
         // HID interface — a YubiKey OTP+FIDO+CCID's keyboard HID has no OUT.
         val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
 
-        val connection = usbManager.openDevice(device)
-            ?: throw IOException("Failed to open USB device")
-        connection.claimInterface(hidInterface, true)
-
+        usbAccessGate.acquire(device.deviceName)
         try {
+            val connection = usbManager.openDevice(device)
+                ?: throw IOException("Failed to open USB device")
+            connection.claimInterface(hidInterface, true)
             CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
                 Log.d(TAG, "CTAPHID init...")
                 transport.init()
@@ -1124,6 +1132,8 @@ class FidoAuthenticator @Inject constructor(
             Log.e(TAG, "USB FIDO assertion failed: ${e.javaClass.simpleName}: ${e.message}")
             lastAssertionError = e.message
             throw e
+        } finally {
+            usbAccessGate.release(device.deviceName)
         }
     }
 
@@ -1248,11 +1258,11 @@ class FidoAuthenticator @Inject constructor(
 
         val (hidInterface, endpointIn, endpointOut) = findCtapHidInterface(device)
 
-        val connection = usbManager.openDevice(device)
-            ?: throw IOException("Failed to open USB device")
-        connection.claimInterface(hidInterface, true)
-
+        usbAccessGate.acquire(device.deviceName)
         try {
+            val connection = usbManager.openDevice(device)
+                ?: throw IOException("Failed to open USB device")
+            connection.claimInterface(hidInterface, true)
             CtapHidTransport(connection, endpointIn, endpointOut).use { transport ->
                 Log.d(TAG, "CTAPHID init (enumerate)...")
                 transport.init()
@@ -1265,6 +1275,8 @@ class FidoAuthenticator @Inject constructor(
             Log.e(TAG, "USB enumerate failed: ${e.javaClass.simpleName}: ${e.message}")
             lastAssertionError = e.message
             throw e
+        } finally {
+            usbAccessGate.release(device.deviceName)
         }
     }
 

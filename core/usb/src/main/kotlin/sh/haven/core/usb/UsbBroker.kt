@@ -45,6 +45,7 @@ import javax.inject.Singleton
 @Singleton
 class UsbBroker @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val accessGate: UsbAccessGate,
 ) {
     private val usbManager: UsbManager
         get() = context.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -274,6 +275,10 @@ class UsbBroker @Inject constructor(
         timeoutMs: Int,
     ): TransferResult {
         val handle = handleFor(deviceName)
+        // Pause while a priority consumer (FIDO auth on its own connection) holds
+        // the key, so the export isn't transferring on the shared endpoints at the
+        // same time (#FIDO-storm contention).
+        accessGate.awaitClear(deviceName, EXPORT_YIELD_MS)
         val isIn = (requestType and UsbConstants.USB_DIR_IN) != 0
         val buffer = if (isIn) ByteArray(length) else (data ?: ByteArray(0))
         val transferred = handle.connection.controlTransfer(
@@ -297,6 +302,7 @@ class UsbBroker @Inject constructor(
         timeoutMs: Int,
     ): TransferResult {
         val handle = handleFor(deviceName)
+        accessGate.awaitClear(deviceName, EXPORT_YIELD_MS) // yield to FIDO auth — see controlTransfer
         val (iface, endpoint) = locateEndpoint(handle.device, endpointAddress)
         if (handle.claimedInterfaces.add(iface.id)) {
             if (!handle.connection.claimInterface(iface, true)) {
@@ -331,6 +337,13 @@ class UsbBroker @Inject constructor(
     companion object {
         private const val TAG = "UsbBroker"
         private const val PERMISSION_TIMEOUT_MS = 30_000L
+
+        /**
+         * Max time an export transfer waits for a FIDO auth lease to clear before
+         * proceeding anyway. Above FIDO's 30s user-presence USB timeout so a real
+         * auth finishes first, but bounded so a dead holder can't wedge the export.
+         */
+        private const val EXPORT_YIELD_MS = 35_000L
 
         /** Broadcast action for the runtime-permission grant callback. */
         const val ACTION_USB_PERMISSION = "sh.haven.core.usb.USB_PERMISSION"
