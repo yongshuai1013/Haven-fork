@@ -423,6 +423,26 @@ class AgentConsentManager @Inject constructor() {
     }
 
     /**
+     * Grant a short window during which calls to [toolName] from
+     * [clientHint] auto-allow. Called when the user taps **Allow** on the
+     * backgrounded-consent notification: the original call already failed
+     * closed (instant DENY), so this lets the agent's retry proceed without
+     * re-prompting. Reuses the [windowedAllows] mechanism — same as the
+     * in-sheet "Allow for N min" — so it's bounded ([NOTIFICATION_ALLOW_WINDOW_MS])
+     * and cleared by [clearMemoised]. Keeping instant-deny intact (rather
+     * than queueing the call to wait) is deliberate — see the failure-model
+     * note; the notification action is how the user gets a real choice
+     * without the consent gate ever blocking.
+     */
+    suspend fun armRetryWindow(clientHint: String?, toolName: String) {
+        val key = memoKey(clientHint, toolName)
+        mutex.withLock {
+            windowedAllows[key] = System.currentTimeMillis() + NOTIFICATION_ALLOW_WINDOW_MS
+        }
+        Log.i(LOG_TAG, "armRetryWindow('$key') — user tapped Allow on the blocked-action notification")
+    }
+
+    /**
      * Used by Settings → "Forget remembered allows". Clears the session
      * caches here; the *persistent* bypass set lives in DataStore, so the
      * caller (`SettingsViewModel`) also wipes
@@ -462,5 +482,13 @@ class AgentConsentManager @Inject constructor() {
          * timeout, short enough not to span unrelated activity).
          */
         private const val RETRY_GRANT_MS = 45_000L
+
+        /**
+         * How long the notification-"Allow" grant ([armRetryWindow]) keeps a
+         * (client, tool) auto-allowed so the agent's retry of a backgrounded-
+         * blocked action proceeds. Short — it's a window for the retry, not a
+         * standing bypass.
+         */
+        const val NOTIFICATION_ALLOW_WINDOW_MS = 120_000L
     }
 }

@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import sh.haven.app.agent.ConsentActionReceiver
 import sh.haven.core.data.agent.AgentConsentManager
 import sh.haven.core.data.agent.ConsentRequest
 import androidx.hilt.work.HiltWorkerFactory
@@ -246,8 +247,8 @@ class HavenApp : Application(), Configuration.Provider {
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = "Heads-up when an MCP agent action needs your approval but " +
-                        "Haven is in the background. The action fails closed until you open " +
-                        "Haven and allow or deny it."
+                        "Haven is in the background. The action fails closed; tap Allow or Deny " +
+                        "on the notification (Allow needs the device unlocked)."
                 },
             )
         }
@@ -269,15 +270,19 @@ class HavenApp : Application(), Configuration.Provider {
         )
 
         val isPairing = req.toolName == AgentConsentManager.PAIRING_TOOL_NAME
+        // Per-(client,tool) id so distinct blocked actions get distinct
+        // actionable notifications and each Allow/Deny resolves the right one.
+        val notifId = ("${req.clientHint ?: ""}::${req.toolName}").hashCode()
+
         val title = if (isPairing) "Haven: a client wants to pair" else "Haven: agent needs approval"
         val line = if (isPairing) {
             "A client tried to connect while Haven was in the background. Open Haven so it can retry."
         } else {
-            "‘${req.toolName}’ was blocked while Haven was in the background. " +
-                "Open Haven and the agent can retry — it'll ask you to allow or deny then."
+            "‘${req.toolName}’ needs your approval. Allow or deny below — the action stays " +
+                "blocked until you do."
         }
 
-        val notification = NotificationCompat.Builder(this, CONSENT_CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CONSENT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
             .setContentText(line)
@@ -286,10 +291,46 @@ class HavenApp : Application(), Configuration.Provider {
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
             .setAutoCancel(true)
             .setContentIntent(contentIntent)
-            .build()
+
+        // Allow/Deny actions for tool calls. The original call already failed
+        // closed; tapping Allow arms a short retry window (ConsentActionReceiver
+        // → AgentConsentManager.armRetryWindow) so the agent's retry proceeds —
+        // the consent gate itself never waits. Pairing has no tool-window to
+        // arm, so it keeps the open-Haven-to-retry flow (no buttons).
+        if (!isPairing) {
+            val allowPi = PendingIntent.getBroadcast(
+                this, notifId * 2,
+                Intent(this, ConsentActionReceiver::class.java).apply {
+                    action = ConsentActionReceiver.ACTION_ALLOW
+                    putExtra(ConsentActionReceiver.EXTRA_CLIENT, req.clientHint)
+                    putExtra(ConsentActionReceiver.EXTRA_TOOL, req.toolName)
+                    putExtra(ConsentActionReceiver.EXTRA_NOTIF_ID, notifId)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            val denyPi = PendingIntent.getBroadcast(
+                this, notifId * 2 + 1,
+                Intent(this, ConsentActionReceiver::class.java).apply {
+                    action = ConsentActionReceiver.ACTION_DENY
+                    putExtra(ConsentActionReceiver.EXTRA_NOTIF_ID, notifId)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            // Allow requires the device be unlocked (API 31+) — approving an
+            // agent action from the lock screen would weaken the consent gate.
+            val allowAction = NotificationCompat.Action.Builder(0, "Allow", allowPi)
+                .apply {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        setAuthenticationRequired(true)
+                    }
+                }
+                .build()
+            builder.addAction(allowAction)
+            builder.addAction(NotificationCompat.Action.Builder(0, "Deny", denyPi).build())
+        }
 
         try {
-            mgr.notify(CONSENT_BLOCKED_NOTIFICATION_ID, notification)
+            mgr.notify(notifId, builder.build())
         } catch (_: SecurityException) {
             // POST_NOTIFICATIONS revoked between the enabled-check and notify; ignore.
         }
@@ -352,8 +393,6 @@ class HavenApp : Application(), Configuration.Provider {
 
     private companion object {
         const val CONSENT_CHANNEL_ID = "haven-agent-consent"
-        // Stable id so repeated backgrounded blocks update one notification.
-        const val CONSENT_BLOCKED_NOTIFICATION_ID = 0x4A56 // 'HV'
     }
 }
 

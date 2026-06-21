@@ -25,6 +25,39 @@ class AgentConsentManagerTest {
     }
 
     @Test
+    fun `armRetryWindow lets a subsequent call allow without a prompt`() = runTest {
+        val mgr = AgentConsentManager()
+        // Simulates the user tapping "Allow" on the backgrounded-consent
+        // notification: the original call already DENIED (foreground=false),
+        // and arming the window lets the agent's retry proceed — even while
+        // still backgrounded — without re-prompting.
+        mgr.armRetryWindow("agent-A", "read_logcat")
+        val decision = mgr.requestConsent(
+            toolName = "read_logcat",
+            clientHint = "agent-A",
+            summary = "retry",
+            level = ConsentLevel.EVERY_CALL,
+        )
+        assertEquals(ConsentDecision.ALLOW, decision)
+    }
+
+    @Test
+    fun `armRetryWindow is scoped to the granted client and tool`() = runTest {
+        val mgr = AgentConsentManager()
+        mgr.armRetryWindow("agent-A", "read_logcat")
+        // A different tool from the same client is NOT covered → fail-closed.
+        val otherTool = mgr.requestConsent(
+            "run_in_proot", "agent-A", "x", ConsentLevel.EVERY_CALL,
+        )
+        // The same tool from a different client is NOT covered → fail-closed.
+        val otherClient = mgr.requestConsent(
+            "read_logcat", "agent-B", "x", ConsentLevel.EVERY_CALL,
+        )
+        assertEquals(ConsentDecision.DENY, otherTool)
+        assertEquals(ConsentDecision.DENY, otherClient)
+    }
+
+    @Test
     fun `non-NEVER without foreground returns DENY immediately`() = runTest {
         val mgr = AgentConsentManager()
         // foregroundActive defaults to false — fail-closed, instant DENY.

@@ -127,5 +127,11 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <!-- Allow/Deny actions on the backgrounded-consent notification.
+             Internal only — fired by our own PendingIntents. -->
+        <receiver
+            android:name=".agent.ConsentActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>
