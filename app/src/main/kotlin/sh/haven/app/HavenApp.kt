@@ -252,23 +252,29 @@ class HavenApp : Application(), Configuration.Provider {
             )
         }
 
-        val launch = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        val contentIntent = launch?.let {
-            PendingIntent.getActivity(
-                this, 0, it,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        // Bring the EXISTING MainActivity to the front (REORDER_TO_FRONT)
+        // rather than relaunching it — relaunching recreated the activity and
+        // dropped the Material You dynamic colour scheme (it fell back to the
+        // static palette). Resuming the live instance keeps the user's theme.
+        val launch = Intent(this, MainActivity::class.java).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
             )
         }
+        val contentIntent = PendingIntent.getActivity(
+            this, 0, launch,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         val isPairing = req.toolName == AgentConsentManager.PAIRING_TOOL_NAME
         val title = if (isPairing) "Haven: a client wants to pair" else "Haven: agent needs approval"
         val line = if (isPairing) {
-            "Open Haven to allow or deny — it's blocked until you do."
+            "Open Haven to allow or deny — it's waiting on you."
         } else {
-            "‘${req.toolName}’ was blocked while Haven was in the background. " +
-                "Open Haven to allow or deny — it's blocked until you do."
+            "‘${req.toolName}’ is waiting for your approval. " +
+                "Open Haven to allow or deny."
         }
 
         val notification = NotificationCompat.Builder(this, CONSENT_CHANNEL_ID)
@@ -279,7 +285,7 @@ class HavenApp : Application(), Configuration.Provider {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
             .setAutoCancel(true)
-            .apply { contentIntent?.let { setContentIntent(it) } }
+            .setContentIntent(contentIntent)
             .build()
 
         try {

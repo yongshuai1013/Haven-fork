@@ -69,13 +69,15 @@ data class ConsentRequest(
  * ### Failure model
  *
  * The brand promise (VISION.md §85) is that the user always keeps the
- * wheel — *never* a silent automation channel. That has one
- * unforgiving consequence: if no Haven activity is in the foreground,
- * we cannot ask the user to consent, so the request **must** fail
- * closed. This manager tracks foreground state via
- * [setForegroundActive] and refuses non-NEVER requests when no
- * activity is visible. The user gets a notification (wired by the UI
- * layer when this becomes load-bearing) explaining what was blocked.
+ * wheel — *never* a silent automation channel. When no Haven activity is
+ * foreground there is nothing to render the prompt on, so the call cannot
+ * proceed unattended. Rather than instant-denying (which the user never
+ * sees), a non-NEVER request is **queued and a notification is raised**
+ * ([blockedWhileBackground], rendered by the app layer) so the user can
+ * foreground Haven and choose. The call still only proceeds on an explicit
+ * ALLOW, and if the user never returns the queued request **times out to
+ * DENY** — fail-closed in the limit, but no longer a silent instant-deny.
+ * Foreground state is tracked via [setForegroundActive].
  *
  * ### Memoisation
  *
@@ -256,23 +258,6 @@ class AgentConsentManager @Inject constructor() {
             }
         }
 
-        if (!foregroundActive) {
-            // Fail closed: nothing can render the prompt right now,
-            // and the §85 rule forbids letting the call proceed
-            // anyway. Caller will translate this into the audit log
-            // as Outcome.DENIED. Nudge the user via a notification (the
-            // app layer renders it) so they can come approve a retry.
-            _blockedWhileBackground.tryEmit(
-                ConsentRequest(
-                    id = nextId.getAndIncrement(),
-                    toolName = toolName,
-                    clientHint = clientHint,
-                    summary = summary,
-                ),
-            )
-            return ConsentDecision.DENY
-        }
-
         val id = nextId.getAndIncrement()
         val deferred = CompletableDeferred<ConsentDecision>()
         val request = ConsentRequest(
@@ -282,6 +267,17 @@ class AgentConsentManager @Inject constructor() {
             summary = summary,
             offerTimedAllow = offerTimedAllow,
         )
+
+        // No activity is foreground to render the sheet right now. Rather than
+        // silently instant-denying (which the user never sees), queue the
+        // request and raise a notification (rendered by the app layer) so the
+        // user can foreground Haven and choose. §85 still holds: the call only
+        // proceeds on an explicit ALLOW, and if the user never returns it
+        // times out to DENY at the await below — fail-closed in the limit, but
+        // no longer a silent instant-deny.
+        if (!foregroundActive) {
+            _blockedWhileBackground.tryEmit(request)
+        }
 
         mutex.withLock {
             pendingEntries[id] = PendingEntry(deferred, clientHint)
@@ -336,19 +332,6 @@ class AgentConsentManager @Inject constructor() {
         clientVersion: String?,
         timeoutMs: Long = 60_000,
     ): ConsentDecision {
-        if (!foregroundActive) {
-            Log.w(LOG_TAG, "requestClientPairing('$clientName'): foreground=false — failing closed")
-            _blockedWhileBackground.tryEmit(
-                ConsentRequest(
-                    id = nextId.getAndIncrement(),
-                    toolName = PAIRING_TOOL_NAME,
-                    clientHint = clientName,
-                    summary = "MCP client '$clientName' tried to connect to Haven.",
-                ),
-            )
-            return ConsentDecision.DENY
-        }
-
         val id = nextId.getAndIncrement()
         Log.i(LOG_TAG, "requestClientPairing('$clientName' v${clientVersion ?: "?"}): queueing prompt id=$id")
         val deferred = CompletableDeferred<ConsentDecision>()
@@ -361,6 +344,14 @@ class AgentConsentManager @Inject constructor() {
                 "Once paired, it will be able to call tools — each tool still asks for " +
                 "consent unless you elect to bypass that with the per-call checkbox.",
         )
+
+        // Backgrounded: queue + notify instead of instant-deny, so the user
+        // can foreground Haven and decide (see requestConsent). Times out to
+        // DENY if they never return.
+        if (!foregroundActive) {
+            Log.w(LOG_TAG, "requestClientPairing('$clientName'): foreground=false — notifying + queueing")
+            _blockedWhileBackground.tryEmit(request)
+        }
 
         mutex.withLock {
             pendingEntries[id] = PendingEntry(deferred, clientName)
