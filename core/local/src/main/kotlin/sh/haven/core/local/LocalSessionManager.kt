@@ -223,12 +223,26 @@ class LocalSessionManager @Inject constructor(
             // rootfs, so picking tmux without `apk add tmux` degrades
             // to today's behaviour rather than failing the session.
             val shellArgs: Array<String> = sessionManagerShellArgs("haven-local", plain = plain)
+            // Writable /dev/shm overlay (Android's /dev is read-only with no shm),
+            // matching the one-shot (runCommandInProot) and desktop launch paths.
+            val devShm = prootManager.ensureDevShm()
             val args = arrayOf(
                 prootBinary,
                 "-0",                    // fake root
                 "--link2symlink",        // fix link() for X11 lock files
                 "-r", rootfsDir.absolutePath,
                 "-b", "/dev",
+                // Device nodes Android's read-only /dev lacks. Without these the
+                // interactive shell can't do POSIX shared memory or /dev/fd I/O,
+                // so apps (browsers, .NET/Mono, anything using shm_open) fail —
+                // these are the same binds the one-shot/desktop paths already use
+                // on this proot binary (#266).
+                "-b", "/dev/urandom:/dev/random",
+                "-b", "$devShm:/dev/shm",
+                "-b", "/proc/self/fd:/dev/fd",
+                "-b", "/proc/self/fd/0:/dev/stdin",
+                "-b", "/proc/self/fd/1:/dev/stdout",
+                "-b", "/proc/self/fd/2:/dev/stderr",
                 "-b", "/proc",
                 "-b", "/sys",
                 "-b", "/storage",
@@ -246,6 +260,15 @@ class LocalSessionManager @Inject constructor(
                 "LANG=en_US.UTF-8",
                 "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
                 "SHELL=/bin/sh",
+                // XDG base dirs so desktop/X11 apps and `startx`/dbus-run-session
+                // launched from the shell find their config/data and a writable
+                // runtime dir instead of erroring (#261). RUNTIME_DIR == /tmp,
+                // which is the cacheDir bind (writable).
+                "XDG_RUNTIME_DIR=/tmp",
+                "XDG_DATA_HOME=/root/.local/share",
+                "XDG_DATA_DIRS=/usr/local/share:/usr/share",
+                "XDG_CONFIG_HOME=/root/.config",
+                "XDG_CACHE_HOME=/root/.cache",
                 "PROOT_TMP_DIR=${context.cacheDir.absolutePath}",
                 "PROOT_LOADER=${java.io.File(context.applicationInfo.nativeLibraryDir, "libproot_loader.so").absolutePath}",
             )
@@ -253,7 +276,11 @@ class LocalSessionManager @Inject constructor(
         } else {
             // Fallback: plain Android shell
             val cmd = "/system/bin/sh"
-            val args = arrayOf(cmd, "-l")
+            // The PTY inherits the app process cwd ("/"), which an unprivileged
+            // app can't list — users landed somewhere `ls` failed until they cd'd
+            // (#270). Start the login shell in HOME (app-private, readable) instead.
+            val home = context.filesDir.absolutePath
+            val args = arrayOf(cmd, "-c", "cd '$home' 2>/dev/null; exec /system/bin/sh -l")
             val env = arrayOf(
                 "HOME=${context.filesDir.absolutePath}",
                 "TERM=xterm-256color",

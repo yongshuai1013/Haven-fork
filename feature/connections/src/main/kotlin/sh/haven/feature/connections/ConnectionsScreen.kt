@@ -1633,7 +1633,12 @@ private fun ConnectionTreeItem(
                 headlineContent = { Text(profile.label) },
                 supportingContent = {
                     if (profile.isLocal) {
-                        Text(stringResource(R.string.connections_proot_label))
+                        Text(
+                            stringResource(
+                                if (profile.useAndroidShell) R.string.connections_android_shell_label
+                                else R.string.connections_proot_label,
+                            ),
+                        )
                     } else if (profile.isReticulum) {
                         Text("RNS: ${profile.destinationHash?.take(12) ?: ""}... via ${profile.reticulumHost}:${profile.reticulumPort}")
                     } else if (profile.isRclone) {

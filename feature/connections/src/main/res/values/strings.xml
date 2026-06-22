@@ -51,6 +51,7 @@
 
     <!-- Connection tree item -->
     <string name="connections_proot_label">PRoot Alpine Linux</string>
+    <string name="connections_android_shell_label">Native Android shell</string>
     <string name="connections_launch_desktop">Launch Desktop</string>
     <string name="connections_setup_desktop">Setup Desktop</string>
 
