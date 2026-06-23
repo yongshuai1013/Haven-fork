@@ -88,6 +88,7 @@ class McpWorkspaceToolsTest {
             prootInstallLogRepository = mockk<sh.haven.core.data.repository.ProotInstallLogRepository>(relaxed = true),
             sshKeyRepository = mockk<sh.haven.core.data.repository.SshKeyRepository>(relaxed = true),
             totpSecretRepository = mockk<sh.haven.core.data.repository.TotpSecretRepository>(relaxed = true),
+            ageIdentityRepository = mockk<sh.haven.core.data.repository.AgeIdentityRepository>(relaxed = true),
             desktopSessionRegistry = mockk<sh.haven.core.data.desktop.DesktopSessionRegistry>(relaxed = true),
             usbBroker = mockk<sh.haven.core.usb.UsbBroker>(relaxed = true),
             usbIpServer = mockk<sh.haven.core.usb.UsbIpServer>(relaxed = true),

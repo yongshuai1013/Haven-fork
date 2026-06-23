@@ -159,4 +159,30 @@ sealed class AgentUiCommand {
         val profileId: String,
         val sessionName: String? = null,
     ) : AgentUiCommand()
+
+    /**
+     * Encrypt the file at [path] on [profileId] to [recipients] (age
+     * `age1…` strings), producing `<name>.age` in the same folder. The
+     * collector ([sh.haven.feature.sftp.SftpViewModel]) selects the
+     * profile if needed and runs `encryptFile` — the same code path the
+     * file browser's Encrypt (age) action drives, so the user sees the
+     * progress and the result appear. Used by the MCP `encrypt_file`
+     * verb (VISION §2). Non-destructive: the original is kept.
+     */
+    data class EncryptFile(
+        val profileId: String,
+        val path: String,
+        val recipients: List<String>,
+    ) : AgentUiCommand()
+
+    /**
+     * Decrypt the `.age` file at [path] on [profileId] in place (strips
+     * `.age`) using any stored age identity. Collector runs `decryptFile`
+     * — same path as the file browser's Decrypt (age) action. Used by
+     * the MCP `decrypt_file` verb (VISION §2).
+     */
+    data class DecryptFile(
+        val profileId: String,
+        val path: String,
+    ) : AgentUiCommand()
 }

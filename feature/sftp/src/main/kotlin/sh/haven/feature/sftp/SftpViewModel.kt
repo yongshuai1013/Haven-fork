@@ -255,6 +255,18 @@ class SftpViewModel @Inject constructor(
                         )
                         openInEditor(entry)
                     }
+                    is sh.haven.core.data.agent.AgentUiCommand.EncryptFile -> {
+                        if (_activeProfileId.value != command.profileId) {
+                            selectProfile(command.profileId)
+                        }
+                        encryptFile(partialEntry(command.path), command.recipients)
+                    }
+                    is sh.haven.core.data.agent.AgentUiCommand.DecryptFile -> {
+                        if (_activeProfileId.value != command.profileId) {
+                            selectProfile(command.profileId)
+                        }
+                        decryptFile(partialEntry(command.path))
+                    }
                     else -> Unit
                 }
             }
@@ -1707,6 +1719,16 @@ class SftpViewModel @Inject constructor(
     // Encrypt/decrypt compose on the same download → transform → upload
     // scaffolding convertFile uses, via the shared [resolveInputFile] /
     // [uploadCacheFile] helpers, so they light up every backend at once.
+
+    /** Build a minimal [SftpEntry] from a path for agent-driven (bus) encrypt/decrypt — size/mtime probed as needed by the op. */
+    private fun partialEntry(path: String): SftpEntry = SftpEntry(
+        name = path.substringAfterLast('/').ifEmpty { path },
+        path = path,
+        isDirectory = false,
+        size = 0L,
+        modifiedTime = 0L,
+        permissions = "",
+    )
 
     /** Encrypt [entry] to `<name>.age` in the same folder, for [recipients] (`age1…` strings). Non-destructive. */
     fun encryptFile(entry: SftpEntry, recipients: List<String>) {

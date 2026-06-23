@@ -336,6 +336,8 @@ fun HavenNavHost(
                 is sh.haven.core.data.agent.AgentUiCommand.OpenWaylandDesktop -> Screen.Desktop
                 is sh.haven.core.data.agent.AgentUiCommand.RegenerateStepCaCert -> Screen.Keys
                 is sh.haven.core.data.agent.AgentUiCommand.OpenInEditor -> Screen.Sftp
+                is sh.haven.core.data.agent.AgentUiCommand.EncryptFile -> Screen.Sftp
+                is sh.haven.core.data.agent.AgentUiCommand.DecryptFile -> Screen.Sftp
                 is sh.haven.core.data.agent.AgentUiCommand.ConnectProfile ->
                     // Connect lands the user on the Connections tab so they
                     // can see the connecting → connected status flip.

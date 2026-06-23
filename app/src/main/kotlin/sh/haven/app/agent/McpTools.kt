@@ -100,6 +100,7 @@ internal class McpTools(
     private val prootInstallLogRepository: sh.haven.core.data.repository.ProotInstallLogRepository,
     private val sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository,
     private val totpSecretRepository: sh.haven.core.data.repository.TotpSecretRepository,
+    private val ageIdentityRepository: sh.haven.core.data.repository.AgeIdentityRepository,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
     private val usbBroker: sh.haven.core.usb.UsbBroker,
     private val usbIpServer: sh.haven.core.usb.UsbIpServer,
@@ -2086,6 +2087,13 @@ internal class McpTools(
             summarise = { _ -> "Let the agent see Haven's own screen" },
         ) { args -> captureHavenUi(args) },
 
+        "dump_haven_ui" to ToolHandler(
+            description = "Dump Haven's OWN foreground UI as a structured element list — the in-app equivalent of `uiautomator dump`, so you get EXACT control bounds instead of estimating them off a capture_haven_ui image. Returns { width, height, count, nodes:[{text, contentDescription, editableText, role, clickable, disabled, bounds:[left,top,right,bottom], centerX, centerY}] } in the SAME window-pixel space tap_haven_ui / swipe_haven_ui use — read a control's centerX/centerY and tap it directly. Phase 1: the activity window only; Compose dialogs and bottom sheets render in separate windows that capture/tap/dump don't yet reach. FLAG_SECURE blocks it. Read-only.",
+            inputSchema = emptyObjectSchema(),
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { _ -> "Let the agent read Haven's own screen structure" },
+        ) { _ -> dumpHavenUi() },
+
         "tap_haven_ui" to ToolHandler(
             description = "Inject a tap (or, with holdMs > 0, a press-and-hold) into HAVEN'S OWN UI at window-pixel (x, y) — the same coordinate space capture_haven_ui reports in its width/height. This is the 'drive' half of the self-hosting loop: read a control's position from a capture_haven_ui image, then tap it. Drives the real touch pipeline (Compose clickables, nav tabs, dialog buttons). Refused while a consent prompt is showing (so an injected tap can't self-confirm) and when Haven is not foreground. Returns { delivered, reason?, x, y, holdMs }. Verify the effect with a follow-up capture_haven_ui.",
             inputSchema = JSONObject().apply {
@@ -2675,6 +2683,74 @@ internal class McpTools(
                 "Delete TOTP secret \"$label\"? Cannot be undone."
             },
         ) { args -> deleteTotpSecret(args) },
+
+        "list_age_identities" to ToolHandler(
+            description = "List saved age file-encryption identities (VISION §2). Returns id, label, the public `age1…` recipient (encrypt to this with encrypt_file or the file browser's Encrypt action), and createdAt. The private key (AGE-SECRET-KEY-1…) is NEVER returned — it stays encrypted at rest.",
+            inputSchema = emptyObjectSchema(),
+        ) { _ -> listAgeIdentities() },
+
+        "create_age_identity" to ToolHandler(
+            description = "Generate and store a new age X25519 encryption identity (VISION §2). Optional `label`. Returns the new id and its public `age1…` recipient. Tap-equivalent to Keys → + → Generate age identity.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("label", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Optional user-facing label. Defaults to 'age identity'.")
+                    })
+                })
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args ->
+                val l = args.optString("label").ifBlank { "age identity" }
+                "Generate a new age encryption identity \"$l\" in the Haven key store?"
+            },
+        ) { args -> createAgeIdentity(args) },
+
+        "encrypt_file" to ToolHandler(
+            description = "Encrypt the file at `path` on `profileId` to age recipients, producing `<name>.age` in the same folder (VISION §2 — works on every backend: local, SFTP, SMB, rclone). `recipients` (optional) is a list of `age1…` strings; omit it to encrypt to ALL of your stored age identities (so you can decrypt it back). Drives the file browser's Encrypt (age) action via the UI command bus — the user sees it run and the output appear. Non-destructive (the original is kept). Use list_age_identities for recipients and list_directory to find paths.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Connection profile id (or 'local'). From list_connections.")
+                    })
+                    put("path", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Absolute path to the file to encrypt.")
+                    })
+                    put("recipients", JSONObject().apply {
+                        put("type", "array")
+                        put("items", JSONObject().apply { put("type", "string") })
+                        put("description", "age1… recipients. Omit to encrypt to all stored identities.")
+                    })
+                })
+                put("required", JSONArray().put("profileId").put("path"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args -> "Encrypt \"${args.optString("path")}\" with age?" },
+        ) { args -> encryptFileViaAgent(args) },
+
+        "decrypt_file" to ToolHandler(
+            description = "Decrypt the `.age` file at `path` on `profileId` in place (strips `.age`) using any stored age identity (VISION §2). Drives the file browser's Decrypt (age) action via the UI command bus — the user sees it run. Fails to produce output if no stored identity matches the file's recipients.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("profileId", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Connection profile id (or 'local').")
+                    })
+                    put("path", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "Absolute path to the .age file.")
+                    })
+                })
+                put("required", JSONArray().put("profileId").put("path"))
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args -> "Decrypt \"${args.optString("path")}\" with age?" },
+        ) { args -> decryptFileViaAgent(args) },
 
         "list_tunnels" to ToolHandler(
             description = "List saved WireGuard / Tailscale tunnel configs available for Route-through on connection profiles. Returns id, label, type (WIREGUARD or TAILSCALE), and createdAt for each. The encrypted configText (wg-quick payload or Tailscale authkey blob) is NOT returned.",
@@ -7714,6 +7790,73 @@ internal class McpTools(
         }
     }
 
+    private suspend fun listAgeIdentities(): JSONObject {
+        val ids = ageIdentityRepository.getAll()
+        val arr = JSONArray()
+        for (i in ids) {
+            arr.put(JSONObject().apply {
+                put("id", i.id)
+                put("label", i.label)
+                put("recipient", i.recipient)
+                put("createdAt", i.createdAt)
+            })
+        }
+        return JSONObject().apply {
+            put("count", ids.size)
+            put("identities", arr)
+        }
+    }
+
+    private suspend fun createAgeIdentity(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val label = args.optString("label").takeIf { it.isNotBlank() } ?: "age identity"
+        val row = ageIdentityRepository.create(label)
+        JSONObject().apply {
+            put("id", row.id)
+            put("label", row.label)
+            put("recipient", row.recipient)
+        }
+    }
+
+    private suspend fun encryptFileViaAgent(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifBlank { throw IllegalArgumentException("profileId required") }
+        val path = args.optString("path").ifBlank { throw IllegalArgumentException("path required") }
+        val recipientsArg = args.optJSONArray("recipients")
+        val recipients = if (recipientsArg != null && recipientsArg.length() > 0) {
+            (0 until recipientsArg.length()).map { recipientsArg.getString(it) }
+        } else {
+            ageIdentityRepository.getAll().map { it.recipient }
+        }
+        if (recipients.isEmpty()) {
+            throw IllegalArgumentException(
+                "No recipients given and no stored age identities — create one with create_age_identity or pass recipients.",
+            )
+        }
+        val delivered = agentUiCommandBus.emit(
+            sh.haven.core.data.agent.AgentUiCommand.EncryptFile(profileId, path, recipients),
+        )
+        return JSONObject().apply {
+            put("dispatched", delivered)
+            put("path", path)
+            put("output", "$path.age")
+            put("recipientCount", recipients.size)
+            put("note", "Encrypting in the file browser; confirm with list_directory once it completes.")
+        }
+    }
+
+    private suspend fun decryptFileViaAgent(args: JSONObject): JSONObject {
+        val profileId = args.optString("profileId").ifBlank { throw IllegalArgumentException("profileId required") }
+        val path = args.optString("path").ifBlank { throw IllegalArgumentException("path required") }
+        val delivered = agentUiCommandBus.emit(
+            sh.haven.core.data.agent.AgentUiCommand.DecryptFile(profileId, path),
+        )
+        return JSONObject().apply {
+            put("dispatched", delivered)
+            put("path", path)
+            put("output", path.removeSuffix(".age"))
+            put("note", "Decrypting in the file browser; confirm with list_directory once it completes.")
+        }
+    }
+
     private suspend fun createTotpSecret(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val otpauth = args.optString("otpauth").takeIf { it.isNotBlank() }
         val rawSecret = args.optString("secret").takeIf { it.isNotBlank() }
@@ -9151,6 +9294,39 @@ internal class McpTools(
             }
             is HavenUiBridge.CaptureResult.NoForeground -> throw McpError(-32603, result.reason)
             is HavenUiBridge.CaptureResult.Failed -> throw McpError(-32603, result.reason)
+        }
+    }
+
+    private suspend fun dumpHavenUi(): JSONObject {
+        return when (val result = havenUiBridge.dumpUi()) {
+            is HavenUiBridge.DumpResult.Ok -> {
+                val arr = JSONArray()
+                for (n in result.nodes) {
+                    arr.put(JSONObject().apply {
+                        n.text?.let { put("text", it) }
+                        n.contentDescription?.let { put("contentDescription", it) }
+                        n.editableText?.let { put("editableText", it) }
+                        n.role?.let { put("role", it) }
+                        put("clickable", n.clickable)
+                        if (n.disabled) put("disabled", true)
+                        put("bounds", JSONArray().put(n.left).put(n.top).put(n.right).put(n.bottom))
+                        put("centerX", (n.left + n.right) / 2)
+                        put("centerY", (n.top + n.bottom) / 2)
+                    })
+                }
+                JSONObject().apply {
+                    put("width", result.width)
+                    put("height", result.height)
+                    put("count", result.nodes.size)
+                    put("nodes", arr)
+                }
+            }
+            HavenUiBridge.DumpResult.Secure -> JSONObject().apply {
+                put("secure", true)
+                put("message", "Screen security (FLAG_SECURE) is on — Haven's own UI cannot be dumped.")
+            }
+            is HavenUiBridge.DumpResult.NoForeground -> throw McpError(-32603, result.reason)
+            is HavenUiBridge.DumpResult.Failed -> throw McpError(-32603, result.reason)
         }
     }
 

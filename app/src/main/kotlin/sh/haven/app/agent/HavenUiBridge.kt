@@ -8,7 +8,13 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.PixelCopy
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsOwner
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -213,5 +219,110 @@ class HavenUiBridge @Inject constructor(
     sealed interface InjectResult {
         object Delivered : InjectResult
         data class Refused(val reason: String) : InjectResult
+    }
+
+    /**
+     * Dump the foreground window's Compose semantics tree — the in-app
+     * equivalent of `uiautomator dump`, so an agent gets exact element
+     * bounds (no visual estimation off a downscaled capture) and can feed
+     * them straight to [dispatchTap]. Bounds are window-relative pixels,
+     * the same space [captureScreen]/[dispatchTap] use.
+     *
+     * Phase 1: the **activity window only**. Compose dialogs / bottom
+     * sheets render in separate windows that [captureScreen] and
+     * [dispatchTap] don't currently reach either; multi-window coverage is
+     * a follow-up. Reads the public [SemanticsNode] API; the two owner /
+     * root-node accessors are `internal`, so they're reached by reflection
+     * (defensively, scanning for the getter by name).
+     */
+    suspend fun dumpUi(): DumpResult = withContext(Dispatchers.Main.immediate) {
+        val activity = activityRef?.get()
+            ?: return@withContext DumpResult.NoForeground(
+                "Haven is not in the foreground — bring the app forward, then retry.",
+            )
+        val window = activity.window
+        if ((window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE) != 0) {
+            return@withContext DumpResult.Secure
+        }
+        val decor = window.decorView
+        val composeView = findComposeView(decor)
+            ?: return@withContext DumpResult.Failed("No Compose view in the foreground window.")
+        val owner = reflectGetter(composeView, "getSemanticsOwner") as? SemanticsOwner
+            ?: return@withContext DumpResult.Failed("Compose semantics owner not reachable.")
+        val root = (reflectGetter(owner, "getUnmergedRootSemanticsNode") as? SemanticsNode)
+            ?: (reflectGetter(owner, "getRootSemanticsNode") as? SemanticsNode)
+            ?: return@withContext DumpResult.Failed("Compose root semantics node not reachable.")
+        val nodes = ArrayList<UiNode>()
+        try {
+            walkSemantics(root, nodes)
+        } catch (e: Throwable) {
+            return@withContext DumpResult.Failed("Semantics walk failed: ${e.message}")
+        }
+        DumpResult.Ok(nodes, decor.width, decor.height)
+    }
+
+    private fun findComposeView(v: View): View? {
+        if (v.javaClass.name == "androidx.compose.ui.platform.AndroidComposeView") return v
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) findComposeView(v.getChildAt(i))?.let { return it }
+        }
+        return null
+    }
+
+    /** Invoke a zero-arg getter by exact name, then by name-prefix (Kotlin `internal` getters may be mangled). */
+    private fun reflectGetter(target: Any, name: String): Any? = try {
+        val m = target.javaClass.methods.firstOrNull { it.parameterCount == 0 && it.name == name }
+            ?: target.javaClass.methods.firstOrNull { it.parameterCount == 0 && it.name.startsWith(name) }
+        m?.invoke(target)
+    } catch (e: Throwable) {
+        null
+    }
+
+    private fun walkSemantics(node: SemanticsNode, out: MutableList<UiNode>) {
+        val cfg = node.config
+        val text = cfg.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text }?.takeIf { it.isNotEmpty() }
+        val desc = cfg.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")?.takeIf { it.isNotEmpty() }
+        val editable = cfg.getOrNull(SemanticsProperties.EditableText)?.text
+        val role = cfg.getOrNull(SemanticsProperties.Role)?.toString()
+        val clickable = cfg.contains(SemanticsActions.OnClick)
+        val disabled = cfg.contains(SemanticsProperties.Disabled)
+        if (text != null || desc != null || editable != null || clickable) {
+            val b = node.boundsInWindow
+            out += UiNode(
+                text = text,
+                contentDescription = desc,
+                editableText = editable,
+                role = role,
+                clickable = clickable,
+                disabled = disabled,
+                left = b.left.toInt(),
+                top = b.top.toInt(),
+                right = b.right.toInt(),
+                bottom = b.bottom.toInt(),
+            )
+        }
+        for (child in node.children) walkSemantics(child, out)
+    }
+
+    /** One semantic element: its text/desc/role, whether it's clickable/editable, and window-pixel bounds. */
+    data class UiNode(
+        val text: String?,
+        val contentDescription: String?,
+        val editableText: String?,
+        val role: String?,
+        val clickable: Boolean,
+        val disabled: Boolean,
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    )
+
+    /** Outcome of [dumpUi]. */
+    sealed interface DumpResult {
+        data class Ok(val nodes: List<UiNode>, val width: Int, val height: Int) : DumpResult
+        object Secure : DumpResult
+        data class NoForeground(val reason: String) : DumpResult
+        data class Failed(val reason: String) : DumpResult
     }
 }
