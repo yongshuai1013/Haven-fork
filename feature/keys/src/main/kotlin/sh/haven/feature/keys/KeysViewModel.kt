@@ -65,6 +65,7 @@ class KeysViewModel @Inject constructor(
     private val stepCaSignFlow: StepCaSignFlow,
     private val fidoAuthenticator: sh.haven.core.fido.FidoAuthenticator,
     private val totpSecretRepository: sh.haven.core.data.repository.TotpSecretRepository,
+    private val ageIdentityRepository: sh.haven.core.data.repository.AgeIdentityRepository,
     private val barcodeDecoder: sh.haven.core.scan.BarcodeDecoder,
     private val preferencesRepository: sh.haven.core.data.preferences.UserPreferencesRepository,
     agentUiCommandBus: AgentUiCommandBus,
@@ -87,6 +88,25 @@ class KeysViewModel @Inject constructor(
      *  the user to Settings. */
     val stepCaConfigs: StateFlow<List<StepCaConfig>> = stepCaConfigRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** age file-encryption identities (VISION §2). Only the public recipient is shown. */
+    val ageIdentities: StateFlow<List<sh.haven.core.data.db.entities.AgeIdentityEntity>> =
+        ageIdentityRepository.observeAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun generateAgeIdentity(label: String) {
+        viewModelScope.launch {
+            try {
+                ageIdentityRepository.create(label.ifBlank { "age identity" })
+            } catch (e: Exception) {
+                _error.value = e.message ?: "age identity generation failed"
+            }
+        }
+    }
+
+    fun deleteAgeIdentity(id: String) {
+        viewModelScope.launch { ageIdentityRepository.delete(id) }
+    }
 
     val keys: StateFlow<List<SshKey>> = combine(
         repository.observeAll(),

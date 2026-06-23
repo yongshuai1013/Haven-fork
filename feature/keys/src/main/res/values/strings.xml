@@ -182,6 +182,14 @@
     <string name="keys_totp_paste">Add authenticator from clipboard (TOTP)</string>
     <string name="keys_totp_paste_hint">Paste an otpauth:// URI or base32 secret</string>
 
+    <!-- age file-encryption identities (VISION §2) -->
+    <string name="keys_age_section_header">Encryption identities (age) · %1$d</string>
+    <string name="keys_generate_age">Generate age identity</string>
+    <string name="keys_generate_age_hint">An X25519 keypair for encrypting files (age)</string>
+    <string name="keys_generate_age_title">New age identity</string>
+    <string name="keys_age_label_hint">Label</string>
+    <string name="keys_age_recipient_copied">Recipient copied</string>
+
     <!-- FIDO2 touch / PIN dialog (mirrors connections_fido_* — used during discover) -->
     <string name="keys_fido_pin_title">Security key PIN</string>
     <string name="keys_fido_pin_label">PIN</string>

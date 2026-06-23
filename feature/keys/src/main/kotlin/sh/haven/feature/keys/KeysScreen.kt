@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
@@ -83,7 +84,10 @@ import sh.haven.core.ui.PasswordField
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import sh.haven.core.data.db.entities.SshKey
@@ -123,8 +127,10 @@ fun KeysScreen(
     var showStepCaDialog by remember { mutableStateOf(false) }
     var showSecurityKeyChooser by remember { mutableStateOf(false) }
     var showRegisterSkDialog by remember { mutableStateOf(false) }
+    var showGenerateAgeDialog by remember { mutableStateOf(false) }
     val stepCaConfigs by viewModel.stepCaConfigs.collectAsState()
     val totpSecrets by viewModel.totpSecrets.collectAsState()
+    val ageIdentities by viewModel.ageIdentities.collectAsState()
     // CA section ViewModel — separate hilt instance, shared with the
     // section composable inside the LazyColumn. (#133 phase 2b — CA
     // management moved out of Settings into the Keys tab.)
@@ -258,7 +264,7 @@ fun KeysScreen(
         // empty-state hint as an item below the CA section when there
         // are no keys, passwords, or CA configs yet.
         val nothingButCa = keys.isEmpty() && passwordEntries.isEmpty() &&
-            stepCaSectionConfigs.isEmpty() && totpSecrets.isEmpty() && !generating
+            stepCaSectionConfigs.isEmpty() && totpSecrets.isEmpty() && ageIdentities.isEmpty() && !generating
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -356,6 +362,15 @@ fun KeysScreen(
                     HorizontalDivider()
                 }
             }
+            if (ageIdentities.isNotEmpty()) {
+                item(key = "age-header") {
+                    SectionHeader(stringResource(R.string.keys_age_section_header, ageIdentities.size))
+                }
+                items(ageIdentities, key = { "age-${it.id}" }) { id ->
+                    AgeIdentityRow(identity = id, onDelete = { viewModel.deleteAgeIdentity(id.id) })
+                    HorizontalDivider()
+                }
+            }
             item(key = "footer-spacer") { Spacer(Modifier.height(80.dp)) }
         }
     }
@@ -425,7 +440,39 @@ fun KeysScreen(
                 showAddKeyDialog = false
                 totpQrLauncher.launch("image/*")
             },
+            onGenerateAgeIdentity = {
+                showAddKeyDialog = false
+                showGenerateAgeDialog = true
+            },
             onDismiss = { showAddKeyDialog = false },
+        )
+    }
+
+    if (showGenerateAgeDialog) {
+        var ageLabel by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showGenerateAgeDialog = false },
+            title = { Text(stringResource(R.string.keys_generate_age_title)) },
+            text = {
+                OutlinedTextField(
+                    value = ageLabel,
+                    onValueChange = { ageLabel = it },
+                    label = { Text(stringResource(R.string.keys_age_label_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showGenerateAgeDialog = false
+                    viewModel.generateAgeIdentity(ageLabel)
+                }) { Text(stringResource(R.string.keys_generate_age)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGenerateAgeDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
         )
     }
 
@@ -554,6 +601,39 @@ private fun TotpSecretRow(
     )
 }
 
+/** One age identity row: label + the public `age1…` recipient (tap to copy) + delete. */
+@Composable
+private fun AgeIdentityRow(
+    identity: sh.haven.core.data.db.entities.AgeIdentityEntity,
+    onDelete: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val copiedMsg = stringResource(R.string.keys_age_recipient_copied)
+    val context = LocalContext.current
+    ListItem(
+        modifier = Modifier.clickable {
+            clipboard.setText(AnnotatedString(identity.recipient))
+            android.widget.Toast.makeText(context, copiedMsg, android.widget.Toast.LENGTH_SHORT).show()
+        },
+        headlineContent = { Text(identity.label) },
+        supportingContent = {
+            Text(
+                identity.recipient,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        leadingContent = { Icon(Icons.Filled.Lock, contentDescription = null) },
+        trailingContent = {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.common_delete))
+            }
+        },
+    )
+}
+
 @Composable
 private fun AddKeyChooser(
     stepCaConfigCount: Int,
@@ -564,6 +644,7 @@ private fun AddKeyChooser(
     onPaste: () -> Unit,
     onAddTotpPaste: () -> Unit,
     onScanTotpQr: () -> Unit,
+    onGenerateAgeIdentity: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -648,6 +729,14 @@ private fun AddKeyChooser(
                     supportingContent = { Text(stringResource(R.string.keys_totp_paste_hint)) },
                     leadingContent = {
                         Icon(Icons.Filled.Pin, contentDescription = null)
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { onGenerateAgeIdentity() },
+                    headlineContent = { Text(stringResource(R.string.keys_generate_age)) },
+                    supportingContent = { Text(stringResource(R.string.keys_generate_age_hint)) },
+                    leadingContent = {
+                        Icon(Icons.Filled.Lock, contentDescription = null)
                     },
                 )
             }

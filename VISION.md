@@ -173,7 +173,7 @@ The thesis is clear; the work is making it feel seamless. Priorities are ordered
 The four threads getting attention next, each detailed in its section below:
 
 1. ✅ **Warm the Reticulum extremity** — *shipped (v5.59.10).* The mesh now carries file transfer (browse/download/upload over the rnsh command-exec substrate) and a tunnelable port (`-L`/`-D`), not just a shell. The remaining throughput work — a persistent sftp-subsystem path, today it is one Link per directory op — is a follow-up, not a seam.
-2. **Close the namespace gaps** — age file encryption and SFTP/SMB media streaming, the two universal actions still missing on some backends (§2).
+2. **Close the namespace gaps** — the two universal actions that were missing on some backends (§2). Both have now landed: SFTP/SMB media streaming shipped via the `SftpStreamServer` loopback bridge (the "ffmpeg-with-libssh" framing was superseded), and a v1 of age file encryption is built (X25519, keystore identities) — device verification + release pending.
 3. **Consolidate the agent-presence layer** — lift the reach-back tools (`present_media`/`present_app`/`raise_notification`/`queue_self_message`/consent) into one documented bidirectional model. (MCP `resources/*` for the screen has landed — `ui://haven/screen`; §1a.)
 4. **The MCP plugin bus** — a second cross-protocol verb plus discovery of external MCP-publishing Android apps (§1b).
 
@@ -207,7 +207,7 @@ The architectural payoff is now banked: every new universal action lands once, e
 
 Whenever two primitives meet, there should be zero friction. Current gaps:
 
-- **SFTP/SMB media** should work through the same HTTP-streaming trick as rclone so convert/preview/stream/tap-to-play work for every backend, not just rclone + local. Building an ffmpeg-with-libssh would unlock this in one move. (Next-iteration #2.)
+- ✅ **SFTP/SMB media** — shipped. convert/preview/stream/tap-to-play work for every backend via the `SftpStreamServer` loopback bridge (ffmpeg reads over HTTP Range requests against a local socket), *not* the originally-planned ffmpeg-with-libssh — that was the wrong tool.
 - **Agent forwarding UX** — the plumbing exists; the story of "forward my phone's keys to the remote agent and be able to trust it" needs to be a dialog, not a config file.
 - ✅ **Workspace profiles** — shipped. "Save current as workspace" snapshots active terminal sessions (SSH/Mosh/ET/Reticulum/Local), file-browser tabs (SMB), remote desktops (RDP), and the Wayland tab into a named bundle; one tap reopens the same composition. `WorkspaceLauncher` is the orchestration substrate the matching `compose_workspace` MCP verb in §1b is built on.
 - **Desktop ↔ file browser ↔ terminal** — agent-driven cross-tab verbs landed (`navigate_sftp_browser`, `focus_terminal_session`, `open_convert_dialog_with_args`). Human-driven equivalents — drag a file from the SFTP tab into the native Wayland compositor, copy output from a terminal into the convert dialog — are the next layer.
@@ -255,8 +255,8 @@ The bidirectional direction is consistent with the four-primitives frame: Haven'
 
 The file browser is Haven's highest-leverage surface because it's where every backend converges. Every action that applies to a file should be available on every file, regardless of where it lives. (This whole section is the foregrounded next-iteration #2.)
 
-- **Universal action set** — convert, preview, stream, play, encrypt, share link, copy path, inspect metadata — consistent across local, rclone, SFTP, SMB, PRoot. Gaps (e.g. encrypt isn't implemented yet, stream doesn't work on SFTP/SMB, metadata inspection is shallow) are bugs against the thesis.
-- **age file encryption** — end-to-end encryption for files in any backend; keys live in Haven's keystore, operate wherever the ciphertext lives.
+- **Universal action set** — convert, preview, stream, play, encrypt, share link, copy path, inspect metadata — consistent across local, rclone, SFTP, SMB, PRoot. encrypt and SFTP/SMB stream have since landed; the remaining gap (metadata inspection is shallow) is a bug against the thesis.
+- ✅ **age file encryption — v1 built.** End-to-end encryption for files in any backend, composed on `FileBackend` (download → age → upload) so every tab lights up at once. X25519 identities live in Haven's keystore (`age_identities`, secret encrypted at rest via `CredentialEncryption`; public recipient shown in the audit screen); per-file Encrypt/Decrypt in the file browser, identity generation in the Keys tab. Implemented on BouncyCastle — no new dependency, works on minSdk 26 where Android's JCA lacks X25519/ChaCha20-Poly1305. Validated against the C2SP/CCTV age test vectors and round-tripped with the reference `age` CLI both directions. Scope: X25519 recipients only — passphrase (scrypt), ASCII armor, and an MCP verb are follow-ups. Device verification + release pending.
 - **Trim / cut / resolution picker** — finish the media toolchain so the convert dialog is a real mobile NLE, not just a transcoder.
 
 ### 3. The runtime story — PRoot is the agent host

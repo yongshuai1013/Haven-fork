@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import sh.haven.core.data.db.entities.AgeIdentityEntity
 import sh.haven.core.data.db.entities.AgentAuditEvent
 import sh.haven.core.data.db.entities.ConnectionGroup
 import sh.haven.core.data.db.entities.ConnectionLog
@@ -47,8 +48,9 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         MailRuleFiring::class,
         MailRulePendingAction::class,
         StandingPolicy::class,
+        AgeIdentityEntity::class,
     ],
-    version = 68,
+    version = 69,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -71,6 +73,7 @@ abstract class HavenDatabase : RoomDatabase() {
     abstract fun mailRuleFiringDao(): MailRuleFiringDao
     abstract fun mailRulePendingActionDao(): MailRulePendingActionDao
     abstract fun standingPolicyDao(): StandingPolicyDao
+    abstract fun ageIdentityDao(): AgeIdentityDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1127,6 +1130,21 @@ abstract class HavenDatabase : RoomDatabase() {
         val MIGRATION_67_68 = object : Migration(67, 68) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "connection_profiles", "usbForwardVidPid", "TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_68_69 = object : Migration(68, 69) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `age_identities` (
+                        `id` TEXT NOT NULL,
+                        `label` TEXT NOT NULL,
+                        `recipient` TEXT NOT NULL,
+                        `secret` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
             }
         }
 

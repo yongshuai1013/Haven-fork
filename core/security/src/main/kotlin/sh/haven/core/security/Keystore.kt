@@ -16,6 +16,8 @@ enum class KeystoreStore {
     PROFILE_CREDENTIALS,
     /** OATH-TOTP shared secrets backing the `totp_secrets` table (#178). */
     TOTP_SECRETS,
+    /** age X25519 file-encryption identities backing the `age_identities` table. */
+    AGE_IDENTITIES,
 }
 
 /**
@@ -32,6 +34,8 @@ enum class KeyKind {
     PROFILE_PASSWORD,
     /** An OATH-TOTP shared secret (base32). Encrypted at rest with [CredentialEncryption]. */
     TOTP_SECRET,
+    /** An age X25519 file-encryption identity (`AGE-SECRET-KEY-1…`). Encrypted at rest with [CredentialEncryption]. */
+    AGE_IDENTITY,
 }
 
 /**

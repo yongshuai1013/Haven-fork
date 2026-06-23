@@ -153,6 +153,7 @@ class SftpViewModel @Inject constructor(
     private val repository: ConnectionRepository,
     private val connectionLogRepository: ConnectionLogRepository,
     private val syncProfileRepository: sh.haven.core.data.repository.SyncProfileRepository,
+    private val ageIdentityRepository: sh.haven.core.data.repository.AgeIdentityRepository,
     private val preferencesRepository: UserPreferencesRepository,
     private val transportSelector: sh.haven.feature.sftp.transport.TransportSelector,
     private val ffmpegExecutor: sh.haven.core.ffmpeg.FfmpegExecutor,
@@ -286,6 +287,11 @@ class SftpViewModel @Inject constructor(
 
     private val _currentPath = MutableStateFlow("/")
     val currentPath: StateFlow<String> = _currentPath.asStateFlow()
+
+    /** age encryption identities, for the per-file Encrypt picker (recipient is public). */
+    val ageIdentities: StateFlow<List<sh.haven.core.data.db.entities.AgeIdentityEntity>> =
+        ageIdentityRepository.observeAll()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _allEntries = MutableStateFlow<List<SftpEntry>>(emptyList())
     private val _entries = MutableStateFlow<List<SftpEntry>>(emptyList())
@@ -1691,6 +1697,167 @@ class SftpViewModel @Inject constructor(
                 // Clean up cache files (don't delete the original if it's a local file)
                 if (!_isLocalProfile.value) {
                     java.io.File(appContext.cacheDir, "ffmpeg_in_${entry.name}").delete()
+                }
+            }
+        }
+    }
+
+    // ── age file encryption (VISION §2) ──────────────────────────────────
+    //
+    // Encrypt/decrypt compose on the same download → transform → upload
+    // scaffolding convertFile uses, via the shared [resolveInputFile] /
+    // [uploadCacheFile] helpers, so they light up every backend at once.
+
+    /** Encrypt [entry] to `<name>.age` in the same folder, for [recipients] (`age1…` strings). Non-destructive. */
+    fun encryptFile(entry: SftpEntry, recipients: List<String>) {
+        if (recipients.isEmpty()) {
+            _error.value = appContext.getString(R.string.sftp_age_no_identity)
+            return
+        }
+        val profileId = _activeProfileId.value ?: return
+        val outName = "${entry.name}.age"
+        runAgeJob(entry, profileId, outName, "🔒 Encrypting ${entry.name}") { input, output ->
+            sh.haven.core.security.AgeFile.encrypt(input, output, recipients)
+        }
+    }
+
+    /** Decrypt a `.age` [entry] in place (strips `.age`) using any stored identity. */
+    fun decryptFile(entry: SftpEntry) {
+        val profileId = _activeProfileId.value ?: return
+        val outName = entry.name.removeSuffix(".age").ifBlank { "${entry.name}.decrypted" }
+        viewModelScope.launch {
+            val secrets = ageIdentityRepository.getAll().mapNotNull { ageIdentityRepository.fetchSecret(it.id) }
+            if (secrets.isEmpty()) {
+                _error.value = appContext.getString(R.string.sftp_age_no_identity)
+                return@launch
+            }
+            runAgeJobSuspending(entry, profileId, outName, "🔓 Decrypting ${entry.name}") { input, output ->
+                sh.haven.core.security.AgeFile.decrypt(input, output, secrets)
+            }
+        }
+    }
+
+    private fun runAgeJob(
+        entry: SftpEntry,
+        profileId: String,
+        outName: String,
+        progressLabel: String,
+        transform: (java.io.InputStream, java.io.OutputStream) -> Unit,
+    ) {
+        viewModelScope.launch { runAgeJobSuspending(entry, profileId, outName, progressLabel, transform) }
+    }
+
+    private suspend fun runAgeJobSuspending(
+        entry: SftpEntry,
+        profileId: String,
+        outName: String,
+        progressLabel: String,
+        transform: (java.io.InputStream, java.io.OutputStream) -> Unit,
+    ) {
+        val sourceDir = entry.path.substringBeforeLast('/', "").ifEmpty { "/" }
+        val destPath = if (sourceDir == "/") "/$outName" else "$sourceDir/$outName"
+        val cacheIn = java.io.File(appContext.cacheDir, "age_in_${entry.name}")
+        val cacheOut = java.io.File(appContext.cacheDir, outName)
+        try {
+            _loading.value = true
+            val srcFile = resolveInputFile(entry, profileId, cacheIn, "⬇ Reading ${entry.name}")
+            _transferProgress.value = TransferProgress(progressLabel, 0, 0)
+            withContext(Dispatchers.IO) {
+                srcFile.inputStream().use { input ->
+                    cacheOut.outputStream().use { output -> transform(input, output) }
+                }
+            }
+            uploadCacheFile(cacheOut, destPath, profileId, "⬆ Uploading $outName")
+            _message.value = appContext.getString(R.string.sftp_saved_file_to, outName, sourceDir)
+            if (_currentPath.value == sourceDir) refresh()
+        } catch (e: sh.haven.core.security.AgeFile.AgeException) {
+            Log.w(TAG, "age job failed", e)
+            _error.value = appContext.getString(R.string.sftp_age_failed)
+        } catch (e: Exception) {
+            Log.e(TAG, "age job failed", e)
+            _error.value = appContext.getString(R.string.sftp_age_failed)
+        } finally {
+            _loading.value = false
+            _transferProgress.value = null
+            cacheIn.delete() // a no-op for local (srcFile is the original, never in cacheDir)
+            cacheOut.delete()
+        }
+    }
+
+    /** Return a readable [java.io.File] for [entry]: the original for local, else a downloaded cache copy at [cacheTarget]. */
+    private suspend fun resolveInputFile(
+        entry: SftpEntry,
+        profileId: String,
+        cacheTarget: java.io.File,
+        label: String,
+    ): java.io.File {
+        if (_isLocalProfile.value) return java.io.File(entry.path)
+        _transferProgress.value = TransferProgress(label, entry.size, 0)
+        withContext(Dispatchers.IO) {
+            when {
+                _isRcloneProfile.value -> {
+                    val remote = activeRcloneRemote ?: throw IllegalStateException("Rclone not connected")
+                    rcloneClient.copyFile(remote, entry.path, cacheTarget.parent!!, cacheTarget.name)
+                }
+                _isSmbProfile.value -> {
+                    val client = activeSmbClient ?: throw IllegalStateException("SMB not connected")
+                    cacheTarget.outputStream().use { out ->
+                        client.download(entry.path, out) { transferred, total ->
+                            _transferProgress.value = TransferProgress(label, total, transferred)
+                        }
+                    }
+                }
+                else -> {
+                    val session = getOrOpenSession(profileId) ?: throw IllegalStateException("Not connected")
+                    cacheTarget.outputStream().use { out ->
+                        session.download(entry.path, out) { transferred, total ->
+                            _transferProgress.value = TransferProgress(label, total, transferred)
+                        }
+                    }
+                }
+            }
+        }
+        return cacheTarget
+    }
+
+    /** Upload [cacheFile] to [destPath] on the active backend. Mirrors convertFile's SOURCE_FOLDER dispatch. */
+    private suspend fun uploadCacheFile(
+        cacheFile: java.io.File,
+        destPath: String,
+        profileId: String,
+        label: String,
+    ) {
+        when {
+            _isLocalProfile.value -> withContext(Dispatchers.IO) {
+                cacheFile.copyTo(java.io.File(destPath), overwrite = true)
+            }
+            _isRcloneProfile.value -> {
+                val remote = activeRcloneRemote ?: throw IllegalStateException("Rclone not connected")
+                _transferProgress.value = TransferProgress(label, 0, 0)
+                withContext(Dispatchers.IO) {
+                    rcloneClient.copyFile(cacheFile.parent!!, cacheFile.name, remote, destPath.trimStart('/'))
+                }
+            }
+            _isSmbProfile.value -> {
+                val client = activeSmbClient ?: throw IllegalStateException("SMB not connected")
+                val len = cacheFile.length()
+                _transferProgress.value = TransferProgress(label, len, 0)
+                withContext(Dispatchers.IO) {
+                    cacheFile.inputStream().use { input ->
+                        client.upload(input, destPath, len) { transferred, total ->
+                            _transferProgress.value = TransferProgress(label, total, transferred)
+                        }
+                    }
+                }
+            }
+            else -> {
+                val session = getOrOpenSession(profileId) ?: throw IllegalStateException("Not connected")
+                val total = cacheFile.length()
+                _transferProgress.value = TransferProgress(label, total, 0)
+                cacheFile.inputStream().use { input ->
+                    session.upload(input, total, destPath) { transferred, _ ->
+                        _transferProgress.value = TransferProgress(label, total, transferred)
+                    }
                 }
             }
         }

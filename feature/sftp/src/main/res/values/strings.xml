@@ -102,6 +102,15 @@
     <string name="sftp_file_icon">File</string>
     <string name="sftp_download">Download</string>
     <string name="sftp_convert">Convert</string>
+    <string name="sftp_encrypt">Encrypt (age)</string>
+    <string name="sftp_encrypt_sub">Encrypt to an age key — readable anywhere with the age tool</string>
+    <string name="sftp_decrypt">Decrypt (age)</string>
+    <string name="sftp_decrypt_sub">Decrypt with a stored age identity</string>
+    <string name="sftp_encrypt_title">Encrypt with age</string>
+    <string name="sftp_encrypt_recipient_hint">Or paste a recipient (age1…)</string>
+    <string name="sftp_encrypt_action">Encrypt</string>
+    <string name="sftp_age_no_identity">No age identity. Create one in the Keys tab, or paste a recipient.</string>
+    <string name="sftp_age_failed">age operation failed — wrong key or corrupt file</string>
     <string name="sftp_stream">Stream</string>
     <string name="sftp_play_in_browser">Play in browser</string>
     <string name="sftp_stream_to_network">Stream to network</string>

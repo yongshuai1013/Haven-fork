@@ -24,12 +24,14 @@ class UnifiedKeystore @Inject constructor(
     private val sshKeySection: SshKeySection,
     private val profileCredentialSection: ProfileCredentialSection,
     private val totpSecretSection: TotpSecretSection,
+    private val ageIdentitySection: AgeIdentitySection,
 ) : Keystore {
 
     private val sections: Map<KeystoreStore, KeystoreSection> = mapOf(
         sshKeySection.store to sshKeySection,
         profileCredentialSection.store to profileCredentialSection,
         totpSecretSection.store to totpSecretSection,
+        ageIdentitySection.store to ageIdentitySection,
     )
 
     override suspend fun enumerate(): List<KeystoreEntry> {
@@ -84,6 +86,7 @@ class UnifiedKeystore @Inject constructor(
             KeystoreStore.SSH_KEYS -> sshKeySection.setBiometricProtected(entryId, protected)
             KeystoreStore.PROFILE_CREDENTIALS -> false
             KeystoreStore.TOTP_SECRETS -> false
+            KeystoreStore.AGE_IDENTITIES -> false
         }
     }
 }

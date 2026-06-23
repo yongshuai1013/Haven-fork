@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -59,6 +60,8 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.CastConnected
@@ -230,6 +233,7 @@ fun SftpScreen(
     val chownRequest by viewModel.chownRequest.collectAsState()
 
     var showRenameDialog by remember { mutableStateOf<SftpEntry?>(null) }
+    var showEncryptSheet by remember { mutableStateOf<SftpEntry?>(null) }
 
     LaunchedEffect(pendingSmbProfileId) {
         pendingSmbProfileId?.let { viewModel.setPendingSmbProfile(it) }
@@ -1191,6 +1195,12 @@ fun SftpScreen(
                                 onOpenInImageTools = if (!entry.isDirectory && isImageFile(entry.name)) {
                                     { viewModel.openInImageTools(entry) }
                                 } else null,
+                                onEncrypt = if (!entry.isDirectory && !entry.name.endsWith(".age")) {
+                                    { showEncryptSheet = entry }
+                                } else null,
+                                onDecrypt = if (!entry.isDirectory && entry.name.endsWith(".age")) {
+                                    { viewModel.decryptFile(entry) }
+                                } else null,
                             )
                         }
                     }  // LazyColumn
@@ -1364,6 +1374,20 @@ fun SftpScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRenameDialog = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+
+    // age encrypt dialog — pick a stored identity and/or paste a recipient
+    showEncryptSheet?.let { entry ->
+        val identities by viewModel.ageIdentities.collectAsState()
+        AgeEncryptDialog(
+            entry = entry,
+            identities = identities,
+            onDismiss = { showEncryptSheet = null },
+            onEncrypt = { recipients ->
+                showEncryptSheet = null
+                viewModel.encryptFile(entry, recipients)
             },
         )
     }
@@ -2359,6 +2383,75 @@ private fun SyncDialog(
     }
 }
 
+/**
+ * Pick the age recipient(s) to encrypt a file to: any stored identity
+ * (radio-selected; defaults to the first) and/or a pasted `age1…`
+ * recipient. v1 of VISION §2 age encryption.
+ */
+@Composable
+private fun AgeEncryptDialog(
+    entry: SftpEntry,
+    identities: List<sh.haven.core.data.db.entities.AgeIdentityEntity>,
+    onDismiss: () -> Unit,
+    onEncrypt: (List<String>) -> Unit,
+) {
+    var selectedId by remember(identities) { mutableStateOf(identities.firstOrNull()?.id) }
+    var pasted by remember { mutableStateOf("") }
+    val recipients = buildList {
+        identities.firstOrNull { it.id == selectedId }?.let { add(it.recipient) }
+        pasted.trim().takeIf { it.startsWith("age1") }?.let { add(it) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sftp_encrypt_title)) },
+        text = {
+            Column {
+                Text(entry.name, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+                identities.forEach { id ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = selectedId == id.id, onClick = { selectedId = id.id }),
+                    ) {
+                        RadioButton(selected = selectedId == id.id, onClick = { selectedId = id.id })
+                        Spacer(Modifier.width(4.dp))
+                        Column {
+                            Text(id.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                id.recipient,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = pasted,
+                    onValueChange = { pasted = it },
+                    label = { Text(stringResource(R.string.sftp_encrypt_recipient_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onEncrypt(recipients) },
+                enabled = recipients.isNotEmpty(),
+            ) { Text(stringResource(R.string.sftp_encrypt_action)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileListItem(
@@ -2388,6 +2481,8 @@ private fun FileListItem(
     onFolderSize: (() -> Unit)? = null,
     onOpenInEditor: (() -> Unit)? = null,
     onOpenInImageTools: (() -> Unit)? = null,
+    onEncrypt: (() -> Unit)? = null,
+    onDecrypt: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -2590,6 +2685,20 @@ private fun FileListItem(
                     text = { Text(stringResource(R.string.sftp_folder_size)) },
                     leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
                     onClick = { showMenu = false; onFolderSize() },
+                )
+            }
+            if (onEncrypt != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.sftp_encrypt)) },
+                    leadingIcon = { Icon(Icons.Filled.Lock, null) },
+                    onClick = { showMenu = false; onEncrypt() },
+                )
+            }
+            if (onDecrypt != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.sftp_decrypt)) },
+                    leadingIcon = { Icon(Icons.Filled.LockOpen, null) },
+                    onClick = { showMenu = false; onDecrypt() },
                 )
             }
             DropdownMenuItem(
