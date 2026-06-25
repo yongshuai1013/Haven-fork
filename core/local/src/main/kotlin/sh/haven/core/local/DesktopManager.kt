@@ -753,6 +753,11 @@ class DesktopManager @Inject constructor(
             environment().apply {
                 put("HOME", "/root")
                 put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                // Pin TMPDIR to the cacheDir-backed /tmp bind; else the desktop
+                // session (and terminals opened from it) inherit the Android
+                // process TMPDIR (app cache host path), unreachable inside proot
+                // → mktemp fails in desktop-environment terminals (#283).
+                put("TMPDIR", "/tmp")
                 put("PROOT_TMP_DIR", context.cacheDir.absolutePath)
                 put("PROOT_LOADER", loaderPath)
             }
@@ -1029,6 +1034,11 @@ class DesktopManager @Inject constructor(
             environment().apply {
                 put("HOME", "/root")
                 put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                // Pin TMPDIR to the cacheDir-backed /tmp bind; else the desktop
+                // session (and terminals opened from it) inherit the Android
+                // process TMPDIR (app cache host path), unreachable inside proot
+                // → mktemp fails in desktop-environment terminals (#283).
+                put("TMPDIR", "/tmp")
                 put("PROOT_TMP_DIR", context.cacheDir.absolutePath)
                 put("PROOT_LOADER", loaderPath)
             }
@@ -1540,6 +1550,10 @@ class DesktopManager @Inject constructor(
                 environment().apply {
                     put("HOME", "/root")
                     put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+                    // Pin TMPDIR to the cacheDir-backed /tmp bind (see #283):
+                    // without it the native desktop session and its terminals
+                    // inherit the Android app-cache TMPDIR, unreachable in proot.
+                    put("TMPDIR", "/tmp")
                     put("PROOT_TMP_DIR", context.cacheDir.absolutePath)
                     put("PROOT_LOADER", loaderPath)
                     remove("FONTCONFIG_FILE")
