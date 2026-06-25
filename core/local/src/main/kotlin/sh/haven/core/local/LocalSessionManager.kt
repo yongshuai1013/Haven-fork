@@ -253,6 +253,11 @@ class LocalSessionManager @Inject constructor(
                 "-b", "/proc/self/fd/2:/dev/stderr",
                 "-b", "/proc",
                 "-b", "/sys",
+                // Mask the guest's /sys/fs/selinux: Android is SELinux-enforcing,
+                // and exposing enforce=1 makes guest coreutils fail cp -Z/mkdir -Z/
+                // restorecon in package postinst scripts (e.g. openssh-server → no
+                // /etc/ssh/sshd_config, #283). Matches the one-shot install path.
+                "-b", prootManager.selinuxMaskBind(rootfsDir),
                 "-b", "/storage",
                 // Convenience alias so shared storage is reachable at the
                 // familiar /sdcard, not just /storage/emulated/0 (#256).

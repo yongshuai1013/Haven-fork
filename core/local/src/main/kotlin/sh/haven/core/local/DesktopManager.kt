@@ -737,6 +737,9 @@ class DesktopManager @Inject constructor(
             prootBin, "-0", "--link2symlink",
             "-r", rootfsDir.absolutePath,
             "-b", "/dev", "-b", "/proc", "-b", "/sys",
+            // Mask /sys/fs/selinux (Android enforces SELinux; exposing enforce=1
+            // breaks guest cp -Z/restorecon in package postinst scripts, #283).
+            "-b", prootManager.selinuxMaskBind(rootfsDir),
             // Writable /dev/shm (Android /dev is read-only, no shm) so GL/Mono
             // desktop apps that use POSIX shared memory work. See ProotManager.
             "-b", "${prootManager.ensureDevShm()}:/dev/shm",
@@ -1012,6 +1015,9 @@ class DesktopManager @Inject constructor(
             prootBin, "-i", "1000:1000", "--link2symlink",
             "-r", rootfsDir.absolutePath,
             "-b", "/dev", "-b", "/proc", "-b", "/sys",
+            // Mask /sys/fs/selinux (Android enforces SELinux; exposing enforce=1
+            // breaks guest cp -Z/restorecon in package postinst scripts, #283).
+            "-b", prootManager.selinuxMaskBind(rootfsDir),
             "-b", "${context.cacheDir.absolutePath}:/tmp",
             "-b", "${devShmHost.absolutePath}:/dev/shm",
         )
@@ -1487,6 +1493,8 @@ class DesktopManager @Inject constructor(
                 prootBin, "-0", "--link2symlink",
                 "-r", rootfsDir.absolutePath,
                 "-b", "/dev", "-b", "/proc", "-b", "/sys",
+                // Mask /sys/fs/selinux (#283) — see ProotManager.selinuxMaskBind.
+                "-b", prootManager.selinuxMaskBind(rootfsDir),
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
                 "-b", "${xdgDir.absolutePath}:/tmp/xdg-runtime",
                 "-w", "/root",

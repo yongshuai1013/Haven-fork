@@ -1300,6 +1300,24 @@ class ProotManager @Inject constructor(
     }
 
     /**
+     * Bind value that masks the guest's `/sys/fs/selinux` with an empty dir,
+     * i.e. `"<host>:/sys/fs/selinux"`.
+     *
+     * Android runs SELinux **enforcing**, so binding the real `/sys` into the
+     * guest exposes `/sys/fs/selinux/enforce=1`. That makes guest coreutils
+     * believe SELinux is active, so `cp -Z` / `mkdir -Z` / `restorecon` in
+     * package maintainer scripts try to set a security context and *fail*
+     * (proot can't `setxattr security.selinux`). Under `set -e` that aborts
+     * the script — e.g. openssh-server's postinst dies before writing
+     * `/etc/ssh/sshd_config` (#283). The one-shot install path already overlays
+     * this empty dir; the interactive shell/desktop paths must too.
+     */
+    fun selinuxMaskBind(rootfsDir: File): String {
+        val empty = File(rootfsDir, "sys/.empty").apply { mkdirs() }
+        return "${empty.absolutePath}:/sys/fs/selinux"
+    }
+
+    /**
      * Build and start a PRoot process running [command] in the active
      * rootfs, with combined stdout+stderr on the returned Process's
      * inputStream. Callers that need to stream output incrementally (a
@@ -1319,7 +1337,6 @@ class ProotManager @Inject constructor(
         // pre-INSTALL when invoked via the bare ProcessBuilder we used
         // before. See proot-distro/proot-distro.sh:run_proot_cmd().
         val procDir = File(activeRootfsDir, "proc").apply { mkdirs() }
-        val sysEmpty = File(activeRootfsDir, "sys/.empty").apply { mkdirs() }
         // Write minimal fake /proc replacements once per rootfs. proot
         // can't read the host's real /proc/{loadavg,stat,uptime,…}
         // through its bind mount, so apps that parse them (rpm post-
@@ -1339,6 +1356,7 @@ class ProotManager @Inject constructor(
 
         val rootfsPath = activeRootfsDir.absolutePath
         val devShm = ensureDevShm()
+        val sysSelinuxMask = selinuxMaskBind(activeRootfsDir)
         val args = mutableListOf(
             prootBin,
             "-L",
@@ -1367,7 +1385,7 @@ class ProotManager @Inject constructor(
             "--bind=$rootfsPath/proc/.vmstat:/proc/vmstat",
             "--bind=$rootfsPath/proc/.sysctl_entry_cap_last_cap:/proc/sys/kernel/cap_last_cap",
             "--bind=$rootfsPath/proc/.sysctl_inotify_max_user_watches:/proc/sys/fs/inotify/max_user_watches",
-            "--bind=${sysEmpty.absolutePath}:/sys/fs/selinux",
+            "--bind=$sysSelinuxMask",
             "--bind=${context.cacheDir.absolutePath}:/tmp",
             "/usr/bin/env", "-i",
             "HOME=/root",
