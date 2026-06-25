@@ -33,6 +33,38 @@ private const val TAG = "ProotManager"
 private const val PREF_ACTIVE_DISTRO_ID = "active_distro_id"
 private const val PREF_MIRROR_REGION = "mirror_region"
 
+/** One-shot guard for the #262 install-marker backfill. */
+private const val PREF_MARKERS_BACKFILLED = "install_markers_backfilled_v1"
+
+/**
+ * File written at the rootfs root only after extract + hooks + baseline
+ * all succeed. Its presence is what distinguishes a *complete* install
+ * from a partial one left by an extract interrupted mid-flight (#262).
+ */
+internal const val ROOTFS_READY_MARKER = ".haven-rootfs-ready"
+
+/**
+ * Whether the extracted rootfs *files* are present (busybox `bin/sh`).
+ * Necessary but not sufficient for a usable install — an extract killed
+ * partway can have `bin/sh` and little else, so callers that need a
+ * usable rootfs want [isRootfsComplete] instead.
+ */
+internal fun rootfsFilesPresent(rootfsDir: File): Boolean =
+    java.nio.file.Files.exists(
+        File(rootfsDir, "bin/sh").toPath(),
+        java.nio.file.LinkOption.NOFOLLOW_LINKS,
+    )
+
+/**
+ * Whether [rootfsDir] holds a *complete* install: files present AND the
+ * [ROOTFS_READY_MARKER] written at the end of a successful install. An
+ * install interrupted before the marker (app killed mid-extract) reads
+ * as incomplete and is re-run cleanly rather than mistaken for ready
+ * (#262).
+ */
+internal fun isRootfsComplete(rootfsDir: File): Boolean =
+    rootfsFilesPresent(rootfsDir) && File(rootfsDir, ROOTFS_READY_MARKER).exists()
+
 /**
  * Delete [root] and everything under it, even when in-proot package
  * scripts left directories read-only.
@@ -213,14 +245,13 @@ class ProotManager @Inject constructor(
     /**
      * Distros that are installed on this device — derived from the
      * filesystem rather than persisted state, so it's robust to
-     * marker-file drift. A rootfs counts as installed if its
-     * `bin/sh` is present at `proot/rootfs/<id>/`.
+     * marker-file drift. A rootfs counts as installed only when it is
+     * *complete* (see [isRootfsComplete]): a partial extract left by an
+     * interrupted install does not qualify, so the picker offers it for
+     * (re)install and [reconcileActiveDistro] won't fall back to it.
      */
     val installedDistros: List<Distro>
-        get() = DistroCatalog.all.filter { distro ->
-            val binSh = File(rootfsDirFor(distro.id), "bin/sh").toPath()
-            java.nio.file.Files.exists(binSh, java.nio.file.LinkOption.NOFOLLOW_LINKS)
-        }
+        get() = DistroCatalog.all.filter { isRootfsComplete(rootfsDirFor(it.id)) }
 
     /**
      * Catalog entries the user could install: arch-compatible, not
@@ -281,14 +312,15 @@ class ProotManager @Inject constructor(
         get() = isRootfsInstalledFor(activeDistroId)
 
     /**
-     * Whether [distroId]'s rootfs is present, independent of the active
-     * distro — lets a LOCAL profile target a specific distro's shell
-     * (`ConnectionProfile.prootDistroId`) without switching the active one.
+     * Whether [distroId]'s rootfs is a *complete* install, independent of
+     * the active distro — lets a LOCAL profile target a specific distro's
+     * shell (`ConnectionProfile.prootDistroId`) without switching the
+     * active one. Requires the [ROOTFS_READY_MARKER] (#262), so a rootfs
+     * left half-extracted by an interrupted install reads as not-installed
+     * and is re-run rather than treated as ready.
      */
-    fun isRootfsInstalledFor(distroId: String): Boolean = java.nio.file.Files.exists(
-        File(rootfsDirFor(distroId), "bin/sh").toPath(),
-        java.nio.file.LinkOption.NOFOLLOW_LINKS,
-    )
+    fun isRootfsInstalledFor(distroId: String): Boolean =
+        isRootfsComplete(rootfsDirFor(distroId))
 
     val prootBinary: String?
         get() {
@@ -595,8 +627,35 @@ class ProotManager @Inject constructor(
 
     init {
         migrateLegacyAlpineDir()
+        backfillInstallMarkers()
         reconcileActiveDistro()
         _state.value = if (isReady) SetupState.Ready else SetupState.NotInstalled
+    }
+
+    /**
+     * One-shot backfill for installs predating the rootfs completion
+     * marker (#262). Before the marker, a rootfs counted as installed the
+     * instant `bin/sh` appeared, so an extract interrupted partway (app
+     * backgrounded / process killed mid-install) left a partial tree that
+     * read as complete forever. Now [installRootfs] writes
+     * [ROOTFS_READY_MARKER] only after extract + hooks + baseline all
+     * succeed, and [isRootfsComplete] requires it.
+     *
+     * This runs exactly once (guarded by [PREF_MARKERS_BACKFILLED]): any
+     * rootfs already on disk at upgrade time is assumed complete and gets
+     * a marker. After that, a missing marker reliably means "partial /
+     * never finished", because only the success path writes it.
+     */
+    private fun backfillInstallMarkers() {
+        if (prefs.getBoolean(PREF_MARKERS_BACKFILLED, false)) return
+        for (distro in DistroCatalog.all) {
+            val dir = rootfsDirFor(distro.id)
+            if (rootfsFilesPresent(dir) && !File(dir, ROOTFS_READY_MARKER).exists()) {
+                runCatching { File(dir, ROOTFS_READY_MARKER).writeText("legacy\n") }
+                    .onFailure { Log.w(TAG, "Backfill marker failed for ${distro.id}: ${it.message}") }
+            }
+        }
+        prefs.edit().putBoolean(PREF_MARKERS_BACKFILLED, true).apply()
     }
 
     /**
@@ -743,6 +802,10 @@ class ProotManager @Inject constructor(
             )
             val targetDir = File(context.filesDir, "proot/rootfs/${distro.id}")
             withContext(Dispatchers.IO) {
+                // Clear any stale completion marker before (re-)extracting,
+                // so the rootfs can't read as complete until this install
+                // finishes (#262).
+                File(targetDir, ROOTFS_READY_MARKER).delete()
                 Log.d(TAG, "[extract ${distro.id}] start")
                 extractTarball(tarball, targetDir, source)
                 tarball.delete()
@@ -883,6 +946,14 @@ class ProotManager @Inject constructor(
         )
         installBaseline()
 
+        // Commit the install: write the completion marker only now that
+        // extract + hooks + baseline have all succeeded. isRootfsComplete
+        // requires this, so an install interrupted before this point reads
+        // as not-installed and re-runs cleanly instead of being mistaken
+        // for ready (#262).
+        runCatching { File(rootfsDirFor(distro.id), ROOTFS_READY_MARKER).writeText("ready\n") }
+            .onFailure { Log.w(TAG, "Failed to write rootfs ready marker for ${distro.id}: ${it.message}") }
+
         _state.value = SetupState.Ready
         installLogRepository.logEvent(
             distroId = distro.id,
@@ -922,7 +993,11 @@ class ProotManager @Inject constructor(
                 installRootfs()
             }
             Phase.BootstrapHook, Phase.Baseline -> {
-                if (!isRootfsInstalled) {
+                // Files-present (not isRootfsComplete): a hook/baseline
+                // failure leaves the extracted rootfs on disk but no
+                // completion marker, so re-run just the idempotent
+                // post-extract setup, which writes the marker on success.
+                if (!rootfsFilesPresent(activeRootfsDir)) {
                     Log.d(TAG, "[retry] rootfs missing; falling through to full install")
                     installRootfs()
                     return
