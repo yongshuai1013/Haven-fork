@@ -1,0 +1,3 @@
+• Terminal: set your own prompt-end characters, and choose the local shell locale/LANG.
+• Local Linux: a distro install interrupted partway is no longer mistaken for complete — it re-runs cleanly instead of leaving a broken environment. Also fixes openssh-server install on Ubuntu desktops.
+• AI agent: long guest commands (apt-get, big output) now auto-background instead of timing out, and the status notification shows the live agent activity and last error.
