@@ -27,7 +27,9 @@ raw control/bulk transfers. Each device-open and transfer asks for consent.
 With **Settings → "Expose USB devices to the Linux guest"** turned on (off by
 default), `usb_attach_to_guest` opens the device and binds a small userspace USB
 proxy on a socket the proot guest can reach. A bundled `haven-usb` shim then makes
-the device appear inside the guest as a normal `/dev/hidraw*` HID node:
+the device appear inside the guest as a **character** device — for a HID-class
+device, a normal `/dev/hidraw*` node (CDC-serial devices surface as a serial
+endpoint instead):
 
 - **native Linux apps** via `LD_PRELOAD` (the shim interposes
   `open`/`ioctl`/`read`/`write`);
@@ -39,6 +41,16 @@ the device appear inside the guest as a normal `/dev/hidraw*` HID node:
 All USB I/O stays in the Android layer (`UsbDeviceConnection`), so the guest never
 needs a real device node or root. The shim is built for both glibc and musl, so it
 works the same on every distro Haven offers.
+
+> **Not supported: USB mass-storage / block devices.** A USB drive is USB
+> Mass Storage class — it needs the kernel's `usb-storage`/SCSI/block layer to
+> become a `/dev/sd*` block device, which proot has no access to, and the
+> `haven-usb` shim only emulates *character* devices (HID `hidraw`, CDC serial).
+> So a flash drive does **not** appear as a disk inside the guest even with
+> forwarding on, and `fdisk`/partitioning isn't possible there. To use the
+> drive's *files*, let Android mount it (USB-OTG storage) and read/write them
+> under `/storage` (bound into every guest); partitioning must be done
+> host-side.
 
 ## To a remote host over USB/IP
 
