@@ -26,6 +26,9 @@ class UserPreferencesRepository @Inject constructor(
     private val terminalTapToPositionCursorKey = booleanPreferencesKey("terminal_tap_to_position_cursor")
     // Absolute path to a user-chosen Nerd Font (or any TTF/OTF). #123.
     private val terminalFontPathKey = stringPreferencesKey("terminal_font_path")
+    // Extra trailing prompt characters (beyond $ # % > ❯) for command-on-attach
+    // detection — supports custom prompts ending in e.g. » or 尺 (#280).
+    private val terminalPromptCharsKey = stringPreferencesKey("terminal_prompt_chars")
     private val themeKey = stringPreferencesKey("theme")
     private val sessionManagerKey = stringPreferencesKey("session_manager")
     private val reticulumRpcKeyKey = stringPreferencesKey("reticulum_rpc_key")
@@ -923,6 +926,22 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             if (path.isNullOrBlank()) prefs.remove(terminalFontPathKey)
             else prefs[terminalFontPathKey] = path
+        }
+    }
+
+    /**
+     * Extra characters the user treats as a shell-prompt terminator, added to
+     * the built-in `$ # % > ❯` set used to detect when a queued command may be
+     * sent on (re)attach (#280). Whitespace is ignored; e.g. "»尺". Empty
+     * (default) keeps only the built-ins.
+     */
+    val terminalPromptChars: Flow<String> = dataStore.data.map { prefs ->
+        prefs[terminalPromptCharsKey] ?: ""
+    }
+
+    suspend fun setTerminalPromptChars(chars: String) {
+        dataStore.edit { prefs ->
+            prefs[terminalPromptCharsKey] = chars
         }
     }
 

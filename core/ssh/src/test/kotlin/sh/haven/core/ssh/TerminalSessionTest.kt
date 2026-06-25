@@ -273,4 +273,55 @@ class TerminalSessionTest {
         session.close() // Should not throw
         // channel.disconnect() called once due to relaxed mock
     }
+
+    @Test
+    fun `pending command fires on a custom prompt char only once it is configured`() {
+        val out = ByteArrayOutputStream()
+        val pipeOut = PipedOutputStream()
+        val pipeIn = PipedInputStream(pipeOut)
+        val channel = mockk<ChannelShell>(relaxed = true) {
+            every { inputStream } returns pipeIn
+            every { getOutputStream() } returns out
+            every { isConnected } returns true
+        }
+        val client = mockk<SshClient>(relaxed = true)
+
+        // A prompt ending in '»' — none of the built-in $ # % > ❯ terminators.
+        val session = TerminalSession(
+            sessionId = "test-session",
+            profileId = "test",
+            label = "near@host",
+            channel = channel,
+            client = client,
+            onDataReceived = { _, _, _ -> },
+            pendingCommands = listOf("tmux attach"),
+        )
+        try {
+            session.start()
+
+            // Default terminators don't include '»', so the queued command stays put.
+            pipeOut.write("ian@host » ".toByteArray())
+            pipeOut.flush()
+            Thread.sleep(300)
+            assertTrue(
+                "command should NOT fire before '»' is configured, got: '${String(out.toByteArray())}'",
+                !String(out.toByteArray()).contains("tmux attach"),
+            )
+
+            // User adds '»' as a prompt character (#280): now the prompt is detected.
+            TerminalSession.promptTerminators =
+                TerminalSession.DEFAULT_PROMPT_TERMINATORS + '»'
+            pipeOut.write("ian@host » ".toByteArray())
+            pipeOut.flush()
+            Thread.sleep(300)
+            assertTrue(
+                "command should fire once '»' is configured, got: '${String(out.toByteArray())}'",
+                String(out.toByteArray()).contains("tmux attach"),
+            )
+        } finally {
+            // Restore the process-wide default for other tests.
+            TerminalSession.promptTerminators = TerminalSession.DEFAULT_PROMPT_TERMINATORS
+            session.close()
+        }
+    }
 }

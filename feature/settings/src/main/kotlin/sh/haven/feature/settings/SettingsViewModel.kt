@@ -812,6 +812,15 @@ class SettingsViewModel @Inject constructor(
             preferencesRepository.setMediaExtensions(extensions)
         }
     }
+
+    val terminalPromptChars: StateFlow<String> = preferencesRepository.terminalPromptChars
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    fun setTerminalPromptChars(chars: String) {
+        viewModelScope.launch {
+            preferencesRepository.setTerminalPromptChars(chars)
+        }
+    }
 }
 
 /** A selectable SSH profile for the MCP reverse-tunnel endpoint picker. */

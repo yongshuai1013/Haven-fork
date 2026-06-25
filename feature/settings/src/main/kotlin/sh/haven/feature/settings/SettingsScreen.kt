@@ -199,6 +199,7 @@ fun SettingsScreen(
     val backupStatus by viewModel.backupStatus.collectAsState()
     val waylandShellCommand by viewModel.waylandShellCommand.collectAsState()
     val mediaExtensions by viewModel.mediaExtensions.collectAsState()
+    val terminalPromptChars by viewModel.terminalPromptChars.collectAsState()
     var showAuditLog by remember { mutableStateOf(false) }
     var showProotInstallLog by remember { mutableStateOf(false) }
     var showAgentActivity by remember { mutableStateOf(false) }
@@ -215,6 +216,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showWaylandShellDialog by remember { mutableStateOf(false) }
     var showMediaExtensionsDialog by remember { mutableStateOf(false) }
+    var showPromptCharsDialog by remember { mutableStateOf(false) }
     var showFontSizeDialog by remember { mutableStateOf(false) }
     var showScrollbackRowsDialog by remember { mutableStateOf(false) }
     var showSessionManagerDialog by remember { mutableStateOf(false) }
@@ -584,6 +586,16 @@ fun SettingsScreen(
                 sessionManager.label
             },
             onClick = { showSessionManagerDialog = true },
+        )
+        SettingsItem(
+            icon = Icons.Filled.Terminal,
+            title = stringResource(R.string.settings_prompt_chars_title),
+            subtitle = if (terminalPromptChars.isBlank()) {
+                stringResource(R.string.settings_prompt_chars_subtitle)
+            } else {
+                terminalPromptChars
+            },
+            onClick = { showPromptCharsDialog = true },
         )
         SettingsToggleItem(
             icon = Icons.Filled.Search,
@@ -1410,6 +1422,38 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showMediaExtensionsDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+
+    if (showPromptCharsDialog) {
+        var promptText by rememberSaveable { mutableStateOf(terminalPromptChars) }
+        AlertDialog(
+            onDismissRequest = { showPromptCharsDialog = false },
+            title = { Text(stringResource(R.string.settings_prompt_chars_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.settings_prompt_chars_description),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = promptText,
+                        onValueChange = { promptText = it },
+                        label = { Text(stringResource(R.string.settings_prompt_chars_label)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setTerminalPromptChars(promptText.filterNot { it.isWhitespace() })
+                    showPromptCharsDialog = false
+                }) { Text(stringResource(R.string.common_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPromptCharsDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }

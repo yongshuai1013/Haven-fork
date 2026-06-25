@@ -100,6 +100,12 @@
     <string name="settings_media_extensions_description">Space-separated file extensions to treat as streamable media in the file browser.</string>
     <string name="settings_media_extensions_label">Extensions</string>
 
+    <!-- Custom shell prompt characters (#280) -->
+    <string name="settings_prompt_chars_title">Shell prompt characters</string>
+    <string name="settings_prompt_chars_subtitle">Default: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Extra characters that end your shell prompt, so a queued command is sent once the prompt reappears (e.g. after reconnecting or reattaching tmux). Add the trailing character(s) of your custom prompt — the built-in $ # % &gt; ❯ are always recognised.</string>
+    <string name="settings_prompt_chars_label">Extra prompt characters</string>
+
     <!-- Backup section -->
     <string name="settings_export_backup_title">Export backup</string>
     <string name="settings_export_backup_subtitle">Keys, connections, and settings</string>

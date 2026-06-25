@@ -225,6 +225,20 @@ class HavenApp : Application(), Configuration.Provider {
         // Start the Mail-Rules watch. It observes the master switch and does nothing
         // until the user enables inbound-email automation (off by default).
         mailWatchManager.start()
+
+        // Extend the shell-prompt terminator set used for command-on-attach
+        // detection with the user's custom prompt characters (#280). Replays
+        // the current value on subscribe, so it's armed before the first
+        // session opens. TerminalSession keeps it in a process-wide field
+        // (no DataStore dependency in core:ssh).
+        preferencesRepository.terminalPromptChars
+            .distinctUntilChanged()
+            .onEach { extra ->
+                sh.haven.core.ssh.TerminalSession.promptTerminators =
+                    sh.haven.core.ssh.TerminalSession.DEFAULT_PROMPT_TERMINATORS +
+                    extra.filterNot { it.isWhitespace() }.toSet()
+            }
+            .launchIn(appScope)
     }
 
     /**

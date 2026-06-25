@@ -160,7 +160,7 @@ class TerminalSession(
                         val promptChar = stripped.split('\n')
                             .map { it.trimEnd() }
                             .filter { it.isNotEmpty() }
-                            .mapNotNull { line -> line.last().takeIf { it == '$' || it == '#' || it == '%' || it == '>' || it == '\u276F' /* ❯ */ } }
+                            .mapNotNull { line -> line.last().takeIf { it in promptTerminators } }
                             .firstOrNull()
                         if (promptChar != null) {
                             val cmd = synchronized(_pendingCommands) { _pendingCommands.removeFirstOrNull() }
@@ -376,5 +376,19 @@ class TerminalSession(
 
         /** Gap between the wobble resize and the restore resize. */
         private const val POST_REATTACH_REDRAW_WOBBLE_MS = 150L
+
+        /** Built-in trailing prompt characters: `$ # % >` and `❯`. */
+        val DEFAULT_PROMPT_TERMINATORS: Set<Char> = setOf('$', '#', '%', '>', '❯')
+
+        /**
+         * Trailing characters that mark a shell prompt, used to decide when a
+         * queued command may be sent on (re)attach. Defaults to
+         * [DEFAULT_PROMPT_TERMINATORS]; the app layer extends it from the
+         * user's "custom prompt characters" preference so prompts ending in
+         * e.g. `»` or `尺` are recognised (#280). Process-wide (the heuristic
+         * is identical for every session); read on each output chunk.
+         */
+        @Volatile
+        var promptTerminators: Set<Char> = DEFAULT_PROMPT_TERMINATORS
     }
 }
