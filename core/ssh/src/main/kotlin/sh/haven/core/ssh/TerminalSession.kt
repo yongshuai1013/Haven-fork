@@ -2,6 +2,7 @@ package sh.haven.core.ssh
 
 import android.util.Log
 import com.jcraft.jsch.ChannelShell
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
@@ -11,6 +12,14 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 private const val TAG = "TerminalSession"
+
+/**
+ * Cap on the pre-attach connect-window output buffered for replay into the
+ * emulator on first attach (#289). The DA1/DSR queries we care about land in
+ * the first few hundred bytes; the cap only bounds a pathological MOTD (or a
+ * headless session that never attaches a UI emulator).
+ */
+private const val BACKLOG_CAP = 256 * 1024
 
 /**
  * Bridges a JSch [ChannelShell] to a terminal emulator.
@@ -55,6 +64,22 @@ class TerminalSession(
             _pendingCommands.addAll(commands)
         }
     }
+
+    /**
+     * Connect-window backlog (#289). SSH sessions are created at connect time
+     * with a no-op [onDataReceived]; the emulator attaches later via
+     * [replaceDataCallback]. A login shell that probes the terminal on startup
+     * — e.g. fish's Primary Device Attribute query (ESC [ c) — therefore writes
+     * to nobody and is never answered, so fish waits the full 10s timeout. We
+     * buffer the first [BACKLOG_CAP] bytes seen before the first attach and
+     * replay them through the emulator callback on attach, so the query is
+     * parsed (and answered) well within the window. Guarded by [backlogGate],
+     * which also serialises the swap-and-replay against the reader's delivery
+     * so no byte is lost or duplicated across the attach. Nulled after the
+     * first attach — subsequent reattaches don't re-buffer or re-replay.
+     */
+    private val backlogGate = Any()
+    private var connectBacklog: ByteArrayOutputStream? = ByteArrayOutputStream()
 
     @Volatile private var sshInput: InputStream = channel.inputStream
     @Volatile private var sshOutput: OutputStream = channel.outputStream
@@ -116,7 +141,32 @@ class TerminalSession(
      * The reader thread continues running and will use the new callback immediately.
      */
     fun replaceDataCallback(callback: (ByteArray, Int, Int) -> Unit) {
-        onDataReceived = callback
+        synchronized(backlogGate) {
+            onDataReceived = callback
+            val backlog = connectBacklog ?: return  // already attached once
+            connectBacklog = null // stop buffering; future bytes flow straight through
+            val bytes = backlog.toByteArray()
+            if (bytes.isNotEmpty()) {
+                Log.d(TAG, "Replaying ${bytes.size}B connect-window backlog into emulator on attach (#289)")
+                callback(bytes, 0, bytes.size)
+            }
+        }
+    }
+
+    /**
+     * Deliver one output chunk to [onDataReceived], buffering it into the
+     * connect-window [connectBacklog] until the first [replaceDataCallback]
+     * (#289). Synchronised on [backlogGate] so that buffering + delivery is
+     * atomic against the swap-and-replay in [replaceDataCallback].
+     */
+    private fun deliver(data: ByteArray, offset: Int, length: Int) {
+        synchronized(backlogGate) {
+            val backlog = connectBacklog
+            if (backlog != null && backlog.size() < BACKLOG_CAP) {
+                backlog.write(data, offset, minOf(length, BACKLOG_CAP - backlog.size()))
+            }
+            onDataReceived(data, offset, length)
+        }
     }
 
     fun start() {
@@ -143,7 +193,7 @@ class TerminalSession(
                 }
                 if (bytesRead > 0) {
                     onMirror(buffer, 0, bytesRead)
-                    onDataReceived(buffer, 0, bytesRead)
+                    deliver(buffer, 0, bytesRead)
 
                     // After delivering output, check if we have pending commands
                     // to send once a shell prompt appears.
