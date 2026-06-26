@@ -2422,6 +2422,15 @@ class ConnectionsViewModel @Inject constructor(
                     msg.contains("authentication", ignoreCase = true) ||
                     msg.contains("publickey", ignoreCase = true)
                 )
+                // #292: JSch throws "Incorrect passphrase provided." synchronously
+                // from addIdentity when an assigned encrypted key's passphrase
+                // (a saved host password fed in as the passphrase, blank, or a
+                // stale stored #290 value) fails to decrypt it. That string is
+                // not an "Auth fail"-style message and the saved-password tap
+                // path runs with keyOnly=false, so without this branch it
+                // dead-ends to an error toast instead of the passphrase prompt.
+                val isPassphraseError = !isNetworkError &&
+                    msg.contains("passphrase", ignoreCase = true)
                 val isAuthError = keyOnly && isAuthMessage
                 if (isFidoAuth && (isAuthError || (keyOnly && !isNetworkError))) {
                     val fidoDetail = fidoAuthenticator.lastAssertionError
@@ -2434,6 +2443,9 @@ class ConnectionsViewModel @Inject constructor(
                     Log.d(TAG, "Auth failed, showing password fallback for ${profile.label}")
                     _passwordFallback.value = profile
                 } else if (keyOnly && !isNetworkError && msg.isBlank()) {
+                    _passwordFallback.value = profile
+                } else if (isPassphraseError) {
+                    Log.d(TAG, "Encrypted-key passphrase failed — prompting (#292)")
                     _passwordFallback.value = profile
                 } else if (!keyOnly && isAuthMessage) {
                     _error.value = "Authentication failed — check username and password"
