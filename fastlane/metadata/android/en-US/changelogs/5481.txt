@@ -1,0 +1,3 @@
+Reveal a saved password behind biometric auth (#274)
+
+When you edit a saved connection, the password field's eye toggle now asks for a fingerprint / PIN before it unmasks the stored secret — so a quick check no longer exposes credentials to anyone holding the unlocked app. Covers email / IMAP, RDP, SMB and Reticulum interface passphrases. New connections still reveal freely while you type. Denying or dismissing the prompt keeps the value hidden.
