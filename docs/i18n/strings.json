@@ -15098,6 +15098,27 @@
      }
     },
     {
+     "name": "keys_store_passphrase",
+     "en": "Store passphrase on this device",
+     "comment": "copyPublicKey",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "keys_store_passphrase_warning",
+     "en": "Save this key\\'s passphrase to this device\\'s hardware-backed encrypted storage so connections using this key never prompt for it. Anyone who can unlock this device can use the key. Enable only if you accept that risk.",
+     "comment": "copyPublicKey",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "keys_store_passphrase_confirm",
+     "en": "Store",
+     "comment": "copyPublicKey",
+     "args": [],
+     "t": {}
+    },
+    {
      "name": "keys_sk_require_pin",
      "en": "Require PIN at sign-in",
      "comment": "copyPublicKey",
