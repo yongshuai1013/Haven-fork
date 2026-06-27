@@ -11436,7 +11436,7 @@
     },
     {
      "name": "connections_toggle_mcp_tunnel",
-     "en": "Expose Haven\\'s MCP server",
+     "en": "Reverse-expose Haven\\'s MCP to this host",
      "comment": "MCP reverse-tunnel toggle (SSH section).",
      "args": [],
      "t": {
@@ -11455,7 +11455,7 @@
     },
     {
      "name": "connections_helper_mcp_tunnel",
-     "en": "Exposes Haven\\'s MCP to every session on this connection — they reach http://127.0.0.1:8730/mcp and (over loopback) skip pairing &amp; consent. Applied on connect. For always-on access with no session open, set this as the Always-on MCP connection in Settings → Agent endpoint.",
+     "en": "Reverse-tunnels Haven\\'s own MCP server back to the remote host, so processes there (e.g. Claude Code running on the server) reach http://127.0.0.1:8730/mcp and (over loopback) skip pairing &amp; consent. Applied on connect. For always-on access with no session open, set this as the Always-on MCP connection in Settings → Agent endpoint.",
      "comment": "MCP reverse-tunnel toggle (SSH section).",
      "args": [],
      "t": {
@@ -11490,6 +11490,13 @@
       "ru": "Переподключение",
       "zh": "重新连接"
      }
+    },
+    {
+     "name": "connections_section_mcp",
+     "en": "AI agent (MCP)",
+     "comment": "Connection edit dialog: remaining field labels, toggles and helper text.",
+     "args": [],
+     "t": {}
     },
     {
      "name": "connections_local_shell_android_desc",
@@ -13157,7 +13164,7 @@
     },
     {
      "name": "connections_toggle_mcp_enabled",
-     "en": "Allow MCP agent on this connection",
+     "en": "Allow agent to control this connection",
      "comment": "#210 i18n sweep: VM-setup copy toasts and code-block copy action.",
      "args": [],
      "t": {
@@ -13176,7 +13183,7 @@
     },
     {
      "name": "connections_helper_mcp_enabled",
-     "en": "When off, AI-agent (MCP) tools that target this connection are refused. The connection still works normally for you.",
+     "en": "Inbound: when off, AI-agent (MCP) tools can\\'t read or drive this connection. It still works normally for you.",
      "comment": "#210 i18n sweep: VM-setup copy toasts and code-block copy action.",
      "args": [],
      "t": {
@@ -23521,6 +23528,13 @@
       "ru": "Дополнительно",
       "zh": "高级"
      }
+    },
+    {
+     "name": "settings_section_mcp",
+     "en": "AI agent (MCP)",
+     "comment": "Common strings",
+     "args": [],
+     "t": {}
     },
     {
      "name": "settings_section_backup",

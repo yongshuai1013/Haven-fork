@@ -2724,17 +2724,39 @@ fun ConnectionEditDialog(
                     }
 
                     CollapsibleSection("Reliability & MCP", secReliabilityExpanded, { secReliabilityExpanded = !secReliabilityExpanded }) {
-                        // Per-connection MCP/agent access. Off = agent tools that target
-                        // this connection are refused (and its row robot shows a slash).
-                        // Lets you pre-disable a connection the agent has never touched
-                        // (which otherwise shows no row robot to tap).
+                        // ── AI agent (MCP) ── both directions grouped together.
+                        Text(
+                            stringResource(R.string.connections_section_mcp),
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        // Inbound: can the agent read / drive this connection. Off =
+                        // agent tools that target it are refused (its row robot shows a
+                        // slash). Lets you pre-disable a connection the agent never touched.
                         BooleanToggleRow(
                             label = stringResource(R.string.connections_toggle_mcp_enabled),
                             checked = mcpEnabled,
-                            onCheckedChange = { mcpEnabled = it },
+                            // Turning inbound MCP off also drops the reverse exposure —
+                            // exposing Haven to a host you won't let the agent drive
+                            // makes no sense, so toggle 2 is gated on this one.
+                            onCheckedChange = { mcpEnabled = it; if (!it) mcpReverseTunnel = false },
                             description = stringResource(R.string.connections_helper_mcp_enabled),
                         )
-                        Spacer(Modifier.height(8.dp))
+                        // Outbound exposure: reverse-tunnel Haven's own MCP back to the
+                        // remote host. SSH only (mosh/ET can't carry an SSH -R forward);
+                        // disabled while inbound MCP is off.
+                        if (selectedTransport == "SSH") {
+                            Spacer(Modifier.height(8.dp))
+                            BooleanToggleRow(
+                                label = stringResource(R.string.connections_toggle_mcp_tunnel),
+                                checked = mcpReverseTunnel,
+                                onCheckedChange = { mcpReverseTunnel = it },
+                                description = stringResource(R.string.connections_helper_mcp_tunnel),
+                                enabled = mcpEnabled,
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        // ── Reliability ──
                         // Tunnel-only mode (#150): bring up the SSH transport +
                         // port forwards without opening a terminal. Pair with
                         // unlimited reconnect for autossh-style keepalive.
@@ -2772,17 +2794,6 @@ fun ConnectionEditDialog(
                             checked = reconnectOnNetworkChange,
                             onCheckedChange = { reconnectOnNetworkChange = it },
                         )
-                        // MCP reverse tunnel — only meaningful for plain SSH
-                        // (mosh/ET can't carry an SSH -R forward).
-                        if (selectedTransport == "SSH") {
-                            Spacer(Modifier.height(8.dp))
-                            BooleanToggleRow(
-                                label = stringResource(R.string.connections_toggle_mcp_tunnel),
-                                checked = mcpReverseTunnel,
-                                onCheckedChange = { mcpReverseTunnel = it },
-                                description = stringResource(R.string.connections_helper_mcp_tunnel),
-                            )
-                        }
                     }
 
                     if (vncSettingsStored) {
@@ -3392,10 +3403,12 @@ fun ConnectionEditDialog(
                             jumpDestination = cfJumpDestination,
                         )
                     } else null
-                    // MCP reverse tunnel only applies to plain SSH; for
-                    // other transports always report false so the screen
-                    // tears down any stale rule.
-                    onSave(profile, cfInput, mcpReverseTunnel && selectedTransport == "SSH")
+                    // MCP reverse tunnel only applies to plain SSH, and only
+                    // when inbound MCP is allowed for this connection (the
+                    // toggle is gated on mcpEnabled). For other transports or
+                    // when MCP is off, report false so the screen tears down
+                    // any stale rule.
+                    onSave(profile, cfInput, mcpReverseTunnel && mcpEnabled && selectedTransport == "SSH")
                 },
                 enabled = canSave,
             ) {
@@ -3601,17 +3614,23 @@ private fun BooleanToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     description: String? = null,
+    enabled: Boolean = true,
 ) {
     androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onCheckedChange(!checked) }
+                .then(if (enabled) Modifier.clickable { onCheckedChange(!checked) } else Modifier)
                 .padding(vertical = 4.dp),
         ) {
-            Text(label, modifier = Modifier.weight(1f))
-            Switch(checked = checked, onCheckedChange = onCheckedChange)
+            Text(
+                label,
+                modifier = Modifier.weight(1f),
+                color = if (enabled) androidx.compose.ui.graphics.Color.Unspecified
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            )
+            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
         }
         if (checked && description != null) {
             Text(

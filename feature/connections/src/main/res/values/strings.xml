@@ -427,11 +427,12 @@
     <string name="connections_section_routing">Routing</string>
 
     <!-- MCP reverse-tunnel toggle (SSH section). -->
-    <string name="connections_toggle_mcp_tunnel">Expose Haven\'s MCP server</string>
-    <string name="connections_helper_mcp_tunnel">Exposes Haven\'s MCP to every session on this connection — they reach http://127.0.0.1:8730/mcp and (over loopback) skip pairing &amp; consent. Applied on connect. For always-on access with no session open, set this as the Always-on MCP connection in Settings → Agent endpoint.</string>
+    <string name="connections_toggle_mcp_tunnel">Reverse-expose Haven\'s MCP to this host</string>
+    <string name="connections_helper_mcp_tunnel">Reverse-tunnels Haven\'s own MCP server back to the remote host, so processes there (e.g. Claude Code running on the server) reach http://127.0.0.1:8730/mcp and (over loopback) skip pairing &amp; consent. Applied on connect. For always-on access with no session open, set this as the Always-on MCP connection in Settings → Agent endpoint.</string>
 
     <!-- Connection edit dialog: remaining field labels, toggles and helper text. -->
     <string name="connections_section_reconnect">Reconnect</string>
+    <string name="connections_section_mcp">AI agent (MCP)</string>
     <string name="connections_local_shell_android_desc">Runs the native Android shell (/system/bin/sh). Access Android commands, file system, and root (if available).</string>
     <string name="connections_local_shell_proot_desc">Runs an Alpine Linux shell locally via PRoot. Downloads a minimal rootfs (~4MB) on first use. No root or network connection needed.</string>
     <string name="connections_local_distro_label">Open in OS</string>
@@ -533,6 +534,6 @@
     <string name="connections_mcp_badge">MCP</string>
     <string name="connections_mcp_active">Agent is operating on this connection — tap to disable MCP for it</string>
     <string name="connections_mcp_disabled">MCP disabled for this connection — tap to enable</string>
-    <string name="connections_toggle_mcp_enabled">Allow MCP agent on this connection</string>
-    <string name="connections_helper_mcp_enabled">When off, AI-agent (MCP) tools that target this connection are refused. The connection still works normally for you.</string>
+    <string name="connections_toggle_mcp_enabled">Allow agent to control this connection</string>
+    <string name="connections_helper_mcp_enabled">Inbound: when off, AI-agent (MCP) tools can\'t read or drive this connection. It still works normally for you.</string>
 </resources>

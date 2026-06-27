@@ -239,6 +239,7 @@
     <string name="settings_section_connections_screen">Connections screen</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
     <string name="settings_section_advanced">Advanced</string>
+    <string name="settings_section_mcp">AI agent (MCP)</string>
     <string name="settings_section_backup">Backup</string>
     <string name="settings_section_about">About</string>
     <string name="settings_show_terminal_tab_bar_title">Show terminal tab bar</string>

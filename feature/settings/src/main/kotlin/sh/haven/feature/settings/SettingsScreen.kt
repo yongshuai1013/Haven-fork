@@ -392,6 +392,7 @@ fun SettingsScreen(
     val settingsExpanded = remember {
         androidx.compose.runtime.mutableStateListOf(
             false, false, false, false, false, false, false, false, false, false,
+            false, // [10] AI agent (MCP)
         )
     }
     Column(modifier = Modifier.fillMaxSize()) {
@@ -868,12 +869,23 @@ fun SettingsScreen(
             )
         }
 
-        // MCP agent endpoint — grouped near Shizuku because both are
-        // "lets an outside thing poke Haven" surfaces: Shizuku lets
-        // privileged Android helpers reach in, MCP lets local AI
-        // agents and scripts reach in. OFF by default. Read tools run
-        // unprompted, write tools require a per-call (or per-session)
-        // bottom-sheet consent.
+        // Media extensions stays in Advanced (moved up from below the MCP
+        // block when the MCP/agent settings were split into their own section).
+        SettingsItem(
+            icon = Icons.Filled.PlayArrow,
+            title = stringResource(R.string.settings_media_extensions_title),
+            subtitle = mediaExtensions,
+            onClick = { showMediaExtensionsDialog = true },
+        )
+        }
+
+        // ── AI agent (MCP) — its own top-level section ──
+        // Every "lets an outside thing poke Haven via MCP" surface in one place:
+        // the endpoint master switch, per-capability gates, network exposure,
+        // trust-loopback, copy URL/config, paired clients and standing policies.
+        CollapsibleSettingsSection(stringResource(R.string.settings_section_mcp), settingsExpanded[10], { settingsExpanded[10] = !settingsExpanded[10] }) {
+        // MCP agent endpoint. OFF by default. Read tools run unprompted; write
+        // tools require a per-call (or per-session) bottom-sheet consent.
         SettingsToggleItem(
             icon = Icons.Filled.Hub,
             title = stringResource(R.string.settings_agent_endpoint_title),
@@ -1123,13 +1135,6 @@ fun SettingsScreen(
                 },
             )
         }
-
-        SettingsItem(
-            icon = Icons.Filled.PlayArrow,
-            title = stringResource(R.string.settings_media_extensions_title),
-            subtitle = mediaExtensions,
-            onClick = { showMediaExtensionsDialog = true },
-        )
 
         }
         CollapsibleSettingsSection(stringResource(R.string.settings_section_backup), settingsExpanded[8], { settingsExpanded[8] = !settingsExpanded[8] }) {

@@ -1,0 +1,5 @@
+MCP/agent settings cleanup:
+
+• The two per-connection MCP toggles are now grouped together and clearly labelled by direction — "Allow agent to control this connection" (inbound: can the agent drive this session) and "Reverse-expose Haven's MCP to this host" (outbound: reverse-tunnel Haven's MCP back to the remote host). The reverse-expose toggle is disabled while the agent isn't allowed to control the connection.
+
+• The MCP/agent options in the main Settings screen (endpoint, capability gates, WireGuard/LAN exposure, trust-loopback, copy URL/config, paired clients, standing policies) now live in their own dedicated "AI agent (MCP)" section instead of being buried under Advanced.
