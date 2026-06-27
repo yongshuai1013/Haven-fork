@@ -2272,6 +2272,37 @@ class ConnectionsViewModel @Inject constructor(
         multiUserProfile: Boolean,
     ) {
         if (multiUserProfile) return
+
+        // For an encrypted-key profile the entered secret is the KEY
+        // PASSPHRASE, not the host password — resolveExplicitKey feeds
+        // `password` to JSch as the passphrase. Persist it on the KEY
+        // (#290 store) rather than profile.sshPassword. Storing it on the
+        // profile mislabels it "<host> — SSH password" in the credential
+        // audit (#290 follow-up) and duplicates the passphrase into every
+        // host that shares the key; the per-key store is reused across all
+        // of them and labelled correctly. resolveExplicitKey already reads
+        // getStoredPassphrase when no passphrase is supplied, so this slots
+        // straight into the existing auto-unlock path.
+        val keyId = profile.keyId?.takeIf { !profile.ignoreSavedKeys }
+        val encryptedKeyId = keyId
+            ?.let { sshKeyRepository.getById(it) }
+            ?.takeIf { it.isEncrypted }
+            ?.let { keyId }
+        if (encryptedKeyId != null) {
+            if (rememberPassword == true && password.isNotBlank()) {
+                sshKeyRepository.setStoredPassphrase(encryptedKeyId, password)
+            } else if (rememberPassword == false) {
+                sshKeyRepository.setStoredPassphrase(encryptedKeyId, null)
+            }
+            // Migrate away from the conflated slot: a passphrase saved here
+            // by an older build (or fed in as a "host password") would keep
+            // showing as an SSH password in the audit.
+            if (rememberPassword != null && profile.sshPassword != null) {
+                repository.save(profile.copy(sshPassword = null))
+            }
+            return
+        }
+
         if (rememberPassword == true && password.isNotBlank()) {
             repository.save(profile.copy(sshPassword = password))
         } else if (rememberPassword == false && profile.sshPassword != null) {
