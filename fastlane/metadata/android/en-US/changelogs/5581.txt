@@ -1,0 +1,7 @@
+Terminal background transparency:
+
+• New background opacity setting (global, with a per-connection override). Set it below 100% and your device wallpaper shows through the terminal — and every other Haven screen — instead of a solid background.
+
+Fixes:
+
+• Post-quantum key exchange (ML-KEM / mlkem768x25519-sha256) stopped working after the previous update, so connections to servers that require post-quantum KEX failed with "Algorithm negotiation fail". Fixed by updating the bundled cryptography library. (#296)
