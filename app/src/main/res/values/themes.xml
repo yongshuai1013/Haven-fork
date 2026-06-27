@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Haven" parent="Theme.AppCompat.DayNight.NoActionBar" />
+    <!--
+        windowShowWallpaper + a transparent windowBackground make the Activity
+        window translucent from creation, so the terminal's background-opacity
+        feature can reveal the device wallpaper without ghosting. The window is
+        translucent app-wide, but every screen paints an opaque Scaffold
+        background (HavenNavHost) so nothing else shows the wallpaper unless the
+        active terminal opts in (which drops the Scaffold container to
+        transparent). Toggling these at runtime instead leaves the surface
+        opaque and renders a stale, un-cleared buffer — hence the static theme.
+    -->
+    <style name="Theme.Haven" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>

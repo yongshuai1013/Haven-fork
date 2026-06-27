@@ -6,9 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.ColorDrawable
 import android.net.Uri
-import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -179,6 +177,10 @@ fun TerminalScreen(
     onNavigateToConnections: () -> Unit = {},
     onNavigateToVnc: (host: String, port: Int, username: String?, password: String?, sshForward: Boolean, sshSessionId: String?, colorDepth: String) -> Unit = { _, _, _, _, _, _, _ -> },
     onSelectionActiveChanged: (Boolean) -> Unit = {},
+    // Reports when the active terminal wants a translucent (wallpaper
+    // see-through) background, so the host can make the Scaffold/window
+    // behind the terminal transparent. False otherwise.
+    onTransparentChanged: (Boolean) -> Unit = {},
     onReorderModeChanged: (Boolean) -> Unit = {},
     onToolbarLayoutChanged: (ToolbarLayout) -> Unit = {},
     snippetLibrary: List<ToolbarItem.Custom> = emptyList(),
@@ -564,32 +566,16 @@ fun TerminalScreen(
     val effectiveBgOpacity =
         (tabs.getOrNull(activeTabIndex)?.backgroundOpacity ?: globalBgOpacity).coerceIn(0f, 1f)
 
-    // When the active terminal opts into < 1.0 opacity, make the Activity
-    // window translucent and show the device wallpaper behind it; the
-    // terminal's screen-fill is drawn with the matching alpha (passed to
-    // HavenTerminal below). Restored to opaque when the terminal isn't the
-    // active page, when opacity returns to 1.0, or when the screen leaves
-    // composition. Gated on isActive so other panes (SFTP/Desktop) never
-    // inherit the translucent window.
-    val surfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+    // When the active terminal opts into < 1.0 opacity, the wallpaper shows
+    // behind it. The window is made translucent + wallpaper-backed statically
+    // in Theme.Haven (windowShowWallpaper); toggling it at runtime left the
+    // surface opaque and ghosted a stale buffer. Here we only need to tell the
+    // host to drop the opaque Scaffold background behind the terminal so the
+    // wallpaper actually reaches the eye. Gated on isActive so other panes
+    // (SFTP/Desktop) keep their opaque background.
     val showWallpaper = isActive && effectiveBgOpacity < 1f
-    DisposableEffect(showWallpaper, surfaceArgb) {
-        val window = (view.context as? Activity)?.window
-        // Only touch the window when transparency is actually engaged so users
-        // who never enable it keep the default opaque window untouched. The
-        // onDispose below fires on the true→false transition (and on leave),
-        // restoring opacity.
-        if (window != null && showWallpaper) {
-            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
-            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-        }
-        onDispose {
-            if (window != null && showWallpaper) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-                window.setBackgroundDrawable(ColorDrawable(surfaceArgb))
-            }
-        }
-    }
+    LaunchedEffect(showWallpaper) { onTransparentChanged(showWallpaper) }
+    DisposableEffect(Unit) { onDispose { onTransparentChanged(false) } }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (tabs.isEmpty()) {

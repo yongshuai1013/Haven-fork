@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +23,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -473,6 +475,10 @@ fun HavenNavHost(
 
     // Disable pager swipe while terminal text selection is active
     var terminalSelectionActive by remember { mutableStateOf(false) }
+    // True while the active terminal wants a wallpaper see-through background;
+    // makes the Scaffold container transparent so the (window-level)
+    // FLAG_SHOW_WALLPAPER actually reaches the eye behind the terminal.
+    var terminalTransparent by remember { mutableStateOf(false) }
     var terminalReorderMode by remember { mutableStateOf(false) }
     var openToolbarConfig by remember { mutableStateOf(false) }
 
@@ -635,6 +641,7 @@ fun HavenNavHost(
                             }
                         },
                         onSelectionActiveChanged = { terminalSelectionActive = it },
+                        onTransparentChanged = { terminalTransparent = it },
                         onReorderModeChanged = { terminalReorderMode = it },
                         onToolbarLayoutChanged = { newLayout ->
                             coroutineScope.launch {
@@ -805,6 +812,12 @@ fun HavenNavHost(
     }
 
     Scaffold(
+        // When the active terminal opts into a translucent background, drop the
+        // opaque Scaffold container so the window-level FLAG_SHOW_WALLPAPER shows
+        // the device wallpaper behind the terminal. Otherwise the normal opaque
+        // app background (matches the Scaffold default).
+        containerColor = if (terminalTransparent) Color.Transparent
+            else MaterialTheme.colorScheme.background,
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
         snackbarHost = { SnackbarHost(globalSnackbarHostState) },
         bottomBar = {
