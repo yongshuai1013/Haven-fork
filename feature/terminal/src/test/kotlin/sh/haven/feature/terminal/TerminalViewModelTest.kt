@@ -51,9 +51,10 @@ class TerminalViewModelTest {
             moshSessionManager,
             etSessionManager,
             localSessionManager,
-            mockk(relaxed = true),
-            mockk(relaxed = true),
-            mockk(relaxed = true),
+            mockk(relaxed = true), // HostKeyVerifier
+            mockk(relaxed = true), // FidoAuthenticator
+            mockk(relaxed = true), // UserPreferencesRepository
+            mockk(relaxed = true), // ConnectionRepository
             mockk(relaxed = true), // TunnelResolver
             sh.haven.core.data.agent.AgentUiCommandBus(),
             sh.haven.core.data.message.UserMessageBus(),

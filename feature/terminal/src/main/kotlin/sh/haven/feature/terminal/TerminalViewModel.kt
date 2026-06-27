@@ -282,6 +282,13 @@ class TerminalViewModel @Inject constructor(
     private val etSessionManager: EtSessionManager,
     private val localSessionManager: sh.haven.core.local.LocalSessionManager,
     private val hostKeyVerifier: HostKeyVerifier,
+    /**
+     * Security-key (FIDO2/SK) authenticator, wired onto the SshClients built
+     * for new sessions/tabs below. Without it an SK-key profile NPEs in
+     * SshClient.addFidoIdentity when opening a second session (the primary
+     * connect path in ConnectionsViewModel already wires this).
+     */
+    private val fidoAuthenticator: sh.haven.core.fido.FidoAuthenticator,
     private val preferencesRepository: UserPreferencesRepository,
     private val connectionRepository: sh.haven.core.data.repository.ConnectionRepository,
     private val tunnelResolver: sh.haven.core.tunnel.TunnelResolver,
@@ -1942,15 +1949,23 @@ class TerminalViewModel @Inject constructor(
             // second flow — a 2nd dial over a WireGuard/Tailscale tunnel can't be
             // serviced by some peers (a FRITZ!Box drops the 2nd concurrent WG→LAN
             // flow), and one SSH connection carrying several tmux sessions is the
-            // canonical model. Scoped to tunnel-routed profiles so direct
-            // connections keep independent-per-tab semantics.
-            val reuseClient = if (connectionRepository.getById(profileId)?.tunnelConfigId != null) {
+            // canonical model. Reused for tunnel-routed profiles AND any
+            // session-manager profile (tmux/screen/byobu/zellij) — re-dialing the
+            // latter would force a second authentication (e.g. a FIDO/YubiKey tap,
+            // whose prompt isn't surfaced in the terminal screen, so it would hang).
+            // Only "None" keeps independent-per-tab shells.
+            val reuseClient = if (
+                connectionRepository.getById(profileId)?.tunnelConfigId != null ||
+                sshSessionMgr.listCommand != null
+            ) {
                 // awaitReusableClient also waits for an in-flight connect (the MCP
                 // carrier on app launch) so a restored tab reuses it instead of
                 // racing a second dial.
                 sessionManager.awaitReusableClient(profileId)
             } else null
-            val client = reuseClient ?: SshClient()
+            val client = reuseClient ?: SshClient().apply {
+                fidoAuthenticator = this@TerminalViewModel.fidoAuthenticator
+            }
             val sessionId = sessionManager.registerSession(profileId, label, client)
             try {
                 if (reuseClient != null) {
@@ -2096,14 +2111,20 @@ class TerminalViewModel @Inject constructor(
             // Reuse a live SSH connection to this profile instead of dialing a
             // second flow (a 2nd dial over a WireGuard tunnel can't be serviced
             // by some peers; one SSH connection carries multiple tmux sessions).
-            // Scoped to tunnel-routed profiles.
-            val reuseClient = if (connectionRepository.getById(profileId)?.tunnelConfigId != null) {
+            // Reused for tunnel-routed AND session-manager profiles — re-dialing
+            // the latter would force a second auth (e.g. a FIDO/YubiKey tap).
+            val reuseClient = if (
+                connectionRepository.getById(profileId)?.tunnelConfigId != null ||
+                sshSessionMgr.listCommand != null
+            ) {
                 // awaitReusableClient also waits for an in-flight connect (the MCP
                 // carrier on app launch) so a restored tab reuses it instead of
                 // racing a second dial.
                 sessionManager.awaitReusableClient(profileId)
             } else null
-            val client = reuseClient ?: SshClient()
+            val client = reuseClient ?: SshClient().apply {
+                fidoAuthenticator = this@TerminalViewModel.fidoAuthenticator
+            }
             val sessionId = sessionManager.registerSession(profileId, label, client)
             try {
                 if (reuseClient != null) {

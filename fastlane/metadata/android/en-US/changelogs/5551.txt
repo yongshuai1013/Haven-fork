@@ -1,1 +1,3 @@
+Fixes opening a second session on an SSH profile that uses a terminal multiplexer (tmux, screen, byobu or zellij): new sessions now reuse the existing connection instead of dialing and authenticating a second time. This fixes a crash on security-key (FIDO2/YubiKey) profiles and a hang where the new-session picker never appeared.
+
 Terminal: the extra key rows (Ctrl, Esc, Tab, arrows, etc.) now stay visible in fullscreen mode instead of disappearing — those are the keys you still need while typing. Fullscreen continues to hide the status bar, navigation bar and tab bar.
