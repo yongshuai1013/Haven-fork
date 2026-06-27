@@ -841,6 +841,16 @@ fun TerminalScreen(
                         mutableStateOf<org.connectbot.terminal.SelectionController?>(null)
                     }
 
+                    // The active tab's compose controller (termlib local
+                    // CJK/accent buffer). Held here so the Compose toolbar key
+                    // can toggle it and reflect its state; also registered into
+                    // TerminalSessionRegistry for the MCP set_compose_mode verb.
+                    // isComposeModeActive is Compose-state backed, so reads
+                    // recompose the toolbar tint (incl. auto-exit on Enter).
+                    var composeController by remember {
+                        mutableStateOf<org.connectbot.terminal.ComposeController?>(null)
+                    }
+
                     // Notify parent when selection state changes.
                     // isSelectionActive is backed by Compose MutableState, so
                     // this block recomposes when selection starts/ends.
@@ -1071,6 +1081,10 @@ fun TerminalScreen(
                                 onGestureInjectorReady = {
                                     viewModel.terminalSessionRegistry.setGestureInjector(activeTab.sessionId, it)
                                 },
+                                onComposeControllerAvailable = {
+                                    composeController = it
+                                    viewModel.terminalSessionRegistry.setComposeController(activeTab.sessionId, it)
+                                },
                                 onTerminalDoubleTap = {
                                     val window = (view.context as? Activity)?.window ?: return@HavenTerminal
                                     val controller = WindowCompat.getInsetsController(window, view)
@@ -1213,6 +1227,8 @@ fun TerminalScreen(
                         onToggleStandardKeyboard = onToggleStandardKeyboard,
                         rawKeyboardMode = rawKeyboardMode,
                         onToggleRawKeyboard = onToggleRawKeyboard,
+                        composeModeActive = composeController?.isComposeModeActive == true,
+                        onToggleComposeMode = { composeController?.toggleComposeMode() },
                         onAttachTap = { attachSheetVisible = true },
                         selectionContent = selectionController?.let { ctrl -> {
                             SelectionToolbarContent(

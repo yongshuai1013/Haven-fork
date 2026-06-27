@@ -2,6 +2,7 @@ package sh.haven.feature.terminal.agent
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.connectbot.terminal.ComposeController
 import org.connectbot.terminal.GestureInjector
 import org.connectbot.terminal.ScrollController
 import org.connectbot.terminal.SelectionController
@@ -61,6 +62,7 @@ class TerminalSessionRegistry @Inject constructor() {
         val oscHandler: OscHandler? = null,
         val feedOutput: ((ByteArray, Int, Int) -> Unit)? = null,
         val gestureInjector: GestureInjector? = null,
+        val composeController: ComposeController? = null,
     )
 
     private val _sessions = MutableStateFlow<Map<String, Entry>>(emptyMap())
@@ -83,6 +85,18 @@ class TerminalSessionRegistry @Inject constructor() {
     fun setGestureInjector(sessionId: String, injector: GestureInjector?) {
         val current = _sessions.value[sessionId] ?: return
         _sessions.value = _sessions.value + (sessionId to current.copy(gestureInjector = injector))
+    }
+
+    /**
+     * The per-Composition [ComposeController] that drives termlib's local
+     * compose-mode buffer (CJK / accent / voice-friendly input). Null until
+     * the tab's Composable mounts and fires `onComposeControllerAvailable`;
+     * read by the MCP `set_compose_mode` verb and by the in-terminal Compose
+     * toolbar toggle.
+     */
+    fun setComposeController(sessionId: String, controller: ComposeController?) {
+        val current = _sessions.value[sessionId] ?: return
+        _sessions.value = _sessions.value + (sessionId to current.copy(composeController = controller))
     }
 
     /**

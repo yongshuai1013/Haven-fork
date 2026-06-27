@@ -180,6 +180,15 @@ data class ToolbarCallbacks(
     /** Flip [rawKeyboardMode]. */
     val onToggleRawKeyboard: () -> Unit = {},
     /**
+     * Whether termlib's local compose mode is active for the current tab.
+     * Compose mode buffers typed text (CJK / accents) in an overlay at the
+     * cursor and commits it on Enter; while it's on the IME also gets a
+     * composition-friendly InputConnection. Drives the Compose key's tint.
+     */
+    val composeModeActive: Boolean = false,
+    /** Toggle compose mode on the active tab's ComposeController. */
+    val onToggleComposeMode: () -> Unit = {},
+    /**
      * Tap on the paperclip / attach key. Opens the source picker (SAF) so the
      * user can send a local file into the active session and inject a usable
      * reference (path or share URL) at the cursor.
@@ -234,6 +243,8 @@ fun KeyboardToolbar(
     onToggleStandardKeyboard: () -> Unit = {},
     rawKeyboardMode: Boolean = false,
     onToggleRawKeyboard: () -> Unit = {},
+    composeModeActive: Boolean = false,
+    onToggleComposeMode: () -> Unit = {},
     onAttachTap: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -291,6 +302,8 @@ fun KeyboardToolbar(
         onToggleStandardKeyboard = onToggleStandardKeyboard,
         rawKeyboardMode = rawKeyboardMode,
         onToggleRawKeyboard = onToggleRawKeyboard,
+        composeModeActive = composeModeActive,
+        onToggleComposeMode = onToggleComposeMode,
         onAddSnippet = { snippet ->
             // Adding from the scissors sheet creates a library entry (no toolbar
             // button) — the user pins it as a button via toolbar settings if they
@@ -879,6 +892,14 @@ private fun BuiltInKey(
             active = cb.rawKeyboardMode,
             onClick = cb.onToggleRawKeyboard,
         )
+        ToolbarKey.COMPOSE -> ToolbarToggleButton(
+            // "中" — toggles termlib's local compose buffer for CJK / accent
+            // input. On = a tinted button + the IME gets a composition-friendly
+            // connection; Enter commits the buffered text, which clears the tint.
+            label = "中",
+            active = cb.composeModeActive,
+            onClick = cb.onToggleComposeMode,
+        )
         ToolbarKey.PASTE -> ToolbarTextButton("Paste") {
             val text = cb.clipboardManager?.primaryClip
                 ?.getItemAt(0)?.text?.toString()
@@ -1135,6 +1156,7 @@ private fun toolbarKeyVisual(item: ToolbarItem): KeyVisual = when (item) {
         ToolbarKey.KEYBOARD -> KeyVisual.IconV(Icons.Filled.Keyboard, null)
         ToolbarKey.ATTACH -> KeyVisual.IconV(Icons.Filled.AttachFile, null)
         ToolbarKey.VOICE_KEYBOARD -> KeyVisual.IconV(Icons.Filled.Lock, null)
+        ToolbarKey.COMPOSE -> KeyVisual.TextV("中", glyph = true)
         ToolbarKey.HOME -> KeyVisual.IconV(Icons.Filled.FirstPage, "Home")
         ToolbarKey.END -> KeyVisual.IconV(Icons.Filled.LastPage, "End")
         ToolbarKey.ENTER_KEY -> KeyVisual.TextV("⏎", glyph = true) // ⏎

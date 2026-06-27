@@ -1131,6 +1131,26 @@ internal class McpTools(
             consentLevel = ConsentLevel.NEVER,
         ) { args -> getSelection(args) },
 
+        "set_compose_mode" to ToolHandler(
+            description = "Toggle or set termlib's local compose mode for a terminal session — the on-screen buffer used for CJK / accented / voice-friendly text entry. While compose mode is on, typed text (including IME-composed CJK candidates) buffers in an overlay at the cursor and the terminal hands the IME a composition-friendly InputConnection; the buffer commits to the shell on Enter, after which compose mode clears. Pass enabled=true/false to set explicitly, or omit enabled to toggle. Requires an attached terminal tab (errors for headless agent shells). Returns { sessionId, composeModeActive, composedText }.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("sessionId", JSONObject().apply { put("type", "string"); put("description", "Active session ID with an attached terminal tab.") })
+                    put("enabled", JSONObject().apply { put("type", "boolean"); put("description", "true = start compose mode, false = stop. Omit to toggle the current state.") })
+                })
+                put("required", JSONArray().put("sessionId"))
+            },
+            // ONCE_PER_SESSION: only flips an in-memory IME input mode +
+            // local compose buffer; nothing is sent to the remote until the
+            // user/agent presses Enter (a separate input call).
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                if (args.has("enabled")) "Set terminal compose mode = ${args.optBoolean("enabled")}?"
+                else "Toggle terminal compose mode?"
+            },
+        ) { args -> setComposeMode(args) },
+
         "read_clipboard" to ToolHandler(
             description = "Return the system clipboard's primary plain-text content. Returns { text } where text is null when the clipboard is empty or non-text (image, intent, etc.). On Android 10+ the system enforces foreground/IME restrictions on clipboard reads; this call may return null even when the clipboard has content if Haven isn't currently focused.",
             inputSchema = emptyObjectSchema(),
@@ -5753,6 +5773,23 @@ internal class McpTools(
                     put("endRow", it.endRow); put("endCol", it.endCol)
                 }
             } ?: JSONObject.NULL)
+        }
+    }
+
+    private fun setComposeMode(args: JSONObject): JSONObject {
+        val sessionId = resolveTerminalSessionId(args.optString("sessionId"))
+        val entry = requireRegistryEntry(sessionId)
+        val controller = entry.composeController
+            ?: throw McpError(-32603, "Terminal tab for session $sessionId has no active ComposeController — open a terminal tab on this session first")
+        if (args.has("enabled")) {
+            if (args.optBoolean("enabled")) controller.startComposeMode() else controller.stopComposeMode()
+        } else {
+            controller.toggleComposeMode()
+        }
+        return JSONObject().apply {
+            put("sessionId", sessionId)
+            put("composeModeActive", controller.isComposeModeActive)
+            put("composedText", controller.getComposedText())
         }
     }
 
