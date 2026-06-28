@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.preferences.UserPreferencesRepository
+import sh.haven.core.data.repository.ConnectionLogRepository
 import sh.haven.core.data.terminal.ScrollbackRing
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -50,6 +52,7 @@ class LocalSessionManager @Inject constructor(
     val guestServiceManager: GuestServiceManager,
     val audioBridge: AudioBridge,
     private val preferences: UserPreferencesRepository,
+    private val connectionLog: ConnectionLogRepository,
 ) {
 
     /**
@@ -407,6 +410,26 @@ class LocalSessionManager @Inject constructor(
                         status = SessionState.Status.DISCONNECTED,
                         localSession = null,
                     ))
+                }
+                // Surface the exit in the connection log so an immediately
+                // exiting local shell — e.g. a session manager that won't
+                // start (#294) — is diagnosable via Settings → View connection
+                // log, not just a release-stripped Log.d. The scrollback tail
+                // usually carries the actual reason (a tmux/zellij error, a
+                // "command not found", a broken profile script).
+                val tail = runCatching {
+                    val snap = ring.snapshot()
+                    val from = maxOf(0, snap.size - 2048)
+                    String(snap, from, snap.size - from, Charsets.UTF_8)
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+                prefScope.launch {
+                    connectionLog.logEvent(
+                        profileId = session.profileId,
+                        status = if (exitCode == 0) ConnectionLog.Status.DISCONNECTED
+                        else ConnectionLog.Status.FAILED,
+                        details = "Local shell exited (exit code $exitCode)",
+                        verboseLog = tail,
+                    )
                 }
             },
         )
