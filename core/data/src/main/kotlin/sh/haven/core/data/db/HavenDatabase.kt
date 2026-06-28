@@ -50,7 +50,7 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         StandingPolicy::class,
         AgeIdentityEntity::class,
     ],
-    version = 71,
+    version = 72,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -1159,6 +1159,16 @@ abstract class HavenDatabase : RoomDatabase() {
         val MIGRATION_70_71 = object : Migration(70, 71) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "connection_profiles", "terminalBackgroundOpacity", "REAL")
+            }
+        }
+
+        /** SPICE connection fields (#286). */
+        val MIGRATION_71_72 = object : Migration(71, 72) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "connection_profiles", "spicePort", "INTEGER")
+                addColumnIfMissing(db, "connection_profiles", "spicePassword", "TEXT")
+                addColumnIfMissing(db, "connection_profiles", "spiceSshForward", "INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "connection_profiles", "spiceSshProfileId", "TEXT")
             }
         }
 

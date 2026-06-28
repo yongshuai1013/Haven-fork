@@ -104,6 +104,12 @@ data class ConnectionProfile(
      * those tend to be xrdp / Linux-RDP setups.
      */
     val rdpColorDepth: Int = 32,
+    // SPICE-specific fields (#286). SPICE auth is a single ticket/password (no
+    // username/domain); the framebuffer is always 32bpp so there's no color-depth knob.
+    val spicePort: Int? = null,
+    val spicePassword: String? = null,
+    val spiceSshForward: Boolean = false,
+    val spiceSshProfileId: String? = null,
     val smbPort: Int = 445,
     val smbShare: String? = null,
     val smbDomain: String? = null,
@@ -423,10 +429,11 @@ data class ConnectionProfile(
     val isEternalTerminal: Boolean get() = isSsh && useEternalTerminal
     val isVnc: Boolean get() = connectionType == "VNC"
     val isRdp: Boolean get() = connectionType == "RDP"
+    val isSpice: Boolean get() = connectionType == "SPICE"
     val isSmb: Boolean get() = connectionType == "SMB"
     val isLocal: Boolean get() = connectionType == "LOCAL"
     val isRclone: Boolean get() = connectionType == "RCLONE"
     val isEmail: Boolean get() = connectionType == "EMAIL"
-    val isDesktop: Boolean get() = isVnc || isRdp
+    val isDesktop: Boolean get() = isVnc || isRdp || isSpice
     val isTerminal: Boolean get() = !isDesktop && !isSmb && !isRclone && !isEmail
 }
