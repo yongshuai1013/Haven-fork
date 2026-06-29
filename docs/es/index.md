@@ -72,6 +72,18 @@ instalaciones directas siguen la clave de GitHub Releases.
 
 Explora el [índice completo de funciones](../FEATURES.md).
 
+## ¿Por qué una sola aplicación?
+
+La lista de arriba son las piezas; lo importante es cómo se componen. Cada uno de estos es un único flujo dentro de Haven, sin una segunda aplicación, sin invocaciones tipo `curl | ssh`:
+
+- Toca un MKV 4K en Google Drive → FFmpeg lo transcodifica por HTTP y el resultado vuelve a la misma carpeta de Drive, sin tocar nunca el disco local.
+- Conéctate por SSH a una máquina, reenvía su puerto, toca el perfil VNC que apunta a `localhost`: el escritorio se abre en la misma aplicación, con teclado y portapapeles compartidos.
+- Corta un directorio de registros de un bucket S3, cambia de pestaña y pégalo en un servidor SFTP: rclone hace la copia del lado del servidor cuando puede; si no, Haven la transmite a través.
+- Ejecuta la CLI de tu agente en la shell Linux del dispositivo; hace `push` a través del agente SSH que reenviaste desde tu portátil mientras lo ves en la misma pantalla.
+- Transmite un vídeo de la nube al televisor del otro lado de la sala por HLS, copia la URL de la red local desde el snackbar y envíasela a un amigo para que también pueda verlo.
+
+El teléfono es el cliente ligero, Haven es el sistema operativo de cliente ligero, y la nube, tus servidores y tus agentes son el ordenador. El ancho es suficiente; lo que importa es la composición. ([Visión](https://github.com/GlassHaven/Haven/blob/main/VISION.md).)
+
 ## Idiomas
 
 Disponible en 12 idiomas: inglés, chino (simplificado), español, hindi, árabe (con soporte RTL), portugués, bengalí, ruso, japonés, coreano, francés y alemán. La interfaz sigue el idioma del dispositivo.

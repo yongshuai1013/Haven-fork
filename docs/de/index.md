@@ -72,6 +72,18 @@ Sideloads folgen dem GitHub-Releases-Schlüssel.
 
 Durchstöbere den [vollständigen Funktionsindex](../FEATURES.md).
 
+## Warum eine einzige App?
+
+Die Liste oben sind die Bausteine; worauf es ankommt, ist, wie sie sich kombinieren lassen. Jedes davon ist ein einziger Ablauf in Haven — keine zweite App, keine `curl | ssh`-Beschwörung:
+
+- Tippe auf eine 4K-MKV in Google Drive → FFmpeg transkodiert sie über HTTP, und das Ergebnis landet wieder im selben Drive-Ordner, ohne je den lokalen Speicher zu berühren.
+- Per SSH auf einen Rechner, leite dessen Port weiter, tippe auf das VNC-Profil, das auf `localhost` zeigt — der Desktop öffnet sich in derselben App, Tastatur und Zwischenablage geteilt.
+- Schneide ein Log-Verzeichnis aus einem S3-Bucket aus, wechsle den Tab, füge es auf einem SFTP-Server ein — rclone kopiert serverseitig, wenn es geht, sonst leitet Haven es durch.
+- Starte die CLI deines Agenten in der Linux-Shell auf dem Gerät; sie pusht über den SSH-Agent, den du von deinem Laptop weitergeleitet hast, während du auf demselben Bildschirm zusiehst.
+- Streame ein Cloud-Video per HLS auf den Fernseher auf der anderen Seite des Raums, kopiere die LAN-URL aus der Snackbar und schicke sie einem Freund, damit er mitschauen kann.
+
+Das Telefon ist der Thin Client, Haven ist das Thin-Client-Betriebssystem, und die Cloud, deine Server und deine Agenten sind der Computer. Die Breite genügt; worauf es ankommt, ist die Komposition. ([Vision](https://github.com/GlassHaven/Haven/blob/main/VISION.md).)
+
 ## Sprachen
 
 Verfügbar in 12 Sprachen: Englisch, Chinesisch (vereinfacht), Spanisch, Hindi, Arabisch (mit RTL-Unterstützung), Portugiesisch, Bengalisch, Russisch, Japanisch, Koreanisch, Französisch und Deutsch. Die Oberfläche folgt der Gerätesprache.
