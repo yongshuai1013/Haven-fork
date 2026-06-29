@@ -1422,7 +1422,8 @@ class ConnectionsViewModel @Inject constructor(
      * fallback. Returns null when at least one credential path is
      * available — the existing silent auto-connect handles those.
      */
-    private suspend fun jumpHostNeedsPasswordPrompt(
+    // internal for unit test (FIDO-jump-host-no-prompt regression, #286).
+    internal suspend fun jumpHostNeedsPasswordPrompt(
         jumpProfileId: String,
     ): ConnectionProfile? {
         // A live jump session already exists → reuse it silently, no prompt.
@@ -1443,12 +1444,28 @@ class ConnectionsViewModel @Inject constructor(
         // so the prompt is the only credential path; fire it (#121).
         if (jp.ignoreSavedKeys) return jp
         if (jp.keyId != null) return null
-        // SK/FIDO keys aren't usable as an auto-offered jump-host key (they need
-        // a touch and aren't loadable private material), so don't let their mere
-        // presence suppress the password prompt.
-        val unencryptedKeys = sshKeyRepository.getAllDecrypted()
-            .filter { !it.isEncrypted && !it.keyType.startsWith("sk-") && it.enabledForAuth }
-        if (unencryptedKeys.isNotEmpty()) return null
+        // connectJumpHost wires the FIDO authenticator + live prompter and
+        // resolves the profile's full auth spec (#286), so recognise the
+        // credentials it can complete WITHOUT a typed jump-host password and
+        // don't pre-empt them with a prompt.
+        val specs = jp.authMethodSpecs
+        // An explicit spec key, or a live keyboard-interactive / TOTP round.
+        if (specs.any {
+                it is ConnectionProfile.AuthMethodSpec.KeyboardInteractive ||
+                    it is ConnectionProfile.AuthMethodSpec.Totp ||
+                    (it is ConnectionProfile.AuthMethodSpec.Key && it.keyId != null)
+            }
+        ) return null
+        val keys = sshKeyRepository.getAllDecrypted().filter { it.enabledForAuth }
+        // "Any hardware key": FIDO needs only a touch — usable iff an sk-key is
+        // actually enrolled. Without this the sk-exclusion below (which predates
+        // jump-host FIDO auth) shadowed FIDO with a password prompt (#286).
+        if (specs.any { it is ConnectionProfile.AuthMethodSpec.AnyHardwareKey } &&
+            keys.any { it.keyType.startsWith("sk-") }
+        ) return null
+        // A usable unencrypted software key also suppresses the prompt; FIDO/sk
+        // keys are handled above (they aren't loadable as auto-offered keys).
+        if (keys.any { !it.isEncrypted && !it.keyType.startsWith("sk-") }) return null
         return jp
     }
 

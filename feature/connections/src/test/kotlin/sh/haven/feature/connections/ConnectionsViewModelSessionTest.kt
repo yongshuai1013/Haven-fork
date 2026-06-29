@@ -1,10 +1,15 @@
 package sh.haven.feature.connections
 
 import android.content.Context
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import sh.haven.core.data.db.entities.ConnectionProfile
+import sh.haven.core.data.db.entities.SshKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +63,7 @@ class ConnectionsViewModelSessionTest {
     private lateinit var prootManager: ProotManager
     private lateinit var desktopManager: DesktopManager
     private lateinit var sessionManagerRegistry: SessionManagerRegistry
+    private lateinit var sshKeyRepository: SshKeyRepository
     private lateinit var viewModel: ConnectionsViewModel
 
     @Before
@@ -117,6 +123,10 @@ class ConnectionsViewModelSessionTest {
             keepAlives = emptySet(),
         )
 
+        sshKeyRepository = mockk(relaxed = true) {
+            every { observeAll() } returns flowOf(emptyList())
+        }
+
         viewModel = ConnectionsViewModel(
             appContext = appContext,
             repository = repository,
@@ -137,9 +147,7 @@ class ConnectionsViewModelSessionTest {
             localSessionManager = localSessionManager,
             mailSessionManager = mailSessionManager,
             sessionManagerRegistry = sessionManagerRegistry,
-            sshKeyRepository = mockk(relaxed = true) {
-                every { observeAll() } returns flowOf(emptyList())
-            },
+            sshKeyRepository = sshKeyRepository,
             totpSecretRepository = mockk(relaxed = true) {
                 every { observeAll() } returns flowOf(emptyList())
             },
@@ -223,5 +231,50 @@ class ConnectionsViewModelSessionTest {
 
         verify { desktopManager.stopAll() }
         coVerify { repository.delete("profile1") }
+    }
+
+    private fun jumpProfile(authMethods: String) = ConnectionProfile(
+        id = "jump", label = "jump", host = "h", username = "u",
+        connectionType = "SSH", authMethods = authMethods,
+    )
+
+    private fun skKey() = SshKey(
+        label = "yk", keyType = "sk-ssh-ed25519@openssh.com",
+        privateKeyBytes = ByteArray(0), publicKeyOpenSsh = "", fingerprintSha256 = "",
+    )
+
+    // #286: a FIDO ("Any hardware key") jump host has no saved password and no
+    // legacy keyId — connectJumpHost authenticates it via the FIDO authenticator,
+    // so the pre-check must NOT shadow that with a password prompt.
+    @Test
+    fun `FIDO jump host with an sk-key enrolled needs no password prompt`() = runTest {
+        every { sshSessionManager.getSessionsForProfile("jump") } returns emptyList()
+        coEvery { repository.getById("jump") } returns jumpProfile("ANY_HARDWARE_KEY")
+        coEvery { sshKeyRepository.getAllDecrypted() } returns listOf(skKey())
+
+        assertNull(viewModel.jumpHostNeedsPasswordPrompt("jump"))
+    }
+
+    // Don't over-suppress: "Any hardware key" with no sk-key enrolled has no
+    // usable credential, so the prompt IS the fallback path.
+    @Test
+    fun `Any-hardware-key jump host with no sk-key prompts for password`() = runTest {
+        every { sshSessionManager.getSessionsForProfile("jump") } returns emptyList()
+        val jp = jumpProfile("ANY_HARDWARE_KEY")
+        coEvery { repository.getById("jump") } returns jp
+        coEvery { sshKeyRepository.getAllDecrypted() } returns emptyList()
+
+        assertSame(jp, viewModel.jumpHostNeedsPasswordPrompt("jump"))
+    }
+
+    // Password-only jump host with nothing saved → prompt (existing behaviour).
+    @Test
+    fun `password-only jump host with no saved password prompts`() = runTest {
+        every { sshSessionManager.getSessionsForProfile("jump") } returns emptyList()
+        val jp = jumpProfile("PASSWORD")
+        coEvery { repository.getById("jump") } returns jp
+        coEvery { sshKeyRepository.getAllDecrypted() } returns emptyList()
+
+        assertSame(jp, viewModel.jumpHostNeedsPasswordPrompt("jump"))
     }
 }
