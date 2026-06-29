@@ -3358,7 +3358,13 @@ class ConnectionsViewModel @Inject constructor(
         val effectivePassword = if (password.isEmpty()) jumpProfile.sshPassword ?: "" else password
 
         Log.d(TAG, "Auto-connecting jump host: ${jumpProfile.label} (${jumpProfile.host}:${jumpProfile.port})")
-        val jumpClient = SshClient()
+        // Wire the FIDO authenticator before connect — a jump host with a
+        // security-key (ed25519-sk) auth method (e.g. SPICE/VNC/RDP-over-SSH)
+        // otherwise fails instantly with "no FidoAuthenticator configured on
+        // this SshClient", never reaching the touch prompt (#286).
+        val jumpClient = SshClient().apply {
+            fidoAuthenticator = this@ConnectionsViewModel.fidoAuthenticator
+        }
         val jumpSessionId = sshSessionManager.registerSession(jumpProfileId, "Jump: ${jumpProfile.label}", jumpClient)
 
         try {
