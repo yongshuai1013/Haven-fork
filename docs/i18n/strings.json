@@ -19790,6 +19790,20 @@
      }
     },
     {
+     "name": "rdp_cd_two_finger_viewport",
+     "en": "Two-finger pans the view (tap to scroll the remote)",
+     "comment": "",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "rdp_cd_two_finger_scroll_on",
+     "en": "Two-finger scrolls the remote (tap to pan the view)",
+     "comment": "",
+     "args": [],
+     "t": {}
+    },
+    {
      "name": "rdp_orientation_landscape_desc",
      "en": "Lock landscape (tap to switch to portrait)",
      "comment": "",
@@ -34478,6 +34492,20 @@
       "ru": "Режим прямого касания (нажмите для трекпада)",
       "zh": "直接触摸模式（点击切换为触控板）"
      }
+    },
+    {
+     "name": "vnc_cd_two_finger_viewport",
+     "en": "Two-finger pans the view (tap to scroll the remote)",
+     "comment": "",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "vnc_cd_two_finger_scroll_on",
+     "en": "Two-finger scrolls the remote (tap to pan the view)",
+     "comment": "",
+     "args": [],
+     "t": {}
     },
     {
      "name": "vnc_orientation_landscape_desc",
