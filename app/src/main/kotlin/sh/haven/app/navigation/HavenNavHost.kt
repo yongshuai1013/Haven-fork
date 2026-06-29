@@ -375,6 +375,14 @@ fun HavenNavHost(
                     // Connect lands the user on the Connections tab so they
                     // can see the connecting → connected status flip.
                     Screen.Connections
+                is sh.haven.core.data.agent.AgentUiCommand.ConnectFromDeepLink ->
+                    // haven://connect matched a saved profile: show the
+                    // Connections tab for the confirm sheet + status flip.
+                    Screen.Connections
+                is sh.haven.core.data.agent.AgentUiCommand.PrefillNewConnection ->
+                    // haven://connect with no saved match: open the New
+                    // Connection editor (on the Connections tab) pre-filled.
+                    Screen.Connections
                 is sh.haven.core.data.agent.AgentUiCommand.AnswerAuthPrompt ->
                     // Answering the password/passphrase fallback re-drives the
                     // connect — same as ConnectProfile, show the Connections tab.

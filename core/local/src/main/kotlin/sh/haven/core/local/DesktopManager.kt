@@ -803,6 +803,8 @@ class DesktopManager @Inject constructor(
             "-b", "${prootManager.ensureDevShm()}:/dev/shm",
             "-b", "${context.cacheDir.absolutePath}:/tmp",
         )
+        // #300: remap privileged binds (<1024) up by +2000 when opted in.
+        if (prootManager.remapLowPorts) prootArgs.add("-p")
         // /bin/sh works on both Alpine (symlink to busybox) and Debian
         // (symlink to dash). See ProotManager.runCommandInProot.
         prootArgs.addAll(listOf("-w", "/root", "/bin/sh", "-c", shellCmd))
@@ -1084,6 +1086,8 @@ class DesktopManager @Inject constructor(
             "-b", "${context.cacheDir.absolutePath}:/tmp",
             "-b", "${devShmHost.absolutePath}:/dev/shm",
         )
+        // #300: remap privileged binds (<1024) up by +2000 when opted in.
+        if (prootManager.remapLowPorts) prootArgs.add("-p")
         prootArgs.addAll(listOf("-w", "/root", "/bin/sh", "-c", shellCmd))
 
         Log.d(TAG, "Starting $label (nested wayland) on port $port (display $display)")
@@ -1557,8 +1561,11 @@ class DesktopManager @Inject constructor(
                     "foot -e $shellCommand 2>&1; "
             }
 
+            // #300: remap privileged binds (<1024) up by +2000 when opted in.
+            val portRemap = if (prootManager.remapLowPorts) arrayOf("-p") else emptyArray()
             val process = ProcessBuilder(
                 prootBin, "-0", "--link2symlink",
+                *portRemap,
                 "-r", rootfsDir.absolutePath,
                 "-b", "/dev", "-b", "/proc", "-b", "/sys",
                 // Mask /sys/fs/selinux (#283) — see ProotManager.selinuxMaskBind.

@@ -105,6 +105,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     val availableDistros = viewModel.availableDistros
     val isRootfsReady = rootfsSetupState is ProotManager.SetupState.Ready
     val mirrorRegion by viewModel.mirrorRegion.collectAsState()
+    val remapLowPorts by viewModel.remapLowPorts.collectAsState()
+    val shareStorageWithGuest by viewModel.shareStorageWithGuest.collectAsState()
 
     var setupDesktopDe by remember {
         mutableStateOf<ProotManager.DesktopEnvironment?>(null)
@@ -136,6 +138,10 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             isRootfsReady = isRootfsReady,
             mirrorRegion = mirrorRegion,
             onSetMirrorRegion = { viewModel.setMirrorRegion(it) },
+            remapLowPorts = remapLowPorts,
+            onSetRemapLowPorts = { viewModel.setRemapLowPorts(it) },
+            shareStorageWithGuest = shareStorageWithGuest,
+            onSetShareStorageWithGuest = { viewModel.setShareStorageWithGuest(it) },
             storedVncPortFor = { viewModel.storedVncPortFor(it) },
             onSwitchDistro = { viewModel.switchActiveDistro(it) },
             onOpenShellForDistro = { viewModel.openShellForDistro(it) },
@@ -601,6 +607,34 @@ private fun MirrorRegionRow(region: MirrorRegion, onSelect: (MirrorRegion) -> Un
     }
 }
 
+/** A title + description + Switch row, styled like [MirrorRegionRow]. */
+@Composable
+private fun BindingToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
 @Composable
 private fun DesktopManagerSection(
     installedDesktops: Set<ProotManager.DesktopEnvironment>,
@@ -613,6 +647,10 @@ private fun DesktopManagerSection(
     isRootfsReady: Boolean,
     mirrorRegion: MirrorRegion,
     onSetMirrorRegion: (MirrorRegion) -> Unit,
+    remapLowPorts: Boolean,
+    onSetRemapLowPorts: (Boolean) -> Unit,
+    shareStorageWithGuest: Boolean,
+    onSetShareStorageWithGuest: (Boolean) -> Unit,
     storedVncPortFor: (ProotManager.DesktopEnvironment) -> Int?,
     onSwitchDistro: (String) -> Unit,
     onOpenShellForDistro: (String) -> Unit,
@@ -838,6 +876,25 @@ private fun DesktopManagerSection(
             // any installed distro supports a mirror swap (all current ones do).
             if (installedDistros.any { MirrorCatalog.hasMirrors(it.id) }) {
                 MirrorRegionRow(region = mirrorRegion, onSelect = onSetMirrorRegion)
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Proot launch toggles (#300 / #301). Global across distros; shown
+            // whenever a local distro is installed.
+            if (installedDistros.isNotEmpty()) {
+                BindingToggleRow(
+                    title = stringResource(AppR.string.app_desktop_remap_ports_title),
+                    description = stringResource(AppR.string.app_desktop_remap_ports_description),
+                    checked = remapLowPorts,
+                    onCheckedChange = onSetRemapLowPorts,
+                )
+                Spacer(Modifier.height(8.dp))
+                BindingToggleRow(
+                    title = stringResource(AppR.string.app_desktop_share_storage_title),
+                    description = stringResource(AppR.string.app_desktop_share_storage_description),
+                    checked = shareStorageWithGuest,
+                    onCheckedChange = onSetShareStorageWithGuest,
+                )
                 Spacer(Modifier.height(8.dp))
             }
 

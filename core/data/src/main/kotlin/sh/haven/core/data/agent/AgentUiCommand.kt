@@ -161,6 +161,37 @@ sealed class AgentUiCommand {
     ) : AgentUiCommand()
 
     /**
+     * Connect from a `haven://connect` deep link that matched exactly one
+     * saved profile (#305). Unlike [ConnectProfile] (the MCP path, no
+     * prompt), this is routed through a confirmation step in
+     * [ConnectionsViewModel] before connecting: a BROWSABLE deep link can be
+     * fired by an arbitrary web page, and the confirm blocks a drive-by
+     * connect that would otherwise use the profile's stored credentials. On
+     * confirm it runs the same connect path as [ConnectProfile], attaching
+     * [sessionName] (a tmux/zellij/screen session to create-or-attach).
+     */
+    data class ConnectFromDeepLink(
+        val profileId: String,
+        val sessionName: String? = null,
+    ) : AgentUiCommand()
+
+    /**
+     * Open the New-Connection editor pre-filled from a `haven://connect` deep
+     * link whose host matched no saved profile (#305). Deep links can't carry
+     * credentials, so rather than silently create a half-configured (or
+     * attacker-named) profile, the editor is surfaced seeded with these
+     * fields for the user to review, add auth, and save. [transport] is one
+     * of `ssh` / `mosh` / `et`.
+     */
+    data class PrefillNewConnection(
+        val host: String,
+        val username: String?,
+        val port: Int?,
+        val transport: String,
+        val session: String?,
+    ) : AgentUiCommand()
+
+    /**
      * Answer the password / key-passphrase prompt currently shown by
      * ConnectionsViewModel (its `_passwordFallback` dialog): supply the secret
      * a human would type, then re-drive the stalled connect through the same

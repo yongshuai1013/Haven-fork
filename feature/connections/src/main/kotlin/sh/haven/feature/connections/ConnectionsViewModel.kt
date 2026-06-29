@@ -207,6 +207,22 @@ class ConnectionsViewModel @Inject constructor(
                     if (_sessionSelection.value != null) {
                         onSessionSelected(command.sessionId, command.sessionName)
                     }
+                } else if (command is sh.haven.core.data.agent.AgentUiCommand.ConnectFromDeepLink) {
+                    // haven://connect matched a saved profile (#305). Show a
+                    // confirm sheet first — a BROWSABLE link can be fired by a
+                    // web page, and confirming blocks a drive-by connect that
+                    // would use this profile's stored credentials.
+                    val profile = repository.getById(command.profileId)
+                    if (profile != null) {
+                        _connectConfirm.value = ConnectConfirm(profile, command.sessionName)
+                    } else {
+                        Log.w(TAG, "ConnectFromDeepLink: profile ${command.profileId} not found")
+                    }
+                } else if (command is sh.haven.core.data.agent.AgentUiCommand.PrefillNewConnection) {
+                    // haven://connect with no saved match (#305): surface the
+                    // New-Connection editor pre-filled for the user to review,
+                    // add auth, and save.
+                    _prefillNewConnection.value = command
                 }
             }
         }
@@ -733,6 +749,37 @@ class ConnectionsViewModel @Inject constructor(
 
     private val _sessionSelection = MutableStateFlow<SessionSelection?>(null)
     val sessionSelection: StateFlow<SessionSelection?> = _sessionSelection.asStateFlow()
+
+    // --- haven://connect deep link (#305) ---
+
+    /** A matched saved profile awaiting the user's confirm before connecting. */
+    data class ConnectConfirm(val profile: ConnectionProfile, val sessionName: String?)
+
+    private val _connectConfirm = MutableStateFlow<ConnectConfirm?>(null)
+    val connectConfirm: StateFlow<ConnectConfirm?> = _connectConfirm.asStateFlow()
+
+    /** User confirmed the deep-link connect: run the same path as ConnectProfile. */
+    fun confirmDeepLinkConnect() {
+        val c = _connectConfirm.value ?: return
+        _connectConfirm.value = null
+        connect(c.profile, password = c.profile.sshPassword.orEmpty(), sessionName = c.sessionName)
+    }
+
+    fun dismissDeepLinkConnect() {
+        _connectConfirm.value = null
+    }
+
+    /** Params for the New-Connection editor to open pre-filled (unmatched host). */
+    private val _prefillNewConnection =
+        MutableStateFlow<sh.haven.core.data.agent.AgentUiCommand.PrefillNewConnection?>(null)
+    val prefillNewConnection:
+        StateFlow<sh.haven.core.data.agent.AgentUiCommand.PrefillNewConnection?> =
+        _prefillNewConnection.asStateFlow()
+
+    /** Clear the prefill request once the editor has consumed it. */
+    fun consumePrefillNewConnection() {
+        _prefillNewConnection.value = null
+    }
 
     // Mirror the session-manager picker to a process-wide holder so the MCP
     // agent can observe it (get_pending_session_picker) and answer it

@@ -262,10 +262,27 @@ class LocalSessionManager @Inject constructor(
             // Writable /dev/shm overlay (Android's /dev is read-only with no shm),
             // matching the one-shot (runCommandInProot) and desktop launch paths.
             val devShm = prootManager.ensureDevShm()
+            // #300: shift privileged (<1024) binds up by +2000 so guest
+            // services on low ports are reachable despite Android blocking
+            // the app uid from binding them. Opt-in (default off).
+            val portRemap = if (prootManager.remapLowPorts) arrayOf("-p") else emptyArray()
+            // #301: opt out of exposing the user's shared storage to the guest.
+            val storageBinds = if (prootManager.shareStorageWithGuest) {
+                arrayOf(
+                    "-b", "/storage",
+                    // Convenience alias so shared storage is reachable at the
+                    // familiar /sdcard, not just /storage/emulated/0 (#256).
+                    // Needs Haven's storage permission for content to show.
+                    "-b", "/storage/emulated/0:/sdcard",
+                )
+            } else {
+                emptyArray()
+            }
             val args = arrayOf(
                 prootBinary,
                 "-0",                    // fake root
                 "--link2symlink",        // fix link() for X11 lock files
+                *portRemap,
                 "-r", rootfsDir.absolutePath,
                 "-b", "/dev",
                 // Device nodes Android's read-only /dev lacks. Without these the
@@ -286,11 +303,7 @@ class LocalSessionManager @Inject constructor(
                 // restorecon in package postinst scripts (e.g. openssh-server → no
                 // /etc/ssh/sshd_config, #283). Matches the one-shot install path.
                 "-b", prootManager.selinuxMaskBind(rootfsDir),
-                "-b", "/storage",
-                // Convenience alias so shared storage is reachable at the
-                // familiar /sdcard, not just /storage/emulated/0 (#256).
-                // Needs Haven's storage permission for content to show.
-                "-b", "/storage/emulated/0:/sdcard",
+                *storageBinds,
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
                 "-w", "/root",
             ) + shellArgs

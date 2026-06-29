@@ -141,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         handleWorkspaceShortcut(intent)
         handleAppWindowShortcut(intent)
         handleRenewCertDeepLink(intent)
+        handleConnectDeepLink(intent)
     }
 
     /**
@@ -273,6 +274,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Parse a `haven://connect?host=…&user=…&port=…&transport=…&session=…`
+     * deep link (#305) and re-publish a connect/prefill command onto the UI
+     * bus. A host matching exactly one saved profile connects (routed through
+     * a confirm in ConnectionsViewModel, since a BROWSABLE link can be fired
+     * by a web page); no/ambiguous match opens the New-Connection editor
+     * pre-filled. The saved-profile lookup is async (Room), which also defers
+     * the emit past `setContent` so the always-composed ConnectionsViewModel
+     * is collecting by the time it lands.
+     */
+    private fun handleConnectDeepLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != "haven" || data.host != "connect") return
+        val params = ConnectDeepLink.parse { data.getQueryParameter(it) } ?: return
+        intent.data = null
+        Log.d("MainActivity", "connect deep link host=${params.host} transport=${params.transport}")
+        MainScope().launch {
+            agentUiCommandBus.emit(ConnectDeepLink.resolve(connectionRepository.getAll(), params))
+        }
+    }
+
+    /**
      * If [intent] carries a workspace launch action (long-press shortcut
      * tap, or a `compose_workspace` MCP call routed through here in a
      * future patch), kick off the launcher. Idempotent — extras are
@@ -303,6 +325,7 @@ class MainActivity : AppCompatActivity() {
         handleWorkspaceShortcut(intent)
         handleAppWindowShortcut(intent)
         handleRenewCertDeepLink(intent)
+        handleConnectDeepLink(intent)
         setContent {
             // Prevent screenshots/screen recording when enabled
             val screenSecurity by preferencesRepository.screenSecurity

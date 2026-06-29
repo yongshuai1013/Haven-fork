@@ -33,6 +33,10 @@ private const val TAG = "ProotManager"
 private const val PREF_ACTIVE_DISTRO_ID = "active_distro_id"
 private const val PREF_MIRROR_REGION = "mirror_region"
 
+/** Proot launch toggles for the local Linux sessions (#300 / #301). */
+private const val PREF_REMAP_LOW_PORTS = "remap_low_ports"
+private const val PREF_SHARE_STORAGE = "share_storage_with_guest"
+
 /** One-shot guard for the #262 install-marker backfill. */
 private const val PREF_MARKERS_BACKFILLED = "install_markers_backfilled_v1"
 
@@ -240,6 +244,44 @@ class ProotManager @Inject constructor(
                 Log.d(TAG, "Mirror region $region applied to ${distro.id}: $changed")
             }
         }
+    }
+
+    // --- Local-session proot launch toggles (#300 / #301) ---
+
+    private val _remapLowPorts = MutableStateFlow(prefs.getBoolean(PREF_REMAP_LOW_PORTS, false))
+
+    /**
+     * #300: when on, interactive proot launches add proot's `-p` flag, which
+     * shifts any privileged (<1024) `bind()` up by +2000 so guest services
+     * can listen on what looks like a low port (e.g. `:80` is reachable at
+     * `:2080`) despite Android forbidding the app uid from binding <1024.
+     * Outbound connections to non-localhost are left untouched. Default off
+     * (it remaps *every* privileged bind, including a guest sshd's `:22`).
+     */
+    val remapLowPortsFlow: StateFlow<Boolean> = _remapLowPorts.asStateFlow()
+    val remapLowPorts: Boolean get() = _remapLowPorts.value
+
+    fun setRemapLowPorts(enabled: Boolean) {
+        if (enabled == _remapLowPorts.value) return
+        prefs.edit().putBoolean(PREF_REMAP_LOW_PORTS, enabled).apply()
+        _remapLowPorts.value = enabled
+    }
+
+    private val _shareStorageWithGuest = MutableStateFlow(prefs.getBoolean(PREF_SHARE_STORAGE, true))
+
+    /**
+     * #301: when off, the local proot shell no longer binds `/storage` and
+     * `/storage/emulated/0` into the guest, so the guest can't see the user's
+     * photos/downloads. Default on (preserves the original behaviour where the
+     * guest reaches shared files via `/storage` and `/sdcard`).
+     */
+    val shareStorageWithGuestFlow: StateFlow<Boolean> = _shareStorageWithGuest.asStateFlow()
+    val shareStorageWithGuest: Boolean get() = _shareStorageWithGuest.value
+
+    fun setShareStorageWithGuest(enabled: Boolean) {
+        if (enabled == _shareStorageWithGuest.value) return
+        prefs.edit().putBoolean(PREF_SHARE_STORAGE, enabled).apply()
+        _shareStorageWithGuest.value = enabled
     }
 
     /**

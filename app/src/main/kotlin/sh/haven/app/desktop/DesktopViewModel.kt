@@ -133,6 +133,20 @@ class DesktopViewModel @Inject constructor(
         prootManager.setMirrorRegion(region)
     }
 
+    /** #300: remap privileged (<1024) guest binds up by +2000. Pass-through. */
+    val remapLowPorts: StateFlow<Boolean> get() = prootManager.remapLowPortsFlow
+
+    fun setRemapLowPorts(enabled: Boolean) {
+        prootManager.setRemapLowPorts(enabled)
+    }
+
+    /** #301: share the device's /storage with the local guest. Pass-through. */
+    val shareStorageWithGuest: StateFlow<Boolean> get() = prootManager.shareStorageWithGuestFlow
+
+    fun setShareStorageWithGuest(enabled: Boolean) {
+        prootManager.setShareStorageWithGuest(enabled)
+    }
+
     /**
      * Local-shell open requests keyed by the resolved profile id. Collected
      * by HavenNavHost (which is always composed, unlike TerminalScreen) so

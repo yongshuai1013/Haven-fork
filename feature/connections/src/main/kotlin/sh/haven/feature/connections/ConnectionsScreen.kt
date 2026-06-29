@@ -214,6 +214,10 @@ fun ConnectionsScreen(
     val launchingDesktop by viewModel.launchingDesktop.collectAsState()
     val error by viewModel.error.collectAsState()
     val warning by viewModel.warning.collectAsState()
+    // haven://connect deep link (#305): confirm sheet for a matched profile,
+    // and a pre-fill request for the New-Connection editor on no match.
+    val connectConfirm by viewModel.connectConfirm.collectAsState()
+    val prefillNewConnection by viewModel.prefillNewConnection.collectAsState()
     val navigateToTerminal by viewModel.navigateToTerminal.collectAsState()
     val navigateToSmb by viewModel.navigateToSmb.collectAsState()
     val navigateToRclone by viewModel.navigateToRclone.collectAsState()
@@ -291,6 +295,10 @@ fun ConnectionsScreen(
     }
 
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    // Draft seeding the add dialog when opened from a haven://connect deep
+    // link with no saved match (#305). Cleared when the dialog closes so a
+    // later manual "Add" isn't pre-filled.
+    var prefillDraft by remember { mutableStateOf<ConnectionProfile?>(null) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     var showImportRclone by rememberSaveable { mutableStateOf(false) }
     var showVmSetup by rememberSaveable { mutableStateOf(false) }
@@ -305,6 +313,24 @@ fun ConnectionsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    // haven://connect with no saved match (#305): seed a draft and open the
+    // New-Connection editor for the user to add auth and save.
+    LaunchedEffect(prefillNewConnection) {
+        val p = prefillNewConnection ?: return@LaunchedEffect
+        prefillDraft = ConnectionProfile(
+            label = "",
+            host = p.host,
+            username = p.username ?: "",
+            port = p.port ?: 22,
+            connectionType = "SSH",
+            useMosh = p.transport == "mosh",
+            useEternalTerminal = p.transport == "et",
+            sessionManager = if (p.session != null) "TMUX" else null,
+        )
+        showAddDialog = true
+        viewModel.consumePrefillNewConnection()
+    }
 
     LaunchedEffect(error) {
         error?.let {
@@ -441,6 +467,7 @@ fun ConnectionsScreen(
 
     if (showAddDialog) {
         ConnectionEditDialog(
+            prefill = prefillDraft,
             discoveredDestinations = discoveredDestinations,
             discoveredHosts = discoveredHosts,
             discoveredSmbHosts = discoveredSmbHosts,
@@ -470,11 +497,48 @@ fun ConnectionsScreen(
             onTestSpa = { host, config ->
                 viewModel.testSpa(host, config)
             },
-            onDismiss = { showAddDialog = false },
+            onDismiss = {
+                showAddDialog = false
+                prefillDraft = null
+            },
             onSave = { profile, cfTunnel, mcpTunnel ->
                 viewModel.saveProfileWithEmbeddedCloudflareTunnel(profile, cfTunnel)
                 viewModel.reconcileMcpReverseTunnel(profile.id, mcpTunnel)
                 showAddDialog = false
+                prefillDraft = null
+            },
+        )
+    }
+
+    // haven://connect matched a saved profile (#305): confirm before
+    // connecting, since a BROWSABLE link can be fired by a web page.
+    connectConfirm?.let { confirm ->
+        val target = confirm.profile.label.ifBlank { confirm.profile.host }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeepLinkConnect() },
+            title = { Text(stringResource(R.string.connections_deeplink_confirm_title)) },
+            text = {
+                Text(
+                    if (confirm.sessionName != null) {
+                        stringResource(
+                            R.string.connections_deeplink_confirm_session,
+                            target,
+                            confirm.sessionName,
+                        )
+                    } else {
+                        stringResource(R.string.connections_deeplink_confirm_message, target)
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmDeepLinkConnect() }) {
+                    Text(stringResource(R.string.connections_deeplink_confirm_connect))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDeepLinkConnect() }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
             },
         )
     }

@@ -543,4 +543,8 @@
     <string name="connections_mcp_disabled">MCP disabled for this connection — tap to enable</string>
     <string name="connections_toggle_mcp_enabled">Allow agent to control this connection</string>
     <string name="connections_helper_mcp_enabled">Inbound: when off, AI-agent (MCP) tools can\'t read or drive this connection. It still works normally for you.</string>
+    <string name="connections_deeplink_confirm_title">Connect?</string>
+    <string name="connections_deeplink_confirm_message">A link wants to connect to %1$s.</string>
+    <string name="connections_deeplink_confirm_session">A link wants to connect to %1$s and attach session “%2$s”.</string>
+    <string name="connections_deeplink_confirm_connect">Connect</string>
 </resources>

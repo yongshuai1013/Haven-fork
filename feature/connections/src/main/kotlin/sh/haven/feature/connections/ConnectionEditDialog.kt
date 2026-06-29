@@ -112,6 +112,13 @@ private val EDIT_DIALOG_COLORS = listOf(
 fun ConnectionEditDialog(
     existing: ConnectionProfile? = null,
     /**
+     * Seed values for a *new* connection (e.g. a `haven://connect` deep link,
+     * #305). Unlike [existing] it does not put the dialog in edit mode — the
+     * title stays "New connection" and saving inserts — it only pre-fills the
+     * initial host/user/port/transport/session-manager fields.
+     */
+    prefill: ConnectionProfile? = null,
+    /**
      * Gate for revealing a stored credential field's value (#274). Non-null
      * only when editing an existing profile, where the password fields are
      * pre-filled with the decrypted secret; the eye toggle awaits this
@@ -180,18 +187,22 @@ fun ConnectionEditDialog(
      */
     onSave: (ConnectionProfile, EmbeddedCloudflareTunnelInput?, Boolean) -> Unit,
 ) {
+    // Initial field values come from the edited profile or, for a new
+    // connection, an optional deep-link [prefill] (#305). [existing] alone
+    // drives edit-mode (title, save semantics); [seed] only drives initials.
+    val seed = existing ?: prefill
     // Transport dropdown maps to: connectionType + useMosh + useEternalTerminal
     val initialTransport = when {
-        existing?.isLocal == true -> "LOCAL"
-        existing?.isVnc == true -> "VNC"
-        existing?.isRdp == true -> "RDP"
-        existing?.isSpice == true -> "SPICE"
-        existing?.isSmb == true -> "SMB"
-        existing?.isRclone == true -> "RCLONE"
-        existing?.isEmail == true -> "EMAIL"
-        existing?.isEternalTerminal == true -> "ET"
-        existing?.isMosh == true -> "MOSH"
-        existing?.isReticulum == true -> "RETICULUM"
+        seed?.isLocal == true -> "LOCAL"
+        seed?.isVnc == true -> "VNC"
+        seed?.isRdp == true -> "RDP"
+        seed?.isSpice == true -> "SPICE"
+        seed?.isSmb == true -> "SMB"
+        seed?.isRclone == true -> "RCLONE"
+        seed?.isEmail == true -> "EMAIL"
+        seed?.isEternalTerminal == true -> "ET"
+        seed?.isMosh == true -> "MOSH"
+        seed?.isReticulum == true -> "RETICULUM"
         else -> "SSH"
     }
     var selectedTransport by rememberSaveable { mutableStateOf(initialTransport) }
@@ -210,19 +221,19 @@ fun ConnectionEditDialog(
     var label by rememberSaveable { mutableStateOf(existing?.label ?: "") }
     var colorTag by rememberSaveable { mutableIntStateOf(existing?.colorTag ?: 0) }
     var groupId by rememberSaveable { mutableStateOf(existing?.groupId) }
-    var host by rememberSaveable { mutableStateOf(existing?.host ?: "") }
+    var host by rememberSaveable { mutableStateOf(seed?.host ?: "") }
     var port by rememberSaveable {
         mutableStateOf(
             when {
-                existing?.isVnc == true -> (existing.vncPort ?: 5900).toString()
-                existing?.isRdp == true -> existing.rdpPort.toString()
-                existing?.isSpice == true -> (existing.spicePort ?: 5900).toString()
-                existing?.isSmb == true -> existing.smbPort.toString()
-                else -> existing?.port?.toString() ?: "22"
+                seed?.isVnc == true -> (seed.vncPort ?: 5900).toString()
+                seed?.isRdp == true -> seed.rdpPort.toString()
+                seed?.isSpice == true -> (seed.spicePort ?: 5900).toString()
+                seed?.isSmb == true -> seed.smbPort.toString()
+                else -> seed?.port?.toString() ?: "22"
             }
         )
     }
-    var username by rememberSaveable { mutableStateOf(existing?.username ?: "") }
+    var username by rememberSaveable { mutableStateOf(seed?.username ?: "") }
     var rdpUsername by rememberSaveable { mutableStateOf(existing?.rdpUsername ?: "") }
     var rdpPassword by rememberSaveable { mutableStateOf(existing?.rdpPassword ?: "") }
     var rdpDomain by rememberSaveable { mutableStateOf(existing?.rdpDomain ?: "") }
@@ -336,7 +347,7 @@ fun ConnectionEditDialog(
     }
     var forwardAgent by rememberSaveable { mutableStateOf(existing?.forwardAgent ?: false) }
     var addressFamily by rememberSaveable { mutableStateOf(existing?.addressFamily ?: "AUTO") }
-    var selectedSessionManager by rememberSaveable { mutableStateOf(existing?.sessionManager) }
+    var selectedSessionManager by rememberSaveable { mutableStateOf(seed?.sessionManager) }
     var etPort by rememberSaveable { mutableStateOf(existing?.etPort?.toString() ?: "2022") }
     var localSideband by rememberSaveable {
         mutableStateOf(
