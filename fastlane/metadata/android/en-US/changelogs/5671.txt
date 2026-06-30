@@ -1,0 +1,4 @@
+v5.65.0
+- Read USB drives the phone can't open (#287): plug in a flash drive or SSD — even Linux-formatted (ext4/GPT) — and browse its files. Haven mounts it read-only in a small on-device Linux VM. Settings → "Open USB drives in a VM", then Desktop → Manage → "Open USB drive…". Slow (emulated), for pulling files off a drive.
+- More email tools for the AI agent: search, drafts, labels/folders, move/flag, reply threading, and idle-reconnect for IMAP/Gmail.
+- Fix: exporting a USB device over USB/IP, stopping, and re-exporting in the same session no longer fails with "Address already in use".
