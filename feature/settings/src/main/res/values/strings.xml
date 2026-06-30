@@ -316,6 +316,8 @@
     <!-- USB exposure -->
     <string name="settings_usb_guest_title">Expose USB devices to the Linux guest</string>
     <string name="settings_usb_guest_subtitle">Let attached USB devices reach guest apps via the haven-usb shim. Each attach still asks for consent.</string>
+    <string name="settings_usb_vm_title">Open USB drives in a VM</string>
+    <string name="settings_usb_vm_subtitle">Read a USB drive\'s files (ext4, GPT, block) by mounting it in a small on-device Linux VM. Slower than the shim; each open asks for consent.</string>
     <string name="settings_audio_bridge_title">Proot audio (experimental)</string>
     <string name="settings_audio_bridge_subtitle">Play sound from Linux apps through the device speaker via an in-guest PulseAudio bridge. Output only. Streams continuously while on — turn off when not in use.</string>
 

@@ -90,6 +90,7 @@ class DesktopViewModel @Inject constructor(
     private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
     private val appWindowLauncher: AppWindowLauncher,
     private val appWindowShortcutManager: AppWindowShortcutManager,
+    private val usbDriveVmManager: sh.haven.app.usb.UsbDriveVmManager,
 ) : ViewModel() {
 
     // --- Distro / DE management (issue #162 Phase 3c) ---
@@ -765,6 +766,48 @@ class DesktopViewModel @Inject constructor(
      */
     private val _userMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val userMessages: SharedFlow<String> = _userMessages.asSharedFlow()
+
+    // --- "Open USB drive" in a VM (#287) ---
+    val usbDriveStatus: StateFlow<sh.haven.app.usb.UsbDriveVmManager.Status> = usbDriveVmManager.status
+
+    init {
+        // Announce the slow VM boot's outcome on the snackbar (the drive then
+        // shows up as a "USB Drive" connection in Files).
+        viewModelScope.launch {
+            var last = usbDriveVmManager.status.value.phase
+            usbDriveVmManager.status.collect { s ->
+                if (s.phase != last) {
+                    when (s.phase) {
+                        sh.haven.app.usb.UsbDriveVmManager.Phase.READY ->
+                            _userMessages.emit("USB drive mounted — open \"USB Drive\" in Files (or Connections).")
+                        sh.haven.app.usb.UsbDriveVmManager.Phase.ERROR ->
+                            _userMessages.emit("Couldn't open USB drive: ${s.error ?: "VM failed to start"}")
+                        else -> {}
+                    }
+                    last = s.phase
+                }
+            }
+        }
+    }
+
+    /** Boot a VM that mounts the attached USB drive; its files appear as a connection. */
+    fun openUsbDrive() {
+        viewModelScope.launch {
+            try {
+                usbDriveVmManager.open(null)
+                _userMessages.emit("Opening the USB drive in a Linux VM — this takes a minute…")
+            } catch (e: sh.haven.app.usb.UsbDriveVmManager.UsbVmException) {
+                _userMessages.emit(e.message ?: "Couldn't open USB drive")
+            }
+        }
+    }
+
+    fun closeUsbDrive() {
+        viewModelScope.launch {
+            usbDriveVmManager.close()
+            _userMessages.emit("USB drive VM closed.")
+        }
+    }
 
     private val _tabs = MutableStateFlow<List<DesktopTab>>(emptyList())
     val tabs: StateFlow<List<DesktopTab>> = _tabs.asStateFlow()

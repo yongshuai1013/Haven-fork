@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DesktopWindows
@@ -111,6 +112,7 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     val remapLowPorts by viewModel.remapLowPorts.collectAsState()
     val shareStorageWithGuest by viewModel.shareStorageWithGuest.collectAsState()
     val customBindsRev by viewModel.customBindsRev.collectAsState()
+    val usbDriveStatus by viewModel.usbDriveStatus.collectAsState()
 
     var setupDesktopDe by remember {
         mutableStateOf<ProotManager.DesktopEnvironment?>(null)
@@ -150,6 +152,10 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             customBindsFor = { viewModel.customBinds(it) },
             onSetCustomBinds = { id, binds -> viewModel.setCustomBinds(id, binds) },
             onImportRootfs = { id, label, family, source -> viewModel.importRootfs(id, label, family, source) },
+            usbDriveActive = usbDriveStatus.phase != sh.haven.app.usb.UsbDriveVmManager.Phase.IDLE &&
+                usbDriveStatus.phase != sh.haven.app.usb.UsbDriveVmManager.Phase.ERROR,
+            onOpenUsbDrive = { viewModel.openUsbDrive() },
+            onCloseUsbDrive = { viewModel.closeUsbDrive() },
             storedVncPortFor = { viewModel.storedVncPortFor(it) },
             onSwitchDistro = { viewModel.switchActiveDistro(it) },
             onOpenShellForDistro = { viewModel.openShellForDistro(it) },
@@ -663,6 +669,9 @@ private fun DesktopManagerSection(
     customBindsFor: (String) -> List<sh.haven.core.local.proot.CustomBind>,
     onSetCustomBinds: (String, List<sh.haven.core.local.proot.CustomBind>) -> Unit,
     onImportRootfs: (String, String, sh.haven.core.local.proot.PackageFamily, String) -> Unit,
+    usbDriveActive: Boolean,
+    onOpenUsbDrive: () -> Unit,
+    onCloseUsbDrive: () -> Unit,
     storedVncPortFor: (ProotManager.DesktopEnvironment) -> Int?,
     onSwitchDistro: (String) -> Unit,
     onOpenShellForDistro: (String) -> Unit,
@@ -809,6 +818,24 @@ private fun DesktopManagerSection(
                             onClick = {
                                 distroMenuOpen = false
                                 showImportDialog = true
+                            },
+                        )
+                        // #287: open a USB mass-storage drive in a VM so its
+                        // ext4/GPT/block files are reachable (proot can't).
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(
+                                        if (usbDriveActive) AppR.string.app_desktop_eject_usb_drive
+                                        else AppR.string.app_desktop_open_usb_drive,
+                                    ),
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Usb, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                distroMenuOpen = false
+                                if (usbDriveActive) onCloseUsbDrive() else onOpenUsbDrive()
                             },
                         )
                     }

@@ -106,6 +106,7 @@ internal class McpTools(
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
     private val usbBroker: sh.haven.core.usb.UsbBroker,
     private val usbIpServer: sh.haven.core.usb.UsbIpServer,
+    private val usbDriveVmManager: sh.haven.app.usb.UsbDriveVmManager,
     private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
     // Capture + drive Haven's OWN rendered UI for the self-hosting loop (§1a).
     private val havenUiBridge: HavenUiBridge,
@@ -1928,6 +1929,42 @@ internal class McpTools(
             },
             consentLevel = ConsentLevel.NEVER,
         ) { _ -> listUsbExports() },
+
+        "open_usb_drive" to ToolHandler(
+            description = "Open a phone-attached USB drive (mass storage — flash drive, SSD, SD reader) inside an on-device QEMU Linux VM and surface its files as an ordinary connection (#287). Unlike usb_attach_to_guest (which gives the proot guest a char device), this gives the drive a REAL kernel, so ext4 / GPT / block partitions mount and their files are browseable. Flow: exports the drive over USB/IP, boots a small Alpine VM that imports it, mounts every partition read-only, and runs sshd — then returns a loopback SSH/SFTP `profileId` you browse with list_directory / serve_file (and a terminal tab into the VM). The VM boot is slow (TCG, no KVM unrooted) + the first run installs packages, so this returns {status:\"starting\"} immediately — poll list_usb_drives until phase=ready (profileId set) or error. Gated on the `usb_vm_enabled` preference. One drive at a time; read-only; isochronous (webcam/audio) still can't pass.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("deviceName", JSONObject().apply {
+                        put("type", "string")
+                        put("description", "deviceName from list_usb_devices / list_usb_drives; optional if exactly one USB drive is attached.")
+                    })
+                })
+            },
+            consentLevel = ConsentLevel.ONCE_PER_SESSION,
+            summarise = { args ->
+                val n = args.optString("deviceName").ifBlank { "the attached USB drive" }
+                "Open ${if (n.startsWith("/dev")) usbLabel(n) else n} in a Linux VM and mount its files?"
+            },
+        ) { args -> openUsbDrive(args) },
+
+        "list_usb_drives" to ToolHandler(
+            description = "List phone-attached USB mass-storage drives (the candidates for open_usb_drive) and the state of any USB-drive VM: phase (idle/opening/ready/error), the exported busid, the loopback SSH `profileId`, and the mounted paths once ready. Read-only — poll this after open_usb_drive until phase=ready.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject())
+            },
+            consentLevel = ConsentLevel.NEVER,
+        ) { _ -> listUsbDrives() },
+
+        "close_usb_drive" to ToolHandler(
+            description = "Close the USB-drive VM opened by open_usb_drive: power off the VM, stop the USB/IP export, and remove the transient SSH profile + ephemeral key. Idempotent.",
+            inputSchema = JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject())
+            },
+            consentLevel = ConsentLevel.NEVER,
+        ) { _ -> closeUsbDrive() },
 
         "open_local_shell" to ToolHandler(
             description = "Open a fresh local Alpine PRoot shell session and return its sessionId. Equivalent to tapping the Terminal icon in the Connections top bar — creates the local shell profile if missing, registers a session, and connects it. The returned sessionId is immediately usable with send_terminal_input and read_terminal_scrollback. Use this when you need a clean bash REPL (e.g. when an existing session has Claude Code, vim, or another stdin-capturing process in front of it). Pass `plain: true` to bypass the user's session-manager preference (tmux / zellij / screen / byobu) and exec a bare login shell — required when the agent needs Haven's own scrollback ring to capture output, which doesn't happen when a multiplexer's status bar uses DECSTBM to reserve the bottom row. NOTE: if a live local shell already exists, this returns that sessionId regardless of `plain` (response `reused: true`); call disconnect_profile on the existing profile first if you need a fresh plain-shell respawn.",
@@ -6057,6 +6094,7 @@ internal class McpTools(
         // Master opt-in for exposing USB devices to the proot guest (gates
         // usb_attach_to_guest). MCP-drivable so integration tests can flip it.
         "usb_guest_exposure_enabled",
+        "usb_vm_enabled",
         // Master switch for inbound-email automation (Mail Rules). MCP-drivable so
         // the engine can be armed without the Settings UI.
         "mail_automation_enabled",
@@ -6108,6 +6146,7 @@ internal class McpTools(
             "mcp_lan_bind_enabled" -> preferencesRepository.mcpLanBindEnabled.first()
             "mcp_wireguard_tunnel_config_id" -> preferencesRepository.mcpWireguardTunnelConfigId.first() ?: ""
             "usb_guest_exposure_enabled" -> preferencesRepository.usbGuestExposureEnabled.first()
+            "usb_vm_enabled" -> preferencesRepository.usbVmEnabled.first()
             "mail_automation_enabled" -> preferencesRepository.mailAutomationEnabled.first()
             "connection_logging_enabled" -> preferencesRepository.connectionLoggingEnabled.first()
             "gpu_use_venus" -> preferencesRepository.gpuUseVenus.first()
@@ -6188,6 +6227,7 @@ internal class McpTools(
             "mcp_wireguard_tunnel_config_id" ->
                 preferencesRepository.setMcpWireguardTunnelConfigId((rawValue as? String)?.ifBlank { null })
             "usb_guest_exposure_enabled" -> preferencesRepository.setUsbGuestExposureEnabled(coerceBool())
+            "usb_vm_enabled" -> preferencesRepository.setUsbVmEnabled(coerceBool())
             "mail_automation_enabled" -> preferencesRepository.setMailAutomationEnabled(coerceBool())
             "connection_logging_enabled" -> preferencesRepository.setConnectionLoggingEnabled(coerceBool())
             "gpu_use_venus" -> preferencesRepository.setGpuUseVenus(coerceBool())
@@ -7662,6 +7702,46 @@ internal class McpTools(
             put("usbip", usbip)
             put("proxy", proxy)
         }
+    }
+
+    private suspend fun openUsbDrive(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val requested = args.optString("deviceName").takeIf { it.isNotBlank() }
+        val deviceName = try {
+            usbDriveVmManager.open(requested)
+        } catch (e: sh.haven.app.usb.UsbDriveVmManager.UsbVmException) {
+            throw McpError(-32603, e.message ?: "Failed to open USB drive")
+        }
+        JSONObject().apply {
+            put("status", "starting")
+            put("deviceName", deviceName)
+            put(
+                "note",
+                "Booting a Linux VM and mounting the drive (slow under TCG; the first run installs packages). " +
+                    "Poll list_usb_drives until vm.phase=ready, then browse vm.mounts with list_directory(profileId, path).",
+            )
+        }
+    }
+
+    private suspend fun listUsbDrives(): JSONObject = withContext(Dispatchers.IO) {
+        val drives = usbDriveVmManager.massStorageDevices()
+        val st = usbDriveVmManager.status.value
+        JSONObject().apply {
+            put("drives", JSONArray().apply { drives.forEach { put(usbDeviceJson(it)) } })
+            put("vm", JSONObject().apply {
+                put("phase", st.phase.name.lowercase())
+                put("deviceName", st.deviceName ?: JSONObject.NULL)
+                put("busid", st.busid ?: JSONObject.NULL)
+                put("profileId", st.profileId ?: JSONObject.NULL)
+                put("sshPort", st.sshPort)
+                put("mounts", JSONArray().apply { st.mounts.forEach { put(it) } })
+                put("error", st.error ?: JSONObject.NULL)
+            })
+        }
+    }
+
+    private suspend fun closeUsbDrive(): JSONObject = withContext(Dispatchers.IO) {
+        usbDriveVmManager.close()
+        JSONObject().apply { put("closed", true) }
     }
 
     private suspend fun openLocalShell(args: JSONObject = JSONObject()): JSONObject =

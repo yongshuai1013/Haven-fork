@@ -107,6 +107,8 @@
     <string name="app_desktop_custom_binds_takes_effect">Applies on the next shell, command, or desktop start for this distro.</string>
     <!-- Desktop manager: import custom rootfs (#284) -->
     <string name="app_desktop_import_rootfs">Import rootfs…</string>
+    <string name="app_desktop_open_usb_drive">Open USB drive…</string>
+    <string name="app_desktop_eject_usb_drive">Eject USB drive</string>
     <string name="app_desktop_import_dialog_title">Import a rootfs</string>
     <string name="app_desktop_import_description">Bring your own rootfs tarball (.tar.gz or .tar.xz) — a proot-distro image, a Docker export, or a second copy of a distro you already have. It is used as-is (no packages installed).</string>
     <string name="app_desktop_import_id_hint">Distro id (slug, e.g. ubuntu-test)</string>

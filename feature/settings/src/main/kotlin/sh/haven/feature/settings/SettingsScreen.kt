@@ -750,6 +750,17 @@ fun SettingsScreen(
             onCheckedChange = viewModel::setUsbGuestExposureEnabled,
         )
 
+        // #287: open a USB drive (mass storage) in an on-device QEMU VM so its
+        // ext4/GPT/block files are reachable — proot has no kernel for that.
+        val usbVm by viewModel.usbVmEnabled.collectAsState()
+        SettingsToggleItem(
+            icon = Icons.Filled.Usb,
+            title = stringResource(R.string.settings_usb_vm_title),
+            subtitle = stringResource(R.string.settings_usb_vm_subtitle),
+            checked = usbVm,
+            onCheckedChange = viewModel::setUsbVmEnabled,
+        )
+
         // Audio bridge (#257): play Linux app sound through the speaker via an
         // in-guest PulseAudio daemon. Experimental — streams continuously while
         // on, so it's off by default.
