@@ -213,13 +213,19 @@ class QemuManager @Inject constructor(
             "ssh-keygen -A >/dev/null 2>&1; " +
             "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config; " +
             "rc-service sshd restart >/dev/null 2>&1 || /usr/sbin/sshd; " +
-            "modprobe vhci_hcd; usbip attach -r 10.0.2.2 -b $busid; " +
+            "modprobe vhci_hcd; " +
             // busybox `mount` auto-detect only works for filesystems already in
             // /proc/filesystems — it doesn't modprobe — so load the common ones
             // up front or an ext4 stick mounts as an empty dir.
             "for m in ext4 vfat exfat ntfs3; do modprobe \$m 2>/dev/null; done; " +
-            // The SCSI device enumerates a moment after attach; wait for it.
-            "for i in 1 2 3 4 5 6 7 8 9 10; do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && break; sleep 1; done; " +
+            // Attach + wait for the SCSI node to enumerate. usbip occasionally
+            // imports the device at the wrong speed and it never enumerates; one
+            // detach/re-attach clears that, so retry once before giving up.
+            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; ok=0; " +
+            "for i in \$(seq 1 15); do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && { ok=1; break; }; sleep 1; done; " +
+            "[ \$ok = 1 ] || { usbip detach -p 00 2>/dev/null; usbip detach -p 0 2>/dev/null; sleep 2; " +
+            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; " +
+            "for i in \$(seq 1 15); do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && break; sleep 1; done; }; " +
             "mkdir -p /mnt; for p in /dev/sd[a-z][0-9]*; do [ -b \"\$p\" ] || continue; " +
             "l=\$(basename \"\$p\"); mkdir -p /mnt/\$l; " +
             "(mount -o ro \"\$p\" /mnt/\$l 2>/dev/null || mount -o ro,noload \"\$p\" /mnt/\$l 2>/dev/null) " +
@@ -358,8 +364,13 @@ class QemuManager @Inject constructor(
      *
      * The whole sequence (install + serial-console + passwordless-root config)
      * was validated locally under KVM; see scratch/qemu-appliance.
+     *
+     * Public so callers can provision BEFORE starting the USB/IP export — the
+     * one-time provision takes minutes, and holding the export open across it
+     * stales the drive (it re-imports at the wrong speed and never enumerates).
+     * openDrive() calls this again, but it's a no-op once provisioned.
      */
-    private suspend fun ensureProvisionedAppliance(onStage: (String) -> Unit): String {
+    suspend fun ensureProvisionedAppliance(onStage: (String) -> Unit): String {
         val dir = File(context.cacheDir, "haven-vm").apply { mkdirs() }
         val disk = File(dir, APPLIANCE_DISK)
         val marker = File(dir, "$APPLIANCE_DISK.ok")

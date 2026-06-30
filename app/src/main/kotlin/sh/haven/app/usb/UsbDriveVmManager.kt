@@ -104,6 +104,13 @@ class UsbDriveVmManager @Inject constructor(
         var keyId: String? = null
         var profileId: String? = null
         try {
+            // Provision the helper appliance FIRST (one-time, slow). Starting the
+            // USB/IP export before this and holding it open across the minutes-long
+            // provision stales the drive — it re-imports at the wrong speed and the
+            // mass-storage device never enumerates (no /dev/sd*, empty mount). After
+            // provisioning, the export→attach gap is just the (fast) appliance boot.
+            qemuManager.ensureProvisionedAppliance(::stage)
+
             stage("Sharing the drive with the VM…")
             usbIpServer.start(deviceName) // export on :3240 (binds all interfaces)
             val key = SshKeyGenerator.generate(SshKeyGenerator.KeyType.ED25519, "Haven USB drive")
