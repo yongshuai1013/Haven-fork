@@ -154,6 +154,7 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             onImportRootfs = { id, label, family, source -> viewModel.importRootfs(id, label, family, source) },
             usbDriveActive = usbDriveStatus.phase != sh.haven.app.usb.UsbDriveVmManager.Phase.IDLE &&
                 usbDriveStatus.phase != sh.haven.app.usb.UsbDriveVmManager.Phase.ERROR,
+            usbDriveStage = if (usbDriveStatus.phase == sh.haven.app.usb.UsbDriveVmManager.Phase.OPENING) usbDriveStatus.stage else "",
             onOpenUsbDrive = { viewModel.openUsbDrive() },
             onCloseUsbDrive = { viewModel.closeUsbDrive() },
             storedVncPortFor = { viewModel.storedVncPortFor(it) },
@@ -670,6 +671,7 @@ private fun DesktopManagerSection(
     onSetCustomBinds: (String, List<sh.haven.core.local.proot.CustomBind>) -> Unit,
     onImportRootfs: (String, String, sh.haven.core.local.proot.PackageFamily, String) -> Unit,
     usbDriveActive: Boolean,
+    usbDriveStage: String,
     onOpenUsbDrive: () -> Unit,
     onCloseUsbDrive: () -> Unit,
     storedVncPortFor: (ProotManager.DesktopEnvironment) -> Int?,
@@ -837,6 +839,19 @@ private fun DesktopManagerSection(
                                 distroMenuOpen = false
                                 if (usbDriveActive) onCloseUsbDrive() else onOpenUsbDrive()
                             },
+                        )
+                    }
+                }
+                // #287: live progress while the USB-drive VM boots (it's slow,
+                // so make it clear what's happening rather than just spinning).
+                if (usbDriveStage.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(AppR.string.app_desktop_usb_drive_progress, usbDriveStage),
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }

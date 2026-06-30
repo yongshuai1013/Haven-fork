@@ -795,7 +795,7 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 usbDriveVmManager.open(null)
-                _userMessages.emit("Opening the USB drive in a Linux VM — this takes a minute…")
+                _userMessages.emit("Opening the USB drive in a Linux VM — this can take a few minutes; progress is shown below.")
             } catch (e: sh.haven.app.usb.UsbDriveVmManager.UsbVmException) {
                 _userMessages.emit(e.message ?: "Couldn't open USB drive")
             }

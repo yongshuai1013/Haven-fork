@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import sh.haven.core.data.db.entities.ConnectionProfile
 import sh.haven.core.data.db.entities.SshKey
@@ -53,6 +54,8 @@ class UsbDriveVmManager @Inject constructor(
         val keyId: String? = null,
         val mounts: List<String> = emptyList(),
         val sshPort: Int = 0,
+        /** Human-readable progress while [phase] is OPENING (the boot is slow). */
+        val stage: String = "",
         val error: String? = null,
     )
 
@@ -60,6 +63,11 @@ class UsbDriveVmManager @Inject constructor(
     val status: StateFlow<Status> = _status.asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Update the progress line, but only while still opening (ignore late callbacks). */
+    private fun stage(text: String) {
+        _status.update { if (it.phase == Phase.OPENING) it.copy(stage = text) else it }
+    }
 
     class UsbVmException(message: String) : Exception(message)
 
@@ -92,7 +100,7 @@ class UsbDriveVmManager @Inject constructor(
             throw UsbVmException("$target is not a USB mass-storage device (class 8). Use usb_attach_to_guest for HID/serial devices.")
         }
         val busid = busidOf(target)
-        _status.value = Status(Phase.OPENING, target, info.productName, busid)
+        _status.value = Status(Phase.OPENING, target, info.productName, busid, stage = "Preparing…")
         scope.launch { boot(target, info, busid) }
         return target
     }
@@ -101,6 +109,7 @@ class UsbDriveVmManager @Inject constructor(
         var keyId: String? = null
         var profileId: String? = null
         try {
+            stage("Sharing the drive with the VM…")
             usbIpServer.start(deviceName) // export on :3240 (binds all interfaces)
             val key = SshKeyGenerator.generate(SshKeyGenerator.KeyType.ED25519, "Haven USB drive")
             val keyEntity = SshKey(
@@ -112,7 +121,7 @@ class UsbDriveVmManager @Inject constructor(
             )
             sshKeyRepository.save(keyEntity); keyId = keyEntity.id
 
-            val session = qemuManager.openDrive(busid, key.publicKeyOpenSsh)
+            val session = qemuManager.openDrive(busid, key.publicKeyOpenSsh, onStage = ::stage)
 
             val profile = ConnectionProfile(
                 label = driveLabel(info),

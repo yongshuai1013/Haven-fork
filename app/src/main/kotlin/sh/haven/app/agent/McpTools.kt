@@ -7729,6 +7729,7 @@ internal class McpTools(
             put("drives", JSONArray().apply { drives.forEach { put(usbDeviceJson(it)) } })
             put("vm", JSONObject().apply {
                 put("phase", st.phase.name.lowercase())
+                put("stage", st.stage)
                 put("deviceName", st.deviceName ?: JSONObject.NULL)
                 put("busid", st.busid ?: JSONObject.NULL)
                 put("profileId", st.profileId ?: JSONObject.NULL)

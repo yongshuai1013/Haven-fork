@@ -77,15 +77,20 @@ class QemuManager @Inject constructor(
      * loopback ssh port + the mounted paths. Suspends through the (TCG) boot +
      * one-time package install; throws on failure (caller stops the export).
      */
-    suspend fun openDrive(busid: String, authorizedPubKey: String): DriveSession = withContext(Dispatchers.IO) {
+    suspend fun openDrive(
+        busid: String,
+        authorizedPubKey: String,
+        onStage: (String) -> Unit = {},
+    ): DriveSession = withContext(Dispatchers.IO) {
         check(vmProcess?.isAlive != true) { "A USB-drive VM is already running; close it first." }
         _session.value = DriveSession(busid, 0, emptyList(), State.STARTING)
         try {
-            ensureQemu()
-            val iso = ensureAppliance()
+            ensureQemu(onStage)
+            val iso = ensureAppliance(onStage)
             val port = freeLoopbackPort()
             synchronized(serialLock) { serial.setLength(0) }
 
+            onStage("Starting the virtual machine…")
             val proc = prootManager.startCommandInProot(qemuCommand(iso, port))
             vmProcess = proc
             serialReader = thread(name = "haven-qemu-serial", isDaemon = true) {
@@ -103,14 +108,18 @@ class QemuManager @Inject constructor(
                 }
             }
 
-            // 1) login — nudge getty until the prompt shows, then send root.
+            // 1) login — nudge getty until the prompt shows, then send root. This
+            // is the slow part: the emulated CPU (no KVM) boots a real kernel.
+            onStage("Booting Linux — the slow step (a few minutes)…")
             if (!awaitSerial("login:", BOOT_TIMEOUT_MS, nudge = true)) fail("VM never reached a login prompt")
             send("root\n")
             Thread.sleep(1500)
             // 2) one-shot setup; wait for the done marker.
+            onStage("Setting up the VM and mounting your drive…")
             send(setupScript(busid, authorizedPubKey) + "\n")
             if (!awaitSerial("HAVEN_SETUP_DONE", SETUP_TIMEOUT_MS)) fail("VM setup (attach/mount/sshd) didn't finish in time")
             // 3) confirm sshd actually answers on the forward.
+            onStage("Almost ready — connecting…")
             if (!awaitSshBanner(port, SSH_TIMEOUT_MS)) fail("sshd never answered on 127.0.0.1:$port")
 
             val mounts = parseMounts()
@@ -230,12 +239,14 @@ class QemuManager @Inject constructor(
         return false
     }
 
-    private suspend fun ensureQemu() {
+    private suspend fun ensureQemu(onStage: (String) -> Unit = {}) {
+        onStage("Checking the VM engine…")
         val (out, _) = prootManager.runCommandInProot("command -v qemu-system-x86_64 || true")
         if (out.contains("qemu-system-x86_64")) return
         val family = prootManager.activeDistro.family
         val pkg = qemuPackageFor(family)
         val ops = PackageOps.forFamily(family)
+        onStage("Installing the VM engine (one-time)…")
         Log.i(TAG, "installing $pkg (${family})")
         val (instOut, code) = prootManager.runCommandInProot("${ops.updateCmd()} >/dev/null 2>&1 ; ${ops.installCmd(listOf(pkg))} 2>&1")
         val (check, _) = prootManager.runCommandInProot("command -v qemu-system-x86_64 || true")
@@ -253,14 +264,29 @@ class QemuManager @Inject constructor(
     }
 
     /** Download + verify the appliance ISO once into cacheDir (bound at /tmp in proot). */
-    private fun ensureAppliance(): String {
+    private fun ensureAppliance(onStage: (String) -> Unit = {}): String {
         val dir = File(context.cacheDir, "haven-vm").apply { mkdirs() }
         val iso = File(dir, APPLIANCE_NAME)
         val marker = File(dir, "$APPLIANCE_NAME.ok")
         if (iso.exists() && marker.exists()) return "/tmp/haven-vm/$APPLIANCE_NAME"
         iso.delete(); marker.delete()
+        onStage("Downloading the Linux image (one-time, ~270 MB)…")
         Log.i(TAG, "downloading appliance ISO …")
-        URL(APPLIANCE_URL).openStream().use { input -> iso.outputStream().use { input.copyTo(it) } }
+        val conn = URL(APPLIANCE_URL).openConnection() as java.net.HttpURLConnection
+        val total = conn.contentLengthLong.takeIf { it > 0 } ?: APPLIANCE_SIZE
+        conn.inputStream.use { input ->
+            iso.outputStream().use { out ->
+                val buf = ByteArray(1 shl 16); var read = 0L; var lastPct = -1
+                var n = input.read(buf)
+                while (n >= 0) {
+                    out.write(buf, 0, n); read += n
+                    val pct = ((read * 100) / total).toInt()
+                    if (pct >= lastPct + 5) { onStage("Downloading the Linux image (one-time)… $pct%"); lastPct = pct }
+                    n = input.read(buf)
+                }
+            }
+        }
+        onStage("Verifying the download…")
         val sha = MessageDigest.getInstance("SHA-256").let { md ->
             iso.inputStream().use { ins ->
                 val buf = ByteArray(1 shl 16); var n = ins.read(buf)
@@ -313,6 +339,7 @@ class QemuManager @Inject constructor(
         private const val SETUP_TIMEOUT_MS = 240_000L
         private const val SSH_TIMEOUT_MS = 30_000L
         private const val APPLIANCE_NAME = "alpine-standard-3.21.7-x86_64.iso"
+        private const val APPLIANCE_SIZE = 278_921_216L // fallback when no Content-Length
         private const val APPLIANCE_URL =
             "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/x86_64/alpine-standard-3.21.7-x86_64.iso"
         // Pinned point release; rotates when Alpine supersedes it (re-pin then).
