@@ -63,8 +63,11 @@ distro picker → **"Open USB drive…"**. Haven shows *"Opening the USB drive i
 Linux VM — this takes a minute…"*
 
 **4. Wait.** The first time, this takes a few minutes (it downloads a small Linux
-image once and sets things up; later opens are quicker). You'll get a notification
-when it's ready: *"USB drive mounted — open 'USB Drive' in Files."*
+image once and sets things up; later opens are quicker). A **live progress line**
+right there under Manage shows what it's doing — *"Downloading the Linux image…",
+"Booting Linux — the slow step…", "Setting up the VM and mounting your drive…"* —
+so you can see it's working, not stuck. You'll get a notification when it's ready:
+*"USB drive mounted — open 'USB Drive' in Files."*
 
 **5. Browse.** Switch to the **Files** (or **Connections**) tab and open the new
 **"USB: …"** connection. Your drive's partitions are under `/mnt` (e.g.
@@ -113,9 +116,10 @@ gated on the same **"Open USB drives in a VM"** setting:
 
 - `open_usb_drive` — start the VM for an attached drive (returns immediately;
   the boot continues in the background).
-- `list_usb_drives` — list attached USB drives and the VM's progress; poll this
-  until it reports `phase: ready`, which includes the loopback **`profileId`** and
-  the mounted paths.
+- `list_usb_drives` — list attached USB drives and the VM's progress. While it's
+  booting, `vm.stage` carries a human-readable line ("Booting Linux…", etc.) you
+  can relay; poll until `vm.phase: ready`, which includes the loopback
+  **`profileId`** and the mounted paths.
 - `close_usb_drive` — eject and tear everything down.
 
 Once it's ready, browse the drive with the normal file tools (`list_directory`,
