@@ -54,6 +54,15 @@ class SettingsViewModel @Inject constructor(
     val mcpWireguardCollision: StateFlow<sh.haven.core.data.agent.WgCollisionInfo?> =
         mcpStatusHolder.wireguardCollision
 
+    /**
+     * Live state of the "near" (SSH) MCP carrier — whether it's actually
+     * riding a connected interactive session right now, for the configured
+     * `mcpTunnelEndpointProfileId`. Published by [sh.haven.app.agent.McpNearCarrier]
+     * via [sh.haven.core.data.agent.McpStatusHolder].
+     */
+    val mcpNearCarrierStatus: StateFlow<sh.haven.core.data.agent.NearCarrierStatus> =
+        mcpStatusHolder.nearCarrier
+
     val terminalFontPath: StateFlow<String?> = preferencesRepository.terminalFontPath
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 

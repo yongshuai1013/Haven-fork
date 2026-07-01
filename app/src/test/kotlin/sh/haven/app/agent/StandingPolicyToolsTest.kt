@@ -74,6 +74,7 @@ class StandingPolicyToolsTest {
         havenUiBridge = mockk(relaxed = true),
         standingPolicyRepository = repo,
         mcpTunnelManager = mockk(relaxed = true),
+        mcpStatusHolder = mockk(relaxed = true),
         reticulumSessionManager = mockk(relaxed = true),
         reticulumForwardServer = mockk(relaxed = true),
         mailRuleRepository = mockk(relaxed = true),

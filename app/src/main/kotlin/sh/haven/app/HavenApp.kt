@@ -35,6 +35,7 @@ class HavenApp : Application(), Configuration.Provider {
 
     @Inject lateinit var mcpServer: sh.haven.app.agent.McpServer
     @Inject lateinit var mcpTunnelManager: sh.haven.app.agent.McpTunnelManager
+    @Inject lateinit var mcpNearCarrier: sh.haven.app.agent.McpNearCarrier
     @Inject lateinit var preferencesRepository: UserPreferencesRepository
     @Inject lateinit var agentConsentManager: sh.haven.core.data.agent.AgentConsentManager
     @Inject lateinit var workspaceShortcutManager: sh.haven.app.workspace.WorkspaceShortcutManager
@@ -114,6 +115,10 @@ class HavenApp : Application(), Configuration.Provider {
                     // configured (on-device / adb-forward only). Uses the
                     // live bound port so an 8731+ fallback follows.
                     mcpTunnelManager.start(mcpServer.port)
+                    // Watch for the same endpoint profile's *interactive*
+                    // session and ride it for MCP instead of a separate
+                    // authenticated connection — see McpNearCarrier's kdoc.
+                    mcpNearCarrier.start(mcpServer.port)
                     // Bind the MCP HTTP listener to the foreground
                     // service's lifecycle. Without this, the OS reclaims
                     // the app process within seconds of backgrounding
@@ -130,6 +135,7 @@ class HavenApp : Application(), Configuration.Provider {
                     startSessionServiceIfPossible()
                 } else {
                     mcpTunnelManager.stop()
+                    mcpNearCarrier.stop()
                     mcpServer.stop()
                     guestServiceManager.stopAll()
                     removeEndpointFromProot()

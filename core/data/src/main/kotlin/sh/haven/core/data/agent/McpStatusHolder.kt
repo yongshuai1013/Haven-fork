@@ -35,15 +35,30 @@ data class McpActivity(
 )
 
 /**
+ * Whether the "near" (SSH) MCP carrier is currently riding a live interactive
+ * session — see `app/.../agent/McpNearCarrier.kt`. [active] false with
+ * [profileId] set means the configured endpoint profile just isn't connected
+ * right now (open it to enable MCP-over-near); both null means no endpoint
+ * profile is configured at all.
+ */
+data class NearCarrierStatus(
+    val active: Boolean = false,
+    val profileId: String? = null,
+    val profileLabel: String? = null,
+)
+
+/**
  * Cross-module bridge for live MCP-server status that UI feature modules need to
  * observe. The MCP server itself lives in `:app`, which feature modules can't
  * depend on, so it publishes runtime status here (in `core/data`) and feature
  * ViewModels (e.g. Settings) read it.
  *
- * Currently carries the **WireGuard MCP carrier collision**: non-null when an
- * active system VPN holds the same address Haven's userspace WireGuard netstack
- * serves MCP on, which silently shadows that endpoint. See
- * `McpServer.detectVpnAddressCollision`.
+ * Carries the **WireGuard MCP carrier collision** (non-null when an active
+ * system VPN holds the same address Haven's userspace WireGuard netstack
+ * serves MCP on, which silently shadows that endpoint — see
+ * `McpServer.detectVpnAddressCollision`) and the **near (SSH) carrier**'s live
+ * state, so a Settings screen (or an agent via `get_app_info`) can show which
+ * MCP routes are actually open right now instead of guessing.
  */
 @Singleton
 class McpStatusHolder @Inject constructor() {
@@ -52,6 +67,13 @@ class McpStatusHolder @Inject constructor() {
 
     fun setWireguardCollision(info: WgCollisionInfo?) {
         _wireguardCollision.value = info
+    }
+
+    private val _nearCarrier = MutableStateFlow(NearCarrierStatus())
+    val nearCarrier: StateFlow<NearCarrierStatus> = _nearCarrier.asStateFlow()
+
+    fun setNearCarrier(status: NearCarrierStatus) {
+        _nearCarrier.value = status
     }
 
     private val _activity = MutableStateFlow(McpActivity())

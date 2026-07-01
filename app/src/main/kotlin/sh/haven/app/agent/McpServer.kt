@@ -377,6 +377,7 @@ class McpServer @Inject constructor(
         havenUiBridge = havenUiBridge,
         standingPolicyRepository = standingPolicyRepository,
         mcpTunnelManager = mcpTunnelManager,
+        mcpStatusHolder = mcpStatusHolder,
         pendingAuthPromptHolder = pendingAuthPromptHolder,
         sessionSelectionHolder = sessionSelectionHolder,
         mcpPortProvider = { port },

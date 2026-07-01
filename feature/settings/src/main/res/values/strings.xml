@@ -341,10 +341,12 @@
     <string name="settings_agent_terminal_input_title">Allow agents to queue terminal input</string>
     <string name="settings_agent_terminal_input_subtitle_on">Enabled — `queue_terminal_input` watches the SSH session\'s output and types the queued text on the next prompt (per-call consent)</string>
     <string name="settings_agent_terminal_input_subtitle_off">Disabled — `queue_terminal_input` requests fail immediately, no prompt</string>
-    <string name="settings_reverse_tunnel_title">Always-on MCP connection</string>
-    <string name="settings_reverse_tunnel_subtitle_set">Tunnelled to \"%1$s\" — survives WiFi changes &amp; app restarts</string>
-    <string name="settings_reverse_tunnel_subtitle_unset">Not set — endpoint reachable on-device only</string>
+    <string name="settings_reverse_tunnel_title">MCP over SSH profile</string>
+    <string name="settings_reverse_tunnel_subtitle_set">Rides your connection to \"%1$s\" — open it to reach MCP off-device</string>
+    <string name="settings_reverse_tunnel_subtitle_unset">Not set — endpoint reachable on-device only (or over WireGuard)</string>
     <string name="settings_reverse_tunnel_none">None (on-device only)</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): riding %1$s — connected</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): not connected — open %1$s to enable</string>
     <string name="settings_mcp_wireguard_title">Expose on WireGuard tunnel</string>
     <string name="settings_mcp_wireguard_subtitle_on">Enabled — also reachable at &lt;wg-ip&gt;:8730 on the active WireGuard tunnel</string>
     <string name="settings_mcp_wireguard_subtitle_off">Disabled — turn on to reach the endpoint over an active WireGuard tunnel</string>

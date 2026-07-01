@@ -102,6 +102,7 @@ class McpNoTerminalSessionTest {
             havenUiBridge = mockk(relaxed = true),
             standingPolicyRepository = mockk(relaxed = true),
             mcpTunnelManager = mockk(relaxed = true),
+            mcpStatusHolder = mockk(relaxed = true),
             reticulumSessionManager = mockk(relaxed = true),
             reticulumForwardServer = mockk(relaxed = true),
             mailRuleRepository = mockk(relaxed = true),

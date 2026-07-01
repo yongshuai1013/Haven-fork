@@ -986,6 +986,28 @@ fun SettingsScreen(
                 }
             }
 
+            // Live status: is MCP actually riding a connected session right
+            // now? The picker above only says what's *configured* — this
+            // says what's actually open, so "why isn't MCP reaching my
+            // laptop" has an answer without checking logs.
+            val nearCarrierStatus by viewModel.mcpNearCarrierStatus.collectAsState()
+            nearCarrierStatus.profileLabel?.let { label ->
+                Text(
+                    text = if (nearCarrierStatus.active) {
+                        stringResource(R.string.settings_reverse_tunnel_status_active, label)
+                    } else {
+                        stringResource(R.string.settings_reverse_tunnel_status_inactive, label)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (nearCarrierStatus.active) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                )
+            }
+
             // Expose the endpoint on the active WireGuard tunnel too — a
             // stable netstack address WG peers can reach across roams, no
             // reverse forward. Off by default (wider surface than loopback).

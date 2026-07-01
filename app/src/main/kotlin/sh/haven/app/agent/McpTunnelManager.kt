@@ -9,7 +9,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import sh.haven.core.data.db.entities.ConnectionLog
 import sh.haven.core.data.db.entities.ConnectionProfile
 import sh.haven.core.data.preferences.UserPreferencesRepository
@@ -30,42 +29,38 @@ import javax.inject.Singleton
 private const val TAG = "McpTunnelManager"
 
 /**
- * Brings up a dedicated, headless SSH reverse tunnel that forwards the
- * device-local MCP HTTP listener (`127.0.0.1:<port>`) back to the
- * laptop running the MCP client, so the endpoint stays reachable as the
- * device's WiFi/hotspot address roams and across app restarts.
+ * Brings up a dedicated, headless SSH reverse tunnel to the designated
+ * `mcpTunnelEndpointProfileId` endpoint host, carrying **adb-forwarding**
+ * ([exposeAdbPort]) and **guest-MCP-service forwarding** ([refreshForwards])
+ * — no longer Haven's own MCP endpoint itself, which now rides the user's
+ * interactive session for the same profile instead (see [McpNearCarrier]).
  *
- * **Always-on for a configured endpoint.** This `-R` is the managed
- * transport that makes the device's MCP reachable on a *remote SSH endpoint
- * host* (the designated `mcpTunnelEndpointProfileId`). It runs independent of
- * WireGuard: WG exposes MCP on the device's own WG address (for WG-network
- * peers + on-device loopback), which gives a separate SSH host nothing — so
- * the two are parallel transports to different audiences, not alternatives.
- * (Earlier builds stood this `-R` down whenever any WG tunnel was live, which
- * wrongly killed MCP on a remote endpoint host the moment WG came up.) Rebind
- * churn on roam/reconnect is owned by the watchdog in [launchTunnel] (liveness
- * probe + self-healing reconnect), not by deferring to WG.
+ * Why MCP moved off this class: a headless tunnel can only authenticate
+ * non-interactively ([resolveHeadlessAuth] excludes FIDO2/encrypted keys,
+ * since there's no UI to drive a touch prompt from a background service) and
+ * otherwise falls back to trying every non-SK key in the whole keystore —
+ * including keys never meant for that host. When none of those are actually
+ * authorized, this class would retry a failing connection forever with no
+ * way to recover short of a full app restart. [McpNearCarrier] sidesteps
+ * this by reusing whatever auth the user's own interactive connection
+ * already completed, instead of resolving its own.
  *
- * This is decoupled from the user's interactive "near" terminal session
- * (which dies on every app restart and didn't reliably re-establish its
- * `-R`). The tunnel:
+ * This class still owns its problem well: adb/guest-service forwarding
+ * *does* want to work even when nothing is interactively connected, so it
+ * keeps its own independent, always-reconnecting headless session — WG
+ * remains MCP's own primary, always-on carrier regardless of any of this.
+ * The tunnel:
  *  - rides its own [SshSessionManager] session marked `headless` (no
  *    shell channel ever opened — see [SshSessionManager.registerSession]),
  *  - uses an unlimited auto-reconnect policy that also fires on network
  *    change, so it self-heals after roams and restarts,
- *  - installs the `-R` forward as a **critical** port forward, so a
- *    stale server-side bind surfaces as a failed (re)connect that retries
- *    rather than a silently forward-less "connected" session
- *    (`ExitOnForwardFailure` semantics — see
- *    [SshSessionManager.applyPortForwards]).
+ *  - skips connecting entirely when there's nothing to carry (no exposed
+ *    adb port, no running guest MCP service) — see the early-out in
+ *    [establish] — so a not-yet-configured endpoint doesn't spin a doomed
+ *    auth retry loop for nothing.
  *
  * Lifecycle is bound to the MCP endpoint toggle in `HavenApp`: [start]
  * on enable, [stop] on disable.
- *
- * Limitation: a headless tunnel can only authenticate non-interactively.
- * Endpoint profiles that require a biometric/passphrase unlock or a FIDO2
- * hardware tap are skipped (logged), since there's no UI to drive the
- * prompt from the foreground service.
  */
 @Singleton
 class McpTunnelManager @Inject constructor(
@@ -127,16 +122,15 @@ class McpTunnelManager @Inject constructor(
                 // timeout / server-side close would otherwise go unnoticed. Poll
                 // the session and kick a reconnect when the transport has dropped.
                 //
-                // TCP-liveness (client.isConnected) is necessary but not sufficient:
-                // a *wedged* reverse forward — the endpoint sshd still LISTENs on the
-                // bind port but its forwarded channel is stuck (send-q backed up after
-                // a roam/restart) — leaves the session looking CONNECTED while MCP
-                // clients hang with no response. Keepalive can't see it (the transport
-                // is up). So additionally probe the forward end-to-end from the
-                // endpoint and force a reconnect (which rebinds, self-healing any stale
-                // holder) when it stops responding.
+                // TCP-liveness (client.isConnected) only — this session no longer
+                // carries a single canonical HTTP-probeable forward to end-to-end
+                // check (it's Haven's own MCP endpoint that used to be that
+                // anchor; adb is raw TCP, and guest-service ports vary), so a
+                // wedged-but-TCP-alive reverse forward here isn't detected. Each
+                // forward is still `selfHealOnBindFailure`, and a full reconnect
+                // (triggered below on an actual transport drop) rebuilds them
+                // all from scratch regardless.
                 val sid = sessionId ?: continue
-                var probeFails = 0
                 var watching = true
                 while (isActive && watching) {
                     delay(HEALTH_CHECK_MS)
@@ -151,37 +145,16 @@ class McpTunnelManager @Inject constructor(
                     when (s.status) {
                         SshSessionManager.SessionState.Status.CONNECTED -> {
                             if (!s.client.isConnected) {
-                                Log.i(TAG, "MCP tunnel transport dropped — requesting reconnect")
+                                Log.i(TAG, "MCP-tunnel headless transport dropped — requesting reconnect")
                                 sshSessionManager.updateStatus(
                                     sid, SshSessionManager.SessionState.Status.DISCONNECTED,
                                 )
                                 sshSessionManager.requestReconnect(sid)
-                                probeFails = 0
-                            } else when (probeForward(s.client, mcpPort)) {
-                                Probe.ALIVE -> probeFails = 0
-                                Probe.SKIP -> { /* endpoint has no curl — can't probe */ }
-                                Probe.DEAD -> {
-                                    probeFails++
-                                    Log.w(
-                                        TAG,
-                                        "MCP forward liveness probe failed " +
-                                            "($probeFails/$PROBE_FAIL_THRESHOLD) on :$mcpPort",
-                                    )
-                                    if (probeFails >= PROBE_FAIL_THRESHOLD) {
-                                        Log.w(TAG, "MCP forward wedged — forcing reconnect")
-                                        probeFails = 0
-                                        sshSessionManager.updateStatus(
-                                            sid, SshSessionManager.SessionState.Status.DISCONNECTED,
-                                        )
-                                        sshSessionManager.requestReconnect(sid)
-                                    }
-                                }
                             }
                         }
                         SshSessionManager.SessionState.Status.DISCONNECTED,
                         SshSessionManager.SessionState.Status.ERROR -> {
                             sshSessionManager.requestReconnect(sid)
-                            probeFails = 0
                         }
                         else -> { /* CONNECTING / RECONNECTING — in progress */ }
                     }
@@ -195,17 +168,15 @@ class McpTunnelManager @Inject constructor(
      * [HEALTH_CHECK_MS] watchdog tick (a coroutine `delay` that Doze can defer
      * well past 15 s). Called by `SshConnectionService` on return-to-foreground
      * and on network-available — the two moments the standard SSH recovery paths
-     * fire but which skip this headless session. Cheap + non-blocking: the
-     * CONNECTED probe and any reconnect run on [scope].
+     * fire but which skip this headless session.
      *
      *  - tunnel not started / no endpoint configured → no-op.
-     *  - CONNECTED → one immediate end-to-end probe; force a reconnect only if
-     *    the forward is actually wedged/dead (the watchdog would otherwise take
-     *    up to [PROBE_FAIL_THRESHOLD] ticks to notice).
-     *  - any other state (CONNECTING / RECONNECTING / DISCONNECTED / ERROR) →
-     *    restart the establish job so the connect-retry backoff resets to
-     *    [INITIAL_RETRY_MS] instead of waiting out an in-flight 30 s
-     *    [SshSessionManager] reconnect backoff while the user is right there.
+     *  - CONNECTED with a live transport → nothing to do.
+     *  - CONNECTED but the transport dropped, or any other state (CONNECTING /
+     *    RECONNECTING / DISCONNECTED / ERROR) → restart the establish job so
+     *    the connect-retry backoff resets to [INITIAL_RETRY_MS] instead of
+     *    waiting out an in-flight 30 s [SshSessionManager] reconnect backoff
+     *    while the user is right there.
      */
     fun kickNow() {
         synchronized(lock) {
@@ -213,24 +184,13 @@ class McpTunnelManager @Inject constructor(
             val port = currentPort
             if (port <= 0) return
             val session = sshSessionManager.getSession(sid) ?: return
-            if (session.status == SshSessionManager.SessionState.Status.CONNECTED) {
-                val client = session.client
-                scope.launch {
-                    val dead = !client.isConnected || probeForward(client, port) == Probe.DEAD
-                    if (dead) {
-                        Log.i(TAG, "kickNow: MCP tunnel not healthy — forcing reconnect")
-                        sshSessionManager.updateStatus(
-                            sid, SshSessionManager.SessionState.Status.DISCONNECTED,
-                        )
-                        sshSessionManager.requestReconnect(sid)
-                    }
-                }
-            } else {
-                Log.i(TAG, "kickNow: MCP tunnel ${session.status} — restarting with fresh backoff")
-                stopLocked()
-                currentPort = port
-                launchTunnel(port)
+            if (session.status == SshSessionManager.SessionState.Status.CONNECTED && session.client.isConnected) {
+                return // healthy — nothing to do
             }
+            Log.i(TAG, "kickNow: MCP-tunnel headless session ${session.status} — restarting with fresh backoff")
+            stopLocked()
+            currentPort = port
+            launchTunnel(port)
         }
     }
 
@@ -244,7 +204,15 @@ class McpTunnelManager @Inject constructor(
      * the next reconnect rebuilds the set from scratch in [establish].
      */
     fun refreshForwards() = synchronized(lock) {
-        val sid = sessionId ?: return
+        val sid = sessionId
+        if (sid == null) {
+            // No headless session yet — establish() may have found nothing
+            // to carry at endpoint-enable time and skipped connecting
+            // entirely (see its early-out). A guest service just started,
+            // so there's something to carry now; (re)start picks it up.
+            if (currentPort > 0) start(currentPort)
+            return
+        }
         val s = sshSessionManager.getSession(sid) ?: return
         if (s.status != SshSessionManager.SessionState.Status.CONNECTED) return
         val already = s.activeForwards
@@ -275,7 +243,14 @@ class McpTunnelManager @Inject constructor(
      * the bind failed.
      */
     fun exposeAdbPort(port: Int): Boolean = synchronized(lock) {
-        val sid = sessionId ?: return false
+        val sid = sessionId
+        if (sid == null) {
+            // No headless session yet, same reasoning as refreshForwards():
+            // the caller already persisted mcpAdbExposedPort before calling
+            // this, so the fresh establish() this kicks off picks it up.
+            if (currentPort > 0) start(currentPort)
+            return false // not bound yet — the connect that just started will bind it
+        }
         val s = sshSessionManager.getSession(sid) ?: return false
         if (s.status != SshSessionManager.SessionState.Status.CONNECTED) return false
         val alreadyBound = s.activeForwards.any {
@@ -378,6 +353,18 @@ class McpTunnelManager @Inject constructor(
             Log.i(TAG, "No MCP tunnel endpoint configured — endpoint is on-device only")
             return Outcome.FATAL
         }
+        // Haven's own MCP endpoint no longer rides this headless session —
+        // see McpNearCarrier. Only adb-forwarding and guest-MCP-service
+        // forwarding do. Skip connecting (and, more importantly, skip
+        // authenticating) entirely when neither is in use, rather than
+        // spinning a doomed auth retry loop for a session with nothing to
+        // carry.
+        val adbPort = preferencesRepository.mcpAdbExposedPort.first()
+        val guestPortsAtStart = guestServiceManager.runningPorts().distinct()
+        if (adbPort == null && guestPortsAtStart.isEmpty()) {
+            Log.i(TAG, "Nothing to carry on the MCP-tunnel headless session (no exposed adb port, no running guest MCP service) — not connecting")
+            return Outcome.FATAL
+        }
         val profile = connectionRepository.getById(profileId)
         if (profile == null) {
             Log.w(TAG, "MCP tunnel endpoint profile $profileId not found")
@@ -389,17 +376,16 @@ class McpTunnelManager @Inject constructor(
         }
         val auth = resolveHeadlessAuth(profile)
         if (auth == null) {
-            // Expected, not a failure: a touch-required / encrypted-only endpoint
-            // (e.g. a FIDO2 key) can't authenticate a *headless* connection. The
-            // agent endpoint is carried by WireGuard (the default carrier); this
-            // SSH -R is only a fallback, and it comes up on the user's interactive
-            // session via that profile's saved MCP rule. So don't write a per-kick
-            // FAILED connection-log entry (it read as a failure storm) — just note
-            // it in logcat and stop the headless attempt.
+            // Expected, not a failure: a touch-required / encrypted-only
+            // endpoint (e.g. a FIDO2 key) can't authenticate a *headless*
+            // connection, so adb/guest-service forwarding just aren't
+            // available over this tunnel for this endpoint. Don't write a
+            // per-kick FAILED connection-log entry (it read as a failure
+            // storm) — just note it in logcat and stop the headless attempt.
             Log.i(
                 TAG,
-                "MCP -R fallback for ${profile.label} needs an interactive (e.g. key) " +
-                    "connect; endpoint runs over WireGuard meanwhile",
+                "MCP-tunnel headless session for ${profile.label} needs a non-interactive " +
+                    "(unencrypted, non-FIDO2) key — adb/guest-service forwarding unavailable",
             )
             return Outcome.FATAL
         }
@@ -444,52 +430,40 @@ class McpTunnelManager @Inject constructor(
             sshSessionManager.storeConnectionConfig(sid, config, SessionManager.NONE)
             sshSessionManager.updateStatus(sid, SshSessionManager.SessionState.Status.CONNECTED)
 
-            // The critical forward: Haven's own MCP endpoint. A bind failure
-            // here fails the whole (re)connect and retries.
-            val forwards = mutableListOf(
-                SshSessionManager.PortForwardInfo(
-                    ruleId = "mcp-reverse-tunnel",
-                    type = SshSessionManager.PortForwardType.REMOTE,
-                    bindAddress = "127.0.0.1",
-                    bindPort = mcpPort,
-                    targetHost = "127.0.0.1",
-                    targetPort = mcpPort,
-                    critical = true,
-                    selfHealOnBindFailure = true,
-                ),
-            )
-            // Multiplex any running guest MCP servers (e.g. a KiCad MCP) onto
-            // the same headless session as **non-critical** forwards: a guest
-            // crash or stale guest bind must never tear down Haven's own
-            // tunnel. They ride the same activeForwards re-apply on reconnect,
-            // so they inherit the tunnel's roam/restart durability for free.
+            // Everything this session carries is non-critical now (Haven's
+            // own MCP endpoint moved to McpNearCarrier, riding the
+            // interactive session instead) — a guest crash or stale guest
+            // bind must never tear this session down, it just self-heals.
+            val forwards = mutableListOf<SshSessionManager.PortForwardInfo>()
             guestServiceManager.runningPorts().distinct()
                 .filter { it != mcpPort }
                 .forEach { forwards.add(guestForwardInfo(it)) }
-            // Re-arm a previously exposed adb port (expose_adb) as a
-            // non-critical forward, so adb-over-the-tunnel survives a full
-            // tunnel rebuild (app restart / re-enable), not just the in-memory
-            // activeForwards re-apply that a network-blip reconnect does.
             preferencesRepository.mcpAdbExposedPort.first()?.let { adbPort ->
                 if (adbPort != mcpPort && forwards.none { it.bindPort == adbPort }) {
                     forwards.add(adbForwardInfo(adbPort))
                 }
             }
-            if (!sshSessionManager.applyPortForwards(sid, forwards)) {
-                Log.w(TAG, "MCP -R $mcpPort failed to bind on ${profile.label} (stale bind?) — retrying")
+            if (forwards.isEmpty()) {
+                // Raced: whatever we were carrying (checked at the top of
+                // establish()) stopped between then and now. Nothing to
+                // bind, but the session itself connected fine — keep it up
+                // rather than tearing down a fresh connect for nothing;
+                // refreshForwards()/exposeAdbPort() will use it once there's
+                // something to carry again.
+                Log.i(TAG, "Connected to ${profile.label} with nothing (yet) to forward")
+            } else if (!sshSessionManager.applyPortForwards(sid, forwards)) {
+                Log.w(TAG, "Forward(s) failed to bind on ${profile.label} (stale bind?) — retrying")
                 cleanup(sid)
                 return Outcome.RETRY
             }
-            val guestPorts = forwards.drop(1).map { it.bindPort }
             Log.i(
                 TAG,
-                "MCP reverse tunnel up: -R $mcpPort" +
-                    (if (guestPorts.isNotEmpty()) " (+guest ${guestPorts.joinToString(",")})" else "") +
-                    " via ${profile.label}",
+                "MCP-tunnel headless session up via ${profile.label}" +
+                    (if (forwards.isNotEmpty()) " (${forwards.map { it.bindPort }.joinToString(",")})" else ""),
             )
             connectionLogRepository.logEvent(
                 profile.id, ConnectionLog.Status.CONNECTED,
-                details = "MCP reverse tunnel (-R $mcpPort)",
+                details = "MCP-tunnel headless session (adb/guest-service forwarding)",
             )
             Outcome.ESTABLISHED
         } catch (e: Exception) {
@@ -543,55 +517,10 @@ class McpTunnelManager @Inject constructor(
         return null
     }
 
-    /**
-     * Probe the reverse forward end-to-end: ask the endpoint to HTTP-GET the
-     * forwarded MCP port on its own loopback. A healthy `-R` round-trips back to
-     * the device's MCP server and returns a status code fast (the server answers
-     * 405/406 to a bare GET — any response proves the channel works); a wedged
-     * forward hangs until the 4 s curl timeout, and a wedged *exec channel*
-     * (transport itself stuck) is caught by [PROBE_TIMEOUT_MS] — both surface as
-     * DEAD. SKIP when the endpoint lacks curl (we can't probe, so don't act).
-     */
-    private suspend fun probeForward(client: SshClient, port: Int): Probe {
-        val cmd =
-            "if command -v curl >/dev/null 2>&1; then " +
-                "code=\$(curl -s -o /dev/null -m 4 -w '%{http_code}' " +
-                "http://127.0.0.1:$port/mcp 2>/dev/null); rc=\$?; " +
-                "echo \"P:\${code:-000}:\$rc\"; else echo P:NOCURL:127; fi"
-        val stdout = withTimeoutOrNull(PROBE_TIMEOUT_MS) {
-            runCatching { client.execCommand(cmd).stdout }.getOrNull()
-        } ?: return Probe.DEAD
-        return interpretProbeLine(stdout)
-    }
-
     private companion object {
         const val ADB_FORWARD_RULE_ID = "adb-reverse"
         const val INITIAL_RETRY_MS = 2_000L
         const val MAX_RETRY_MS = 30_000L
         const val HEALTH_CHECK_MS = 15_000L
-        const val PROBE_TIMEOUT_MS = 8_000L
-        const val PROBE_FAIL_THRESHOLD = 2
-    }
-}
-
-/** Result of a reverse-forward liveness probe (see [McpTunnelManager.probeForward]). */
-internal enum class Probe { ALIVE, DEAD, SKIP }
-
-/**
- * Interpret the endpoint probe's stdout (`P:<httpcode>:<rc>`, or `P:NOCURL:127`
- * when the endpoint has no curl). ALIVE iff the forward round-tripped to an HTTP
- * status (any 3-digit code other than 000); SKIP when we couldn't probe; DEAD
- * otherwise (curl timeout / connection refused → wedged or dead forward). Pure +
- * `internal` so the watchdog's decision logic is unit-testable.
- */
-internal fun interpretProbeLine(stdout: String): Probe {
-    val line = stdout.lineSequence().map { it.trim() }
-        .firstOrNull { it.startsWith("P:") } ?: return Probe.SKIP
-    val code = line.removePrefix("P:").substringBefore(":")
-    if (code == "NOCURL") return Probe.SKIP
-    return if (code.length == 3 && code.all { it.isDigit() } && code != "000") {
-        Probe.ALIVE
-    } else {
-        Probe.DEAD
     }
 }

@@ -114,6 +114,7 @@ internal class McpTools(
     // enforcement happens in McpServer via StandingPolicyEnforcer.
     private val standingPolicyRepository: sh.haven.core.data.repository.StandingPolicyRepository,
     private val mcpTunnelManager: McpTunnelManager,
+    private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
     // Pending password/passphrase fallback prompt, mirrored from
     // ConnectionsViewModel so get_pending_auth_prompt / answer_auth_prompt can
     // observe and answer it without a human tap. Defaulted so tests that don't
@@ -201,7 +202,7 @@ internal class McpTools(
     /** Tool registry: name → handler. */
     private val tools: Map<String, ToolHandler> = linkedMapOf(
         "get_app_info" to ToolHandler(
-            description = "Return Haven version, active rclone remotes, and which optional features are available in this build.",
+            description = "Return Haven version, which optional features are available in this build, and mcpCarriers — which MCP transports are actually open right now (a WireGuard-collision warning if the WG carrier is shadowed by a system VPN, and whether the near/SSH carrier is currently riding a connected interactive session — see McpNearCarrier).",
             inputSchema = emptyObjectSchema(),
         ) { _ -> getAppInfo() },
 
@@ -3774,6 +3775,21 @@ internal class McpTools(
         // Terminal result of the last backgrounded backend install, if any —
         // lets a caller confirm a pending install landed. (#245 follow-up)
         lastInstallResult?.let { put("lastInstall", it) }
+        // Which MCP carriers are actually open right now — this call itself
+        // proves SOME carrier works, but an agent reasoning about
+        // reliability (e.g. "why did my connection drop") benefits from
+        // seeing the near (SSH) carrier's live state without a separate
+        // lookup. See McpNearCarrier for what "near" means today.
+        put("mcpCarriers", JSONObject().apply {
+            val collision = mcpStatusHolder.wireguardCollision.value
+            put("wireguardCollision", collision?.let { "${it.vpnInterface} @ ${it.address}" } ?: JSONObject.NULL)
+            val near = mcpStatusHolder.nearCarrier.value
+            put("near", JSONObject().apply {
+                put("active", near.active)
+                put("profileId", near.profileId ?: JSONObject.NULL)
+                put("profileLabel", near.profileLabel ?: JSONObject.NULL)
+            })
+        })
     }
 
     private suspend fun listPairedClients(): JSONObject {
