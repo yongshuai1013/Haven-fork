@@ -117,11 +117,15 @@ class QemuManager @Inject constructor(
                 onStage("Setting up the VM (installing drivers, mounting; ${sec}s)…")
             }
             if (!setupOk) fail("VM setup (attach/mount/sshd) didn't finish within ${SETUP_TIMEOUT_MS / 1000}s")
+            // Snapshot the mounts NOW, the instant the marker arrives — the setup
+            // script emits the HVNMOUNT report right before HAVEN_SETUP_DONE, so
+            // reading here (before the sshd-banner wait, which gives kernel
+            // console output a window to trim the buffer) captures it reliably.
+            val mounts = parseMounts()
             // 3) confirm sshd actually answers on the forward.
             onStage("Almost ready — connecting…")
             if (!awaitSshBanner(port, SSH_TIMEOUT_MS)) fail("sshd never answered on 127.0.0.1:$port")
 
-            val mounts = parseMounts()
             DriveSession(busid, port, mounts, State.RUNNING).also { _session.value = it }
         } catch (e: Exception) {
             Log.w(TAG, "openDrive failed: ${e.message}")
@@ -223,14 +227,18 @@ class QemuManager @Inject constructor(
             // /proc/filesystems — it doesn't modprobe — so load the common ones
             // up front or an ext4 stick mounts as an empty dir.
             "for m in ext4 vfat exfat ntfs3; do modprobe \$m 2>/dev/null; done; " +
-            // Attach + wait for the SCSI node to enumerate. usbip occasionally
-            // imports the device at the wrong speed and it never enumerates; one
-            // detach/re-attach clears that, so retry once before giving up.
-            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; ok=0; " +
-            "for i in \$(seq 1 15); do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && { ok=1; break; }; sleep 1; done; " +
-            "[ \$ok = 1 ] || { usbip detach -p 00 2>/dev/null; usbip detach -p 0 2>/dev/null; sleep 2; " +
-            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; " +
-            "for i in \$(seq 1 15); do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && break; sleep 1; done; }; " +
+            // Attach, then WAIT FOR the block device to enumerate instead of
+            // assuming a fixed time — a slower CPU or a bigger/slower drive can
+            // take much longer than a fast phone. Poll until a partition node
+            // appears, with a generous ceiling (still inside SETUP_TIMEOUT_MS,
+            // and we proceed the instant it shows). usbip occasionally imports
+            // at the wrong speed and never enumerates; one detach/re-attach at
+            // ~20s clears that, but we keep waiting either way.
+            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; n=0; " +
+            "while [ \$n -lt $ENUM_WAIT_S ]; do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && break; " +
+            "[ \$n -eq 20 ] && { usbip detach -p 00 2>/dev/null; usbip detach -p 0 2>/dev/null; sleep 1; " +
+            "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; }; " +
+            "n=\$((n+1)); sleep 1; done; " +
             "mkdir -p /mnt; for p in /dev/sd[a-z][0-9]*; do [ -b \"\$p\" ] || continue; " +
             "l=\$(basename \"\$p\"); mkdir -p /mnt/\$l; " +
             "mount -o ro \"\$p\" /mnt/\$l 2>/dev/null || mount -o ro,noload \"\$p\" /mnt/\$l 2>/dev/null; done; " +
@@ -491,6 +499,11 @@ class QemuManager @Inject constructor(
         // 4 min was marginal and timed out under load before reaching login.
         private const val BOOT_TIMEOUT_MS = 420_000L
         private const val SETUP_TIMEOUT_MS = 360_000L
+        // How long (s) to wait INSIDE the VM for the drive to enumerate after
+        // usbip attach — a ceiling, not a fixed sleep (we mount the instant it
+        // appears). Generous so a slow CPU/large drive still makes it; stays
+        // within SETUP_TIMEOUT_MS.
+        private const val ENUM_WAIT_S = 180
         // One-time: apk download + setup-disk install over TCG can take a while.
         private const val PROVISION_TIMEOUT_MS = 720_000L
         // Persistent installed appliance (raw sparse image; usbip+ssh baked in).

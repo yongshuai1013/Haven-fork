@@ -158,7 +158,11 @@ class UsbDriveVmManager @Inject constructor(
                 sh.haven.core.data.agent.AgentUiCommand.ConnectProfile(profile.id),
             )
             val target = session.mounts.singleOrNull() ?: "/mnt"
-            val connected = withTimeoutOrNull(25_000) {
+            // Ceiling only — we navigate the instant CONNECTED arrives. Generous
+            // so a slow VM's SSH handshake still lands the auto-open; if it does
+            // time out the drive is still connected + shows in Files (this only
+            // gates the convenience navigation).
+            val connected = withTimeoutOrNull(90_000) {
                 sshSessionManager.sessions.first { m ->
                     m.values.any {
                         it.profileId == profile.id &&
