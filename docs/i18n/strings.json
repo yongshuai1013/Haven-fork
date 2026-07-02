@@ -1513,6 +1513,27 @@
      "t": {}
     },
     {
+     "name": "app_desktop_open_usb_drive_writable",
+     "en": "Open USB drive (writable)…",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_open_usb_drive_writable_confirm_title",
+     "en": "Mount read-write?",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_open_usb_drive_writable_confirm_body",
+     "en": "This mounts the drive read-write. If the VM loses power mid-write (killed, crash, battery pull), the filesystem can be corrupted. Read-only is the safer default.",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [],
+     "t": {}
+    },
+    {
      "name": "app_desktop_eject_usb_drive",
      "en": "Eject USB drive",
      "comment": "Desktop manager: import custom rootfs (#284)",
@@ -1533,6 +1554,38 @@
      "args": [
       "%1$s"
      ],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_usb_drive_locked",
+     "en": "%1$s is locked (LUKS)",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [
+      "%1$s"
+     ],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_usb_drive_unlock",
+     "en": "Unlock…",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_usb_drive_unlock_title",
+     "en": "Unlock %1$s",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [
+      "%1$s"
+     ],
+     "t": {}
+    },
+    {
+     "name": "app_desktop_usb_drive_unlock_passphrase",
+     "en": "Passphrase",
+     "comment": "Desktop manager: import custom rootfs (#284)",
+     "args": [],
      "t": {}
     },
     {
@@ -25244,7 +25297,7 @@
     },
     {
      "name": "settings_reverse_tunnel_title",
-     "en": "Always-on MCP connection",
+     "en": "MCP over SSH profile",
      "comment": "MCP agent endpoint",
      "args": [],
      "t": {
@@ -25263,7 +25316,7 @@
     },
     {
      "name": "settings_reverse_tunnel_subtitle_set",
-     "en": "Tunnelled to \\\"%1$s\\\" — survives WiFi changes &amp; app restarts",
+     "en": "Rides your connection to \\\"%1$s\\\" — open it to reach MCP off-device",
      "comment": "MCP agent endpoint",
      "args": [
       "%1$s"
@@ -25284,7 +25337,7 @@
     },
     {
      "name": "settings_reverse_tunnel_subtitle_unset",
-     "en": "Not set — endpoint reachable on-device only",
+     "en": "Not set — endpoint reachable on-device only (or over WireGuard)",
      "comment": "MCP agent endpoint",
      "args": [],
      "t": {
@@ -25319,6 +25372,24 @@
       "ru": "Нет (только на устройстве)",
       "zh": "无（仅设备本地）"
      }
+    },
+    {
+     "name": "settings_reverse_tunnel_status_active",
+     "en": "Near (SSH): riding %1$s — connected",
+     "comment": "MCP agent endpoint",
+     "args": [
+      "%1$s"
+     ],
+     "t": {}
+    },
+    {
+     "name": "settings_reverse_tunnel_status_inactive",
+     "en": "Near (SSH): not connected — open %1$s to enable",
+     "comment": "MCP agent endpoint",
+     "args": [
+      "%1$s"
+     ],
+     "t": {}
     },
     {
      "name": "settings_mcp_wireguard_title",
