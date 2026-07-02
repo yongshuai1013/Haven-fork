@@ -1932,7 +1932,7 @@ internal class McpTools(
         ) { _ -> listUsbExports() },
 
         "open_usb_drive" to ToolHandler(
-            description = "Open a phone-attached USB drive (mass storage — flash drive, SSD, SD reader) inside an on-device QEMU Linux VM and surface its files as an ordinary connection (#287). Unlike usb_attach_to_guest (which gives the proot guest a char device), this gives the drive a REAL kernel, so ext4 / GPT / block partitions mount and their files are browseable. Flow: exports the drive over USB/IP, boots a small Alpine VM that imports it, mounts every partition (read-only unless `writable`), and runs sshd — then returns a loopback SSH/SFTP `profileId` you browse with list_directory / serve_file (and a terminal tab into the VM). A LUKS-encrypted partition mounts locked (reported in list_usb_drives' vm.locked) — call unlock_usb_drive_partition with its passphrase to mount it. The VM boot is slow (TCG, no KVM unrooted) + the first run installs packages, so this returns {status:\"starting\"} immediately — poll list_usb_drives until phase=ready (profileId set) or error. Consent-gated per session (mounting the user's disk is sensitive). One drive at a time; isochronous (webcam/audio) still can't pass.",
+            description = "Open a phone-attached USB drive (mass storage — flash drive, SSD, SD reader) inside an on-device QEMU Linux VM and surface its files as an ordinary connection (#287). Unlike usb_attach_to_guest (which gives the proot guest a char device), this gives the drive a REAL kernel, so ext4 / GPT / block partitions mount and their files are browseable. Flow: exports the drive over USB/IP, boots (or reuses, if another drive is already open) a small Alpine VM that imports it, mounts every partition (read-only unless `writable`), and runs sshd — then returns a loopback SSH/SFTP `profileId` you browse with list_directory / serve_file (and a terminal tab into the VM). A LUKS-encrypted partition mounts locked (reported in list_usb_drives' vm.locked) — call unlock_usb_drive_partition with its passphrase to mount it. The VM boot is slow (TCG, no KVM unrooted) + the first run installs packages, so this returns {status:\"starting\"} immediately — poll list_usb_drives until phase=ready (profileId set) or error. Consent-gated per session (mounting the user's disk is sensitive). Up to a phone-resource limit of concurrent drives (they share one VM, so this is a vhci-port/practical cap, not RAM); isochronous (webcam/audio) still can't pass.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -7780,7 +7780,7 @@ internal class McpTools(
      * Resolve which open drive's busid a call means: the explicit [argName] arg
      * if given, else the single currently-open session, else an McpError
      * listing the ambiguity (mirrors UsbDriveVmManager.resolveDrive's shape for
-     * deviceName). Up to QemuManager.MAX_CONCURRENT_VMS can be open at once.
+     * deviceName). Up to QemuManager.MAX_CONCURRENT_DRIVES can be open at once.
      */
     private fun resolveUsbDriveBusid(args: JSONObject, argName: String = "busid"): String {
         args.optString(argName).takeIf { it.isNotBlank() }?.let { return it }

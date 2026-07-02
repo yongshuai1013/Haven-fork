@@ -19,29 +19,37 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
 import java.security.MessageDigest
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.concurrent.thread
 
 /**
- * Runs on-device QEMU VMs that give phone-attached USB drives a **real
+ * Runs an on-device QEMU VM that gives phone-attached USB drives a **real
  * Linux kernel** — so mass-storage / block / ext4 / GPT, which proot has no
- * kernel for, work (#287). Each VM is the USB/IP *client* the proot guest
- * can't be (Android ships no vhci-hcd): it imports the device the shipped
- * [sh.haven.core.usb.UsbIpServer] exports, mounts it, and serves the files
+ * kernel for, work (#287). The VM is the USB/IP *client* the proot guest
+ * can't be (Android ships no vhci-hcd): it imports the device(s) the shipped
+ * [sh.haven.core.usb.UsbIpServer] exports, mounts them, and serves the files
  * over sshd. Haven points an ordinary loopback SSH/SFTP profile at it — no
- * new transport, no new UI; the drive's files appear in the normal file
- * browser. Up to [MAX_CONCURRENT_VMS] drives can be open at once, each its
- * own VM keyed by busid.
+ * new transport, no new UI; each drive's files appear in the normal file
+ * browser.
+ *
+ * **One shared VM serves every open drive**, not one VM per drive. QEMU's
+ * own image locking refuses a second process opening the same appliance
+ * disk file (`Failed to get "write" lock` — confirmed live), and a second
+ * full VM boot per drive would double RAM/boot-time for no reason: USB/IP
+ * already supports attaching multiple devices to one guest (each
+ * `usbip attach` opens its own connection to [sh.haven.core.usb.UsbIpServer],
+ * which already dispatches by busid over one shared socket), so an
+ * additional drive is just another attach+mount inside the already-running
+ * guest. Up to [MAX_CONCURRENT_DRIVES] drives can be attached at once.
  *
  * Delivery = **serial-console auto-drive** (not an Alpine apkovl, which didn't
  * auto-apply from a separate disk reliably): qemu runs `-serial stdio`, so the
  * proot launcher Process's streams *are* the VM serial. We wait for `login:`,
- * send `root`, then one setup line (dhcp → apk add usbip+openssh → inject the
- * caller's pubkey → sshd → `usbip attach` → mount), then poll the forwarded
- * sshd port. This mirrors exactly what was proven by hand in the #287 spike.
+ * send `root`, then a one-shot bootstrap script (network → usbip+openssh →
+ * sshd), then a per-drive attach+mount script for each busid. This mirrors
+ * what was proven by hand in the #287 spike.
  *
  * Unrooted Android = no /dev/kvm, so qemu runs TCG (slow but correct) — fine
  * for pulling files off a drive. Isochronous USB still can't pass (the broker
@@ -49,7 +57,7 @@ import kotlin.concurrent.thread
  *
  * Orchestration note: the export (UsbIpServer) lives in `core:usb`, which this
  * module doesn't depend on, so the app layer starts the export and passes us
- * the `busid`; we only own the VM(s).
+ * the `busid`; we only own the VM.
  */
 @Singleton
 class QemuManager @Inject constructor(
@@ -69,11 +77,37 @@ class QemuManager @Inject constructor(
         val locked: List<String> = emptyList(),
     )
 
-    // Live VM processes, keyed by busid — one per open drive. A busid's entry
-    // exists here only while its VM process is actually running (openDrive
-    // removes it on failure/close); [sessions] can retain a busid's last-known
-    // state (e.g. State.ERROR) a little longer, for the UI to show.
-    private val instances = ConcurrentHashMap<String, VmInstance>()
+    /**
+     * The one VM currently serving every open drive. Read/written ONLY under
+     * [vmMutex] — a plain nullable var (not a concurrent collection) is
+     * correct and sufficient because the mutex is the sole source of the
+     * memory-visibility guarantee; a lock-free structure here would just
+     * signal a safety the code doesn't actually have.
+     */
+    private data class SharedVm(
+        val instance: VmInstance,
+        val port: Int,
+        val attachedBusids: MutableSet<String> = mutableSetOf(),
+        /** busid -> vhci_hcd port index, captured at attach time so close() detaches the right one, not a guess. */
+        val vhciPortByBusid: MutableMap<String, Int> = mutableMapOf(),
+    )
+    private var sharedVm: SharedVm? = null
+
+    /**
+     * Guards [sharedVm] AND every byte written to its serial console.
+     * [VmInstance.send] has no synchronization of its own, so two concurrent
+     * command sequences (e.g. [openDrive] attaching a new drive while
+     * [unlockPartition] is mid-passphrase on another) would otherwise
+     * interleave writes on the same process stdin and corrupt both.
+     * [openDrive]/[closeDrive]/[unlockPartition]/[closeAllDrives] each hold
+     * this for their *entire* duration, not just a boot decision —
+     * `Mutex.withLock` suspends the coroutine rather than blocking a thread,
+     * so a second caller simply queues behind the first's multi-minute boot
+     * without stalling the app. NOT reentrant: every public function here is
+     * a thin `vmMutex.withLock { xLocked(...) }` wrapper, and nothing under
+     * an "xLocked" helper may call back into a public lock-taking function.
+     */
+    private val vmMutex = Mutex()
 
     private val _sessions = MutableStateFlow<Map<String, DriveSession>>(emptyMap())
     val sessions: StateFlow<Map<String, DriveSession>> = _sessions.asStateFlow()
@@ -84,21 +118,26 @@ class QemuManager @Inject constructor(
 
     // Provisioning/upgrading the shared appliance disk is a maintenance
     // operation on ONE file, unrelated to any particular busid — its own
-    // dedicated VmInstance (not part of [instances]), serialized by
-    // [provisioningMutex] so two drives opened at once (both needing to
-    // provision/upgrade the still-shared appliance) don't race the same VM.
+    // dedicated VmInstance, serialized by [provisioningMutex]. Always
+    // acquired from inside [vmMutex] (openDrive -> ensureProvisionedAppliance),
+    // never the other way around, anywhere in this class — no lock-ordering
+    // hazard. A version-mismatch upgrade can only be observed by a fresh
+    // process (the marker is on-disk, compile-time version is in the APK),
+    // and [sharedVm] is in-memory-only, so an upgrade boot and an
+    // already-running shared drive VM can never coexist.
     private val provisioning = VmInstance()
     private val provisioningMutex = Mutex()
 
     /**
-     * Boot a VM, import [busid] over USB/IP, mount its partitions (read-only
-     * unless [readOnly] is false), and bring up sshd authorised for
-     * [authorizedPubKey]. Returns the forwarded loopback ssh port + the
-     * mounted paths (any LUKS-encrypted partition is left unmounted and
-     * reported in [DriveSession.locked] instead — see [unlockPartition]).
-     * Suspends through the (TCG) boot + one-time package install; throws on
-     * failure (caller stops the export). Up to [MAX_CONCURRENT_VMS] drives
-     * can be open at once — each phone-emulated VM is real RAM/CPU cost.
+     * Attach [busid] to the shared VM (booting it first if this is the first
+     * drive), mount its partitions (read-only unless [readOnly] is false),
+     * and authorize [authorizedPubKey] for it. Returns the loopback ssh port
+     * (shared across every open drive) + the mounted paths (any
+     * LUKS-encrypted partition is left unmounted and reported in
+     * [DriveSession.locked] instead — see [unlockPartition]). Suspends
+     * through the (TCG) boot on the first drive + one-time package install;
+     * throws on failure (caller stops the export). Up to
+     * [MAX_CONCURRENT_DRIVES] drives can be attached at once.
      */
     suspend fun openDrive(
         busid: String,
@@ -106,88 +145,132 @@ class QemuManager @Inject constructor(
         readOnly: Boolean = true,
         onStage: (String) -> Unit = {},
     ): DriveSession = withContext(Dispatchers.IO) {
-        check(!instances.containsKey(busid)) { "A USB-drive VM for $busid is already running; close it first." }
-        check(instances.size < MAX_CONCURRENT_VMS) {
-            "Already running $MAX_CONCURRENT_VMS USB-drive VM(s) — that's the phone-resource limit (each is a full emulated machine). Close one first."
+        onStage("Waiting for the shared VM…")
+        vmMutex.withLock { openDriveLocked(busid, authorizedPubKey, readOnly, onStage) }
+    }
+
+    private suspend fun openDriveLocked(
+        busid: String,
+        authorizedPubKey: String,
+        readOnly: Boolean,
+        onStage: (String) -> Unit,
+    ): DriveSession {
+        check(sharedVm?.attachedBusids?.contains(busid) != true) { "A USB-drive VM for $busid is already running; close it first." }
+        check((sharedVm?.attachedBusids?.size ?: 0) < MAX_CONCURRENT_DRIVES) {
+            "Already have $MAX_CONCURRENT_DRIVES USB drive(s) attached — that's the concurrency limit. Close one first."
         }
-        val instance = VmInstance()
-        instances[busid] = instance
         updateSession(busid) { DriveSession(busid, 0, emptyList(), State.STARTING, readOnly = readOnly) }
-        try {
+        return try {
             ensureQemu(onStage)
             val disk = ensureProvisionedAppliance(onStage)
-            val port = freeLoopbackPort()
 
-            onStage("Starting the virtual machine…")
-            instance.start(qemuRuntimeCommand(disk, port)) { prootManager.startCommandInProot(it) }
-
-            // 1) login — nudge getty until the prompt shows, then send root. The
-            // appliance disk boots the already-installed system (no apk, no
-            // re-download), so this is just a kernel boot — still TCG-slow and
-            // load-dependent, so report live elapsed + a milestone.
-            onStage("Booting the USB helper…")
-            val bootOk = instance.awaitMarker("login:", BOOT_TIMEOUT_MS, nudge = true) { sec ->
-                val hint = instance.bufferSnapshot().let { s ->
-                    when {
-                        s.contains("Welcome to Alpine") || s.contains("Alpine Linux") -> "kernel up, reaching login"
-                        s.contains("SeaBIOS") || s.contains("ISOLINUX") -> "loading the kernel"
-                        else -> "starting"
-                    }
-                }
-                onStage("Booting Linux — $hint (${sec}s)…")
+            var vm = sharedVm
+            if (vm == null || !vm.instance.isAlive) {
+                vm = bootSharedVm(disk, authorizedPubKey, busid, onStage)
+                sharedVm = vm
+            } else {
+                // VM already up — just authorize this drive's own key on it.
+                // Tagged with the busid so closeDrive can revoke precisely
+                // this line later without disturbing other open drives' keys.
+                onStage("Adding your key…")
+                val marker = vm.instance.sendAndAwaitRegex(
+                    "echo '$authorizedPubKey haven-usb:$busid' >> /root/.ssh/authorized_keys; echo HAVEN_KEY_OK",
+                    "HAVEN_KEY_OK",
+                    KEY_ADD_TIMEOUT_MS,
+                )
+                if (marker == null) fail("Couldn't authorize your key against the running VM.")
             }
-            if (!bootOk) fail("VM didn't reach a login prompt within ${BOOT_TIMEOUT_MS / 1000}s — the emulated boot is slow and varies with phone load; try again, ideally with less else running.")
-            instance.send("root\n")
-            Thread.sleep(1500)
-            // The tty echoes typed input back into the same stream awaitMarker/
-            // sendAndAwaitRegex scan — since every script we send literally
-            // contains its own marker text (e.g. "echo HAVEN_SETUP_DONE"), the
-            // echo alone can satisfy the marker wait before the command has
-            // even run. Kill echo once, right after login, for every script
-            // sent for the rest of this session (setup, unlock, close).
-            instance.send("stty -echo\n")
-            Thread.sleep(300)
-            // 2) one-shot setup; wait for the done marker.
-            onStage("Setting up the VM and mounting your drive…")
-            instance.send(runtimeSetupScript(busid, authorizedPubKey, readOnly) + "\n")
-            val setupOk = instance.awaitMarker("HAVEN_SETUP_DONE", SETUP_TIMEOUT_MS) { sec ->
-                onStage("Setting up the VM (installing drivers, mounting; ${sec}s)…")
-            }
-            if (!setupOk) fail("VM setup (attach/mount/sshd) didn't finish within ${SETUP_TIMEOUT_MS / 1000}s")
-            // Snapshot the mounts NOW, the instant the marker arrives — the setup
-            // script emits the HVNMOUNT/HVNLOCKED report right before
-            // HAVEN_SETUP_DONE, so reading here (before the sshd-banner wait,
-            // which gives kernel console output a window to trim the buffer)
-            // captures it reliably.
-            val mounts = instance.parseMounts()
-            val locked = instance.parseLocked()
-            // 3) confirm sshd actually answers on the forward.
-            onStage("Almost ready — connecting…")
-            if (!awaitSshBanner(port, SSH_TIMEOUT_MS)) fail("sshd never answered on 127.0.0.1:$port")
 
-            DriveSession(busid, port, mounts, State.RUNNING, readOnly = readOnly, locked = locked)
+            onStage("Attaching and mounting your drive…")
+            val since = vm.instance.bufferSnapshot().length
+            val marker = vm.instance.sendAndAwaitRegex(
+                attachAndMountScript(busid, readOnly),
+                "HAVEN_ATTACH_OK|HAVEN_ATTACH_FAIL",
+                SETUP_TIMEOUT_MS,
+            ) { sec -> onStage("Attaching and mounting your drive (${sec}s)…") }
+            if (marker == null || marker == "HAVEN_ATTACH_FAIL") fail("Couldn't attach/mount $busid within ${SETUP_TIMEOUT_MS / 1000}s.")
+            val mounts = vm.instance.parseMounts(since)
+            val locked = vm.instance.parseLocked(since)
+            val vhciPort = vm.instance.parseVhciPort(since)
+
+            vm.attachedBusids.add(busid)
+            if (vhciPort != null) vm.vhciPortByBusid[busid] = vhciPort
+
+            DriveSession(busid, vm.port, mounts, State.RUNNING, readOnly = readOnly, locked = locked)
                 .also { session -> updateSession(busid) { session } }
         } catch (e: Exception) {
             Log.w(TAG, "openDrive($busid) failed: ${e.message}")
             updateSession(busid) { DriveSession(busid, 0, emptyList(), State.ERROR, e.message, readOnly = readOnly) }
-            instance.stop()
-            instances.remove(busid)
+            sharedVm?.attachedBusids?.remove(busid)
+            if (sharedVm?.attachedBusids?.isEmpty() != false) {
+                sharedVm?.instance?.stop()
+                sharedVm = null
+            }
             throw e
         }
     }
 
+    /** Boots a fresh shared VM: login, bootstrap script (network/keys/sshd), confirm sshd answers. */
+    private fun bootSharedVm(disk: String, firstPubKey: String, firstBusid: String, onStage: (String) -> Unit): SharedVm {
+        val instance = VmInstance()
+        val port = freeLoopbackPort()
+
+        onStage("Starting the virtual machine…")
+        instance.start(qemuRuntimeCommand(disk, port)) { prootManager.startCommandInProot(it) }
+
+        onStage("Booting the USB helper…")
+        val bootOk = instance.awaitMarker("login:", BOOT_TIMEOUT_MS, nudge = true) { sec ->
+            val hint = instance.bufferSnapshot().let { s ->
+                when {
+                    s.contains("Welcome to Alpine") || s.contains("Alpine Linux") -> "kernel up, reaching login"
+                    s.contains("SeaBIOS") || s.contains("ISOLINUX") -> "loading the kernel"
+                    else -> "starting"
+                }
+            }
+            onStage("Booting Linux — $hint (${sec}s)…")
+        }
+        if (!bootOk) fail("VM didn't reach a login prompt within ${BOOT_TIMEOUT_MS / 1000}s — the emulated boot is slow and varies with phone load; try again, ideally with less else running.")
+        instance.send("root\n")
+        Thread.sleep(1500)
+        // The tty echoes typed input back into the same stream awaitMarker/
+        // sendAndAwaitRegex scan — since every script we send literally
+        // contains its own marker text (e.g. "echo HAVEN_BOOTSTRAP_OK"), the
+        // echo alone can satisfy the marker wait before the command has
+        // even run. Kill echo once, right after login, for every script
+        // sent for the rest of this VM's life (bootstrap, every attach,
+        // every unlock, close).
+        instance.send("stty -echo\n")
+        Thread.sleep(300)
+
+        onStage("Setting up the VM…")
+        val setupMarker = instance.sendAndAwaitRegex(
+            vmBootstrapScript(firstPubKey, busidComment = firstBusid),
+            "HAVEN_BOOTSTRAP_OK|HAVEN_BOOTSTRAP_FAIL",
+            SETUP_TIMEOUT_MS,
+        )
+        if (setupMarker == null || setupMarker == "HAVEN_BOOTSTRAP_FAIL") fail("VM setup (network/sshd) didn't finish within ${SETUP_TIMEOUT_MS / 1000}s")
+
+        onStage("Almost ready — connecting…")
+        if (!awaitSshBanner(port, SSH_TIMEOUT_MS)) fail("sshd never answered on 127.0.0.1:$port")
+
+        return SharedVm(instance, port)
+    }
+
     /**
      * Unlock a LUKS-encrypted partition reported in [DriveSession.locked] for
-     * [busid]'s drive and mount it, against the *already-running* VM from
-     * [openDrive] (no reboot — this is a follow-up command over the same
-     * serial session). Returns the updated session; throws (wrong passphrase,
-     * or the VM isn't running) without altering [sessions] so the caller can
+     * [busid]'s drive and mount it, against the *already-running* shared VM
+     * (no reboot — this is a follow-up command over the same serial
+     * session). Returns the updated session; throws (wrong passphrase, or
+     * the VM isn't running) without altering [sessions] so the caller can
      * re-prompt.
      */
-    suspend fun unlockPartition(busid: String, devicePath: String, passphrase: String): DriveSession = withContext(Dispatchers.IO) {
-        val instance = instances[busid] ?: fail("No USB-drive VM is running for $busid.")
+    suspend fun unlockPartition(busid: String, devicePath: String, passphrase: String): DriveSession =
+        withContext(Dispatchers.IO) { vmMutex.withLock { unlockPartitionLocked(busid, devicePath, passphrase) } }
+
+    private fun unlockPartitionLocked(busid: String, devicePath: String, passphrase: String): DriveSession {
+        val vm = sharedVm ?: fail("No USB-drive VM is running for $busid.")
         val current = _sessions.value[busid] ?: fail("No USB-drive VM is running for $busid.")
-        check(instance.isAlive) { "The USB-drive VM for $busid isn't running." }
+        check(busid in vm.attachedBusids && vm.instance.isAlive) { "The USB-drive VM for $busid isn't running." }
         val name = File(devicePath).name
         if (name !in current.locked) fail("$name isn't a locked partition on this drive.")
         // Passphrase piped via stdin (-d -), never as a cryptsetup argument (which
@@ -195,69 +278,83 @@ class QemuManager @Inject constructor(
         // the in-memory (never persisted) serial buffer, same trust model as
         // the ephemeral SSH key already sent the same way.
         // Mount matches the session's readOnly (the same rw+sync risk tradeoff
-        // as the plain mount loop in runtimeSetupScript applies here too).
+        // as the plain mount loop in attachAndMountScript applies here too).
         val mapperMount = if (current.readOnly) {
-            // Same non-ext4/xfs noload gotcha as runtimeSetupScript's mount loop.
+            // Same non-ext4/xfs noload gotcha as attachAndMountScript's mount loop.
             "t=\$(blkid -o value -s TYPE \"/dev/mapper/crypt_$name\" 2>/dev/null); " +
                 "mount -o ro \"/dev/mapper/crypt_$name\" \"/mnt/$name\" 2>/dev/null || " +
                 "if [ \"\$t\" = ext4 ] || [ \"\$t\" = xfs ]; then mount -o ro,noload \"/dev/mapper/crypt_$name\" \"/mnt/$name\" 2>/dev/null; fi"
         } else {
             "mount -o rw,sync \"/dev/mapper/crypt_$name\" \"/mnt/$name\" 2>/dev/null"
         }
-        // Same report format runtimeSetupScript ends with — a full fresh
-        // re-scan (not scoped to just this partition), so the mounts/locked
-        // lists below stay accurate for every partition on the drive, not
-        // just the one just unlocked.
-        val reportScript = "for p in /dev/sd[a-z][0-9]*; do [ -b \"\$p\" ] || continue; l=\$(basename \"\$p\"); " +
-            "t=\$(blkid -o value -s TYPE \"\$p\" 2>/dev/null); " +
-            "[ \"\$t\" = crypto_LUKS ] && [ ! -e \"/dev/mapper/crypt_\$l\" ] && echo \"HVNLOCKED:\$l\"; done; " +
-            "while read d m r; do case \"\$m\" in /mnt/*) echo \"HVNMOUNT:\$m\";; esac; done < /proc/mounts; "
         val script = "modprobe dm_crypt 2>/dev/null; " +
             "printf '%s' " + shellSingleQuote(passphrase) + " | cryptsetup luksOpen \"$devicePath\" \"crypt_$name\" -d - 2>/dev/null; " +
             "mkdir -p \"/mnt/$name\"; { $mapperMount; }; " +
-            reportScript +
             // The real, final check — not the `&&` chain's short-circuit state,
             // which a stale/echoed marker match could otherwise satisfy without
-            // ever confirming the mount actually happened (see sendAndAwaitRegex).
+            // ever confirming the mount actually happened.
             "mountpoint -q \"/mnt/$name\" 2>/dev/null && echo HAVEN_UNLOCK_OK || echo HAVEN_UNLOCK_FAIL"
-        val since = instance.bufferSnapshot().length
-        val marker = instance.sendAndAwaitRegex(script, "HAVEN_UNLOCK_OK|HAVEN_UNLOCK_FAIL", UNLOCK_TIMEOUT_MS)
-        val mounts = instance.parseMounts(since)
-        val locked = instance.parseLocked(since)
+        val marker = vm.instance.sendAndAwaitRegex(script, "HAVEN_UNLOCK_OK|HAVEN_UNLOCK_FAIL", UNLOCK_TIMEOUT_MS)
         if (marker == null || marker == "HAVEN_UNLOCK_FAIL") fail("Wrong passphrase, or the partition failed to mount.")
-        current.copy(mounts = mounts, locked = locked).also { session -> updateSession(busid) { session } }
+        // Deterministic merge instead of a shell-side rescan: HAVEN_UNLOCK_OK
+        // already proves (via mountpoint -q) that exactly "$name" is now
+        // mounted — update just that one partition's status against this
+        // drive's own already-known lists, rather than re-deriving via a
+        // fresh report (which, scoped to only this one partition, could
+        // otherwise incorrectly forget this drive's OTHER still-locked
+        // partitions, if it has more than one).
+        return current.copy(mounts = current.mounts + "/mnt/$name", locked = current.locked - name)
+            .also { session -> updateSession(busid) { session } }
     }
 
     /**
-     * Power off + reap [busid]'s VM. Idempotent. The caller stops its USB/IP
-     * export.
+     * Detach + unmount [busid] from the shared VM and stop the export.
+     * Idempotent — a no-op if [busid] was never actually attached (its
+     * [openDrive] never completed, or it's already closed). Only powers off
+     * the shared VM once the *last* attached drive is closed; otherwise it
+     * stays up serving the rest.
      *
-     * Explicitly `sync`s and unmounts every mount under /mnt before poweroff,
-     * and waits (bounded) for confirmation, rather than trusting the VM's own
-     * shutdown scripts to finish before the force-kill ceiling below. This
-     * matters most for a writable mount: racing a force-kill against an
-     * in-flight write is exactly how you corrupt a filesystem. Best-effort —
-     * a hung/already-dead VM just times out and falls through to the reap.
+     * Explicitly `sync`s and unmounts this busid's mounts before detaching,
+     * and waits (bounded) for confirmation, rather than trusting a shared
+     * poweroff to finish before the force-kill ceiling. This matters most
+     * for a writable mount: racing a force-kill against an in-flight write
+     * is exactly how you corrupt a filesystem. Best-effort — a hung VM just
+     * times out and falls through.
      */
-    suspend fun closeDrive(busid: String): Unit = withContext(Dispatchers.IO) {
-        val instance = instances[busid]
-        if (instance?.isAlive == true) {
-            val script = "sync; for m in /mnt/*; do [ -d \"\$m\" ] && mountpoint -q \"\$m\" 2>/dev/null && " +
-                "umount \"\$m\" 2>/dev/null; done; sync; echo HAVEN_UNMOUNT_DONE"
-            instance.sendAndAwaitRegex(script, "HAVEN_UNMOUNT_DONE", UNMOUNT_TIMEOUT_MS)
+    suspend fun closeDrive(busid: String): Unit = withContext(Dispatchers.IO) { vmMutex.withLock { closeDriveLocked(busid) } }
+
+    private fun closeDriveLocked(busid: String) {
+        val vm = sharedVm ?: return
+        if (busid !in vm.attachedBusids) return
+        if (vm.instance.isAlive) {
+            val mounts = _sessions.value[busid]?.mounts ?: emptyList()
+            val vhciPort = vm.vhciPortByBusid[busid]
+            val umounts = mounts.joinToString("") { "mountpoint -q \"$it\" 2>/dev/null && umount \"$it\" 2>/dev/null; " }
+            val detach = if (vhciPort != null) "usbip detach -p $vhciPort 2>/dev/null; " else ""
+            val script = "sync; $umounts$detach" +
+                // Strip only this busid's own key line — other open drives'
+                // keys (and their still-live sessions) are untouched.
+                "sed -i \"/ haven-usb:$busid\$/d\" /root/.ssh/authorized_keys 2>/dev/null; " +
+                "sync; echo HAVEN_CLOSE_DONE"
+            vm.instance.sendAndAwaitRegex(script, "HAVEN_CLOSE_DONE", UNMOUNT_TIMEOUT_MS)
         }
-        // Graceful poweroff next — harmless after the explicit unmount above,
-        // and still lets networking/sshd shut down cleanly — then reap.
-        runCatching { instance?.send("\npoweroff\n") }
-        instance?.waitFor(4)
-        instance?.stop()
-        instances.remove(busid)
+        vm.attachedBusids.remove(busid)
+        vm.vhciPortByBusid.remove(busid)
         _sessions.update { it - busid }
+
+        if (vm.attachedBusids.isEmpty()) {
+            runCatching { vm.instance.send("\npoweroff\n") }
+            vm.instance.waitFor(4)
+            vm.instance.stop()
+            sharedVm = null
+        }
     }
 
-    /** Close every currently-open drive VM (used before [deleteAppliance], which all of them depend on). */
-    suspend fun closeAllDrives() {
-        instances.keys.toList().forEach { closeDrive(it) }
+    /** Close every currently-attached drive (used before [deleteAppliance], which all of them depend on). */
+    suspend fun closeAllDrives(): Unit = withContext(Dispatchers.IO) {
+        vmMutex.withLock {
+            sharedVm?.attachedBusids?.toList()?.forEach { closeDriveLocked(it) }
+        }
     }
 
     // --- appliance provisioning -------------------------------------------
@@ -393,7 +490,7 @@ class QemuManager @Inject constructor(
             }
             if (!bootOk) fail("appliance provisioning: VM didn't reach a login prompt in ${BOOT_TIMEOUT_MS / 1000}s")
             provisioning.send("root\n"); Thread.sleep(1500)
-            provisioning.send("stty -echo\n"); Thread.sleep(300) // see openDrive's comment
+            provisioning.send("stty -echo\n"); Thread.sleep(300) // see bootSharedVm's comment
             onStage("Building the USB helper Linux — installing (one-time)…")
             provisioning.send(provisionScript + "\n")
             val ok = provisioning.awaitMarker("HAVEN_PROVISION_DONE", PROVISION_TIMEOUT_MS) { sec ->
@@ -417,7 +514,7 @@ class QemuManager @Inject constructor(
         guestDisk
     }
 
-    /** Delete the persistent appliance; the next [openDrive] re-provisions it. Closes every live drive VM first (they all depend on this one disk). */
+    /** Delete the persistent appliance; the next [openDrive] re-provisions it. Closes every live drive first (they all depend on this one disk). */
     suspend fun deleteAppliance() {
         closeAllDrives()
         val dir = File(context.cacheDir, "haven-vm")
@@ -437,14 +534,14 @@ class QemuManager @Inject constructor(
             }
             if (!bootOk) fail("appliance upgrade: VM didn't reach a login prompt in ${BOOT_TIMEOUT_MS / 1000}s")
             provisioning.send("root\n"); Thread.sleep(1500)
-            provisioning.send("stty -echo\n"); Thread.sleep(300) // see openDrive's comment
+            provisioning.send("stty -echo\n"); Thread.sleep(300) // see bootSharedVm's comment
             onStage("Updating the USB helper Linux (one-time)…")
             // Re-installs the FULL extra-package set (not just what's new since
             // the caller's prior version) — simpler than tracking per-version
             // deltas, and `apk add` on an already-installed package is a cheap
             // no-op, so this costs nothing extra for anyone who's already current
             // on some of them.
-            val script = "ip link set eth0 up; udhcpc -i eth0 -q -n 2>/dev/null; " +
+            val script = networkUpFragment() +
                 "apk update -q && apk add -q $APPLIANCE_EXTRA_PACKAGES && echo HAVEN_UPGRADE_OK || echo HAVEN_UPGRADE_FAIL"
             val marker = provisioning.sendAndAwaitRegex(script, "HAVEN_UPGRADE_OK|HAVEN_UPGRADE_FAIL", PROVISION_TIMEOUT_MS)
             if (marker != "HAVEN_UPGRADE_OK") fail("appliance upgrade (installing $APPLIANCE_EXTRA_PACKAGES) failed or timed out")
@@ -461,7 +558,7 @@ class QemuManager @Inject constructor(
     // passwordless serial root, and gates the done-marker on success so a failed
     // setup-disk can't be read as provisioned.
     private val provisionScript: String =
-        "ip link set eth0 up; udhcpc -i eth0 -q -n 2>/dev/null; " +
+        networkUpFragment() +
             "printf 'https://dl-cdn.alpinelinux.org/alpine/v3.21/main\\n" +
             "https://dl-cdn.alpinelinux.org/alpine/v3.21/community\\n' > /etc/apk/repositories; " +
             "apk update -q && apk add -q linux-tools-usbip openssh e2fsprogs syslinux $APPLIANCE_EXTRA_PACKAGES && " +
@@ -506,15 +603,18 @@ class QemuManager @Inject constructor(
     companion object {
         private const val TAG = "QemuManager"
         private const val VM_MEM_MB = 768
-        // Each VM is a full emulated machine (VM_MEM_MB RAM + a TCG CPU core) —
-        // a real phone-resource limit, not an arbitrary cap.
-        const val MAX_CONCURRENT_VMS = 2
+        // The old cap existed for RAM reasons (each VM was its own 768MB
+        // machine). That's gone — one shared VM regardless of drive count —
+        // so this instead reflects the guest kernel's vhci_hcd port count
+        // (typically 8 by default) and practical UX (a phone OTG port, or a
+        // small hub), with headroom kept deliberately conservative.
+        const val MAX_CONCURRENT_DRIVES = 4
         private const val SERIAL_CAP = 256 * 1024
         // Generous: TCG boot (no KVM) is slow and varies a lot with phone load —
         // 4 min was marginal and timed out under load before reaching login.
         private const val BOOT_TIMEOUT_MS = 420_000L
         private const val SETUP_TIMEOUT_MS = 360_000L
-        // How long (s) to wait INSIDE the VM for the drive to enumerate after
+        // How long (s) to wait INSIDE the VM for a drive to enumerate after
         // usbip attach — a ceiling, not a fixed sleep (we mount the instant it
         // appears). Generous so a slow CPU/large drive still makes it; stays
         // within SETUP_TIMEOUT_MS.
@@ -542,8 +642,10 @@ class QemuManager @Inject constructor(
             "cryptsetup testdisk gptfdisk parted smartmontools ddrescue ntfs-3g dosfstools"
         private const val SSH_TIMEOUT_MS = 30_000L
         private const val UNLOCK_TIMEOUT_MS = 30_000L
-        // Bounded wait for the explicit sync+umount in closeDrive() — generous
-        // enough to flush a real pending write, but an eject still has to end.
+        private const val KEY_ADD_TIMEOUT_MS = 15_000L
+        // Bounded wait for the explicit sync+umount+detach in closeDrive() —
+        // generous enough to flush a real pending write, but an eject still
+        // has to end.
         private const val UNMOUNT_TIMEOUT_MS = 20_000L
         private const val PROGRESS_TICK_MS = 15_000L
         private const val APPLIANCE_NAME = "alpine-standard-3.21.7-x86_64.iso"
@@ -557,12 +659,11 @@ class QemuManager @Inject constructor(
 }
 
 /**
- * One QEMU Process's serial console — everything [QemuManager] previously
- * held as singleton fields (`vmProcess`/`serialReader`/`serial`), now one
- * instance per open drive (keyed by busid) plus one dedicated instance for
- * appliance provisioning, so multiple VMs can run concurrently (#287
- * multi-drive). Same wait/send/reap logic as before the refactor, just
- * scoped to `this` instead of the outer class.
+ * One QEMU Process's serial console — the shared VM's boot + every attach/
+ * unlock/close command sent to it over this VM's lifetime, plus one
+ * dedicated instance for appliance provisioning. Same wait/send/reap logic
+ * as before the #287 multi-drive-VM-sharing refactor, just now genuinely
+ * long-lived (a whole multi-drive session, not one drive's boot+setup).
  */
 private class VmInstance {
     @Volatile var process: Process? = null
@@ -602,11 +703,16 @@ private class VmInstance {
 
     /**
      * [since] restricts parsing to bytes at/after that buffer offset — the
-     * report is a fresh, complete re-scan of every partition each time it's
-     * emitted (see [runtimeSetupScript]/[QemuManager.unlockPartition]'s
-     * scripts), so scanning the whole VM-lifetime buffer would resurrect a
-     * partition's now-stale earlier state (e.g. a partition unlocked since
-     * the initial setup report would still show up as locked forever).
+     * report is a fresh, complete re-scan each time it's emitted (see
+     * [attachAndMountScript]/[reportScript]), so scanning the whole
+     * VM-lifetime buffer would resurrect a partition's now-stale earlier
+     * state (e.g. a partition unlocked since an earlier report would still
+     * show up as locked forever). NOTE: the buffer is a fixed 256KB ring —
+     * an absolute [since] offset can in principle be invalidated by trimming
+     * on a very long-lived shared VM (this instance now lives for a whole
+     * multi-drive session, not just one drive's boot). Not observed in
+     * practice (each capture-and-consume window is short, bounded by that
+     * one call's own timeout), but worth knowing if this ever needs revisiting.
      */
     fun parseMounts(since: Int = 0): List<String> {
         val re = Regex("^HVNMOUNT:(/mnt/\\S+)$")
@@ -622,6 +728,14 @@ private class VmInstance {
             .map { it.trim().trimEnd('\r') }
             .mapNotNull { re.find(it)?.groupValues?.get(1) }
             .distinct().toList()
+    }
+
+    /** Parses the `HVNPORT:<n>` line [attachAndMountScript] reports — the vhci_hcd port index this attach was assigned. */
+    fun parseVhciPort(since: Int = 0): Int? {
+        val re = Regex("^HVNPORT:(\\d+)$")
+        return bufferSnapshot().drop(since).lineSequence()
+            .map { it.trim().trimEnd('\r') }
+            .firstNotNullOfOrNull { re.find(it)?.groupValues?.get(1)?.toIntOrNull() }
     }
 
     fun awaitMarker(
@@ -651,20 +765,33 @@ private class VmInstance {
      * Send [script] and wait for [markerRegex] (an alternation like `"A|B"`)
      * to appear in the serial buffer, returning which alternative matched (or
      * null on timeout/VM death). Only bytes written *after* this call's own
-     * [send] count — a VM instance is long-lived (open, unlock, close all
-     * share it), and a repeat command with the same marker text (e.g. a
-     * second unlock attempt) would otherwise match a stale occurrence left
-     * over from an earlier command instead of its own real output.
+     * [send] count — this VM instance is long-lived (boot, every attach,
+     * every unlock, close all share it), and a repeat command with the same
+     * marker text (e.g. two different drives' attach scripts both using
+     * `HAVEN_ATTACH_OK`) would otherwise match a stale occurrence left over
+     * from an earlier command instead of its own real output.
      */
-    fun sendAndAwaitRegex(script: String, markerRegex: String, timeoutMs: Long): String? {
+    fun sendAndAwaitRegex(
+        script: String,
+        markerRegex: String,
+        timeoutMs: Long,
+        onProgress: ((elapsedSec: Long) -> Unit)? = null,
+    ): String? {
         val since = synchronized(serialLock) { serial.length }
         send(script + "\n")
         val re = Regex(markerRegex)
-        val deadline = System.currentTimeMillis() + timeoutMs
+        val start = System.currentTimeMillis()
+        val deadline = start + timeoutMs
+        var nextTick = start + PROGRESS_TICK_MS_INTERNAL
         while (System.currentTimeMillis() < deadline) {
             if (!isAlive) return null
             synchronized(serialLock) {
                 re.find(serial, since.coerceAtMost(serial.length))?.let { return it.value }
+            }
+            val now = System.currentTimeMillis()
+            if (onProgress != null && now >= nextTick) {
+                onProgress((now - start) / 1000)
+                nextTick = now + PROGRESS_TICK_MS_INTERNAL
             }
             try { Thread.sleep(1000) } catch (_: InterruptedException) { return null }
         }
@@ -724,26 +851,59 @@ private fun pidOf(p: Process): Int? = try {
     when (v) { is Int -> v; is Long -> v.toInt(); else -> null }
 } catch (_: Throwable) { null }
 
-// How long (s) to wait INSIDE the VM for the drive to enumerate after usbip
+// How long (s) to wait INSIDE the VM for a drive to enumerate after usbip
 // attach — a ceiling, not a fixed sleep (we mount the instant it appears).
 private const val ENUM_WAIT_S = 180
 
 /** Marker content is the provisioned package-set version; pre-LUKS markers ("ok\n") parse as 0 → mismatch → upgrade. */
 internal fun markerVersion(marker: File): Int = marker.takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull() ?: 0
 
+/** `ip link ... ; udhcpc ...` — shared by provisionScript/vmBootstrapScript/the appliance-upgrade script (previously three independently-drifting copies; one had a missing `2>/dev/null`). */
+private fun networkUpFragment(): String = "ip link set eth0 up; udhcpc -i eth0 -q -n 2>/dev/null; "
+
 /**
- * The single setup line typed at the appliance's root shell each open. The
- * appliance already has linux-tools-usbip + openssh (+ cryptsetup + the
- * recovery/forensics toolset) installed (provisioned once), so this only
- * does the per-open work: network up, authorise the caller's ephemeral key,
- * start sshd, attach the drive over USB/IP, mount every plain partition
- * ([readOnly] ? "ro" : "rw"). A LUKS-encrypted partition is left unmounted
- * and reported via HVNLOCKED — QemuManager.unlockPartition mounts it
- * afterwards, once the user supplies a passphrase. Top-level (not a
- * QemuManager member) — pure string-building, so it's unit-testable without
- * an Android Context.
+ * Runs once, the first time the shared VM boots for a session (not per
+ * drive): network, authorize the first drive's key, sshd, and the kernel
+ * modules every subsequent attach needs. Top-level (not a QemuManager
+ * member) — pure string-building, so it's unit-testable without an Android
+ * Context. [busidComment] is unused today (the first key is authorized
+ * without a busid tag — see the call site) but kept as a parameter so a
+ * future caller can't accidentally authorize an untagged key that
+ * [closeDriveLocked]'s sed can't ever revoke; pass null to mean "no tag."
  */
-internal fun runtimeSetupScript(busid: String, pubKey: String, readOnly: Boolean): String {
+internal fun vmBootstrapScript(pubKey: String, busidComment: String?): String {
+    val taggedKey = if (busidComment != null) "$pubKey haven-usb:$busidComment" else pubKey
+    // pubKey is a single "ssh-ed25519 AAAA... comment" line (no single quotes).
+    return networkUpFragment() +
+        // Quiet the kernel console. The appliance boots with console=ttyS0,
+        // so vhci_hcd/usb enumeration spam floods the serial we scrape — it
+        // can trim a report out of the capped buffer before we read it.
+        // Emergency-only from here (we're already past login).
+        "dmesg -n 1 2>/dev/null; " +
+        "mkdir -p /root/.ssh; echo '$taggedKey' > /root/.ssh/authorized_keys; " +
+        "chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys; " +
+        "ssh-keygen -A >/dev/null 2>&1; " +
+        "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config; " +
+        "rc-service sshd restart >/dev/null 2>&1 || /usr/sbin/sshd; " +
+        "modprobe vhci_hcd; " +
+        // busybox `mount` auto-detect only works for filesystems already in
+        // /proc/filesystems — it doesn't modprobe — so load the common ones
+        // up front or an ext4 stick mounts as an empty dir.
+        "for m in ext4 vfat exfat ntfs3; do modprobe \$m 2>/dev/null; done; " +
+        "echo HAVEN_BOOTSTRAP_OK"
+}
+
+/**
+ * Attach [busid] over USB/IP to the already-bootstrapped shared VM, mount
+ * its new partitions ([readOnly] ? "ro" : "rw"), and report the delta (this
+ * attach's own new mounts/locked-LUKS-partitions/vhci-port) — never a global
+ * rescan, so this can run again for a second/third drive without disturbing
+ * or re-reporting an earlier drive's already-mounted state. A LUKS-encrypted
+ * partition is left unmounted and reported via HVNLOCKED —
+ * QemuManager.unlockPartition mounts it afterwards. Top-level — pure
+ * string-building, unit-testable without an Android Context.
+ */
+internal fun attachAndMountScript(busid: String, readOnly: Boolean): String {
     val mountCmd = if (readOnly) {
         // noload (skip journal replay) is only a valid option for ext4/xfs —
         // vfat/exfat/ntfs/ntfs3 reject the whole mount with "Unknown
@@ -760,51 +920,90 @@ internal fun runtimeSetupScript(busid: String, pubKey: String, readOnly: Boolean
         // the risk closeDrive()'s explicit unmount only covers for a *clean* eject.
         "mount -o rw,sync \"\$p\" \"\$d\" 2>/dev/null"
     }
-    // pubKey is a single "ssh-ed25519 AAAA... comment" line (no single quotes).
-    return "ip link set eth0 up; udhcpc -i eth0 -q -n; " +
-        // Quiet the kernel console. The appliance boots with console=ttyS0,
-        // so vhci_hcd/usb enumeration spam floods the serial we scrape — it
-        // can trim the mount report out of the capped buffer before we read
-        // it. Emergency-only from here (we're already past login).
-        "dmesg -n 1 2>/dev/null; " +
-        "mkdir -p /root/.ssh; echo '$pubKey' > /root/.ssh/authorized_keys; " +
-        "chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys; " +
-        "ssh-keygen -A >/dev/null 2>&1; " +
-        "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config; " +
-        "rc-service sshd restart >/dev/null 2>&1 || /usr/sbin/sshd; " +
-        "modprobe vhci_hcd; " +
-        // busybox `mount` auto-detect only works for filesystems already in
-        // /proc/filesystems — it doesn't modprobe — so load the common ones
-        // up front or an ext4 stick mounts as an empty dir.
-        "for m in ext4 vfat exfat ntfs3; do modprobe \$m 2>/dev/null; done; " +
-        // Attach, then WAIT FOR the block device to enumerate instead of
-        // assuming a fixed time — a slower CPU or a bigger/slower drive can
-        // take much longer than a fast phone. Poll until a partition node
-        // appears, with a generous ceiling (still inside SETUP_TIMEOUT_MS,
-        // and we proceed the instant it shows). usbip occasionally imports
-        // at the wrong speed and never enumerates; a detach/re-attach usually
-        // clears that but not always (seen it take 2+ tries live), so retry
-        // every ~20s instead of once, using the same $ENUM_WAIT_S budget.
-        "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; n=0; " +
-        "while [ \$n -lt $ENUM_WAIT_S ]; do ls /dev/sd[a-z][0-9]* >/dev/null 2>&1 && break; " +
-        "[ \$n -gt 0 ] && [ \$((\$n % 20)) -eq 0 ] && { usbip detach -p 00 2>/dev/null; usbip detach -p 0 2>/dev/null; sleep 1; " +
-        "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; }; " +
-        "n=\$((n+1)); sleep 1; done; " +
-        "mkdir -p /mnt; for p in /dev/sd[a-z][0-9]*; do [ -b \"\$p\" ] || continue; " +
+    return "beforeVp=/tmp/hvn_vp_before_$$; afterVp=/tmp/hvn_vp_after_$$; " +
+        "beforeDev=/tmp/hvn_dev_before_$$; afterDev=/tmp/hvn_dev_after_$$; newDev=/tmp/hvn_dev_new_$$; " +
+        // Snapshot which vhci ports are free (local_busid column "0-0")
+        // BEFORE this attach, so we can identify exactly which port THIS
+        // busid lands on afterward without parsing `usbip port`'s
+        // human-formatted text (busid there sits in a URL-suffix line, not
+        // reliably greppable) — read the same tab-separated sysfs file the
+        // kernel itself exposes instead.
+        "awk '\$7==\"0-0\"{print \$2}' /sys/devices/platform/vhci_hcd.0/status > \"\$beforeVp\" 2>/dev/null; " +
+        // Snapshot which partition NODES exist before this attach too — the
+        // actual list, not just a count, so the mount+report loop at the end
+        // can be scoped to precisely this attach's own new nodes instead of
+        // rescanning every currently-visible partition (which would
+        // re-report an earlier drive's still-locked/still-mounted state as
+        // if it belonged to THIS drive — a real bug reproduced live: two
+        // drives attached to the same shared VM both reported the same
+        // locked partition, because the previous version rescanned globally
+        // and relied on the marker/offset scan to filter it, which only
+        // filters stale TEXT, not a fact re-printed fresh every attach).
+        "ls /dev/sd[a-z][0-9]* 2>/dev/null | sort > \"\$beforeDev\"; " +
+        "beforeCount=\$(wc -l < \"\$beforeDev\"); " +
+        "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; n=0; myPort=''; " +
+        // Poll with a cheap COUNT check (one `ls`+`wc`, not a full sort+diff
+        // every second — under TCG each extra forked process meaningfully
+        // adds up across up to $ENUM_WAIT_S iterations) — count still tells
+        // us "a genuinely new node appeared" (unlike a bare existence check,
+        // which would falsely early-exit immediately once another drive's
+        // partitions are already visible). The actual LIST diff (needed to
+        // know which node is new, for mount+report scoping) is computed only
+        // ONCE, after the loop exits below.
+        "while [ \$n -lt $ENUM_WAIT_S ]; do " +
+        "curCount=\$(ls /dev/sd[a-z][0-9]* 2>/dev/null | wc -l); [ \"\$curCount\" -gt \"\$beforeCount\" ] && break; " +
+        "if [ \$n -gt 0 ] && [ \$((\$n % 20)) -eq 0 ]; then " +
+        // Retry: detach only THIS busid's own just-assigned port (captured
+        // via the same before/after vhci-status diff), never a blind port-0
+        // detach — with multiple drives possibly attached, port 0 could
+        // belong to an entirely different, already-working drive.
+        "awk '\$7==\"0-0\"{print \$2}' /sys/devices/platform/vhci_hcd.0/status > \"\$afterVp\" 2>/dev/null; " +
+        // Same empty-pattern-file gotcha as the device-list diff below — if
+        // every vhci port happens to be occupied ($afterVp empty), fall back
+        // to just using $beforeVp's first entry rather than silently
+        // matching nothing.
+        "myPort=\$([ -s \"\$afterVp\" ] && grep -vxFf \"\$afterVp\" \"\$beforeVp\" 2>/dev/null | head -1 || head -1 \"\$beforeVp\"); " +
+        "myPort=\$(echo \"\$myPort\" | sed 's/^0*\\([0-9]\\)/\\1/'); " +
+        "[ -n \"\$myPort\" ] && usbip detach -p \"\$myPort\" 2>/dev/null; sleep 1; " +
+        "usbip attach -r 10.0.2.2 -b $busid 2>/dev/null; " +
+        "fi; n=\$((n+1)); sleep 1; done; " +
+        // Final port capture (covers the common case where enumeration
+        // succeeded on the first try, so the retry branch above never ran).
+        "awk '\$7==\"0-0\"{print \$2}' /sys/devices/platform/vhci_hcd.0/status > \"\$afterVp\" 2>/dev/null; " +
+        // Same empty-pattern-file gotcha as the device-list diff below — if
+        // every vhci port happens to be occupied ($afterVp empty), fall back
+        // to just using $beforeVp's first entry rather than silently
+        // matching nothing.
+        "myPort=\$([ -s \"\$afterVp\" ] && grep -vxFf \"\$afterVp\" \"\$beforeVp\" 2>/dev/null | head -1 || head -1 \"\$beforeVp\"); " +
+        "myPort=\$(echo \"\$myPort\" | sed 's/^0*\\([0-9]\\)/\\1/'); " +
+        "[ -n \"\$myPort\" ] && echo \"HVNPORT:\$myPort\"; " +
+        "ls /dev/sd[a-z][0-9]* 2>/dev/null | sort > \"\$afterDev\"; " +
+        // `grep -vxFf emptyfile` is a real gotcha: an EMPTY pattern file is
+        // treated as one empty pattern, which matches every line, so with
+        // -v it excludes ALL of them — reproduced live as the very first
+        // drive attached (whose "before" list is genuinely empty) always
+        // getting zero results back here, silently, with no error anywhere.
+        "if [ -s \"\$beforeDev\" ]; then grep -vxFf \"\$beforeDev\" \"\$afterDev\" 2>/dev/null > \"\$newDev\"; " +
+        "else cp \"\$afterDev\" \"\$newDev\"; fi; " +
+        "rm -f \"\$beforeVp\" \"\$afterVp\" \"\$beforeDev\" \"\$afterDev\"; " +
+        // Mount + report loop scoped to $newDev (this attach's own new
+        // nodes) ONLY — never a blind /dev/sd* glob, so it can't touch or
+        // re-report an earlier drive's already-mounted/already-locked state.
+        "mkdir -p /mnt; while read p; do [ -b \"\$p\" ] || continue; " +
         "l=\$(basename \"\$p\"); d=/mnt/\$l; " +
         "t=\$(blkid -o value -s TYPE \"\$p\" 2>/dev/null); " +
-        // LUKS partitions are reported (below) and left for unlockPartition —
+        // blkid can race a partition node that JUST appeared (the device
+        // exists but its filesystem/LUKS signature hasn't settled into
+        // blkid's probe yet) — reproduced live as an empty $t on a
+        // definitely-LUKS partition immediately after enumeration. One
+        // bounded retry, paid only when it's actually empty, not on every
+        // partition or every poll iteration.
+        "[ -z \"\$t\" ] && { sleep 1; t=\$(blkid -o value -s TYPE \"\$p\" 2>/dev/null); }; " +
+        // LUKS partitions are reported and left for unlockPartition —
         // mounting a raw LUKS block device would just fail anyway.
-        "[ \"\$t\" = crypto_LUKS ] && continue; " +
-        "mkdir -p \"\$d\"; $mountCmd; done; " +
-        // Report locked LUKS partitions (not yet mapped) and the ACTUAL mounts
-        // from /proc/mounts right before the marker, so both sit adjacent to
-        // HAVEN_SETUP_DONE in the serial buffer (an inline echo during the
-        // loop can be pushed out by console output before parseMounts/
-        // parseLocked read). Authoritative, not best-effort.
-        "for p in /dev/sd[a-z][0-9]*; do [ -b \"\$p\" ] || continue; l=\$(basename \"\$p\"); " +
-        "t=\$(blkid -o value -s TYPE \"\$p\" 2>/dev/null); " +
-        "[ \"\$t\" = crypto_LUKS ] && [ ! -e \"/dev/mapper/crypt_\$l\" ] && echo \"HVNLOCKED:\$l\"; done; " +
-        "while read d m r; do case \"\$m\" in /mnt/*) echo \"HVNMOUNT:\$m\";; esac; done < /proc/mounts; " +
-        "echo HAVEN_SETUP_DONE"
+        "if [ \"\$t\" = crypto_LUKS ]; then echo \"HVNLOCKED:\$l\"; continue; fi; " +
+        "mkdir -p \"\$d\"; $mountCmd; " +
+        "mountpoint -q \"\$d\" 2>/dev/null && echo \"HVNMOUNT:\$d\"; " +
+        "done < \"\$newDev\"; rm -f \"\$newDev\"; " +
+        "echo HAVEN_ATTACH_OK"
 }

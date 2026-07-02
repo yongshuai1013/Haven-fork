@@ -35,16 +35,21 @@ import javax.inject.Singleton
  *
  * The VM boot is slow (TCG, no KVM unrooted), so [open] does the fast checks
  * (USB permission, mass-storage class) synchronously and then boots in the
- * background; callers poll [sessions]. Up to [QemuManager.MAX_CONCURRENT_VMS]
- * drives can be open at once, each its own VM keyed by busid.
+ * background; callers poll [sessions]. Up to [QemuManager.MAX_CONCURRENT_DRIVES]
+ * drives can be open at once, sharing ONE running VM (each additional drive
+ * is just another USB/IP attach inside it, not a second boot — see
+ * [QemuManager]'s class doc for why).
  *
  * The saved "USB: …" connection is a durable **bookmark** (tagged with the
- * drive's serial via [ConnectionProfile.usbDriveSerial]), not a live session —
- * the VM behind it stops on [close]/sleep/app-restart, at which point the
- * profile's host:port goes dead. [reopenForProfile] (driven by
- * [UsbDriveConnectionPreflight]) reboots the VM and refreshes the profile the
- * moment the user clicks that bookmark again, instead of leaving a connection
- * that just fails.
+ * drive's serial via [ConnectionProfile.usbDriveSerial]), not a live session.
+ * [close]ing a drive always ends its own reachability (its key is revoked and
+ * its mounts unmounted even if other drives keep the shared VM up); the VM
+ * itself — and the port every open drive's profile currently shares — only
+ * actually stops once the *last* attached drive closes (or on app-restart:
+ * VM state doesn't survive the process). [reopenForProfile] (driven by
+ * [UsbDriveConnectionPreflight]) reboots/reattaches and refreshes the profile
+ * the moment the user clicks a dead bookmark again, instead of leaving a
+ * connection that just fails.
  */
 @Singleton
 class UsbDriveVmManager @Inject constructor(
@@ -76,7 +81,7 @@ class UsbDriveVmManager @Inject constructor(
     )
 
     // Keyed by busid — one entry per drive that's ever been opened this app
-    // session (removed on [close]). Up to QemuManager.MAX_CONCURRENT_VMS can
+    // session (removed on [close]). Up to QemuManager.MAX_CONCURRENT_DRIVES can
     // be OPENING/READY at once.
     private val _sessions = MutableStateFlow<Map<String, Status>>(emptyMap())
     val sessions: StateFlow<Map<String, Status>> = _sessions.asStateFlow()
@@ -106,8 +111,8 @@ class UsbDriveVmManager @Inject constructor(
      * still booting — poll [sessions] until phase READY (profileId set) or ERROR.
      */
     suspend fun open(deviceName: String?, writable: Boolean = false): String {
-        if (activeCount() >= QemuManager.MAX_CONCURRENT_VMS) {
-            throw UsbVmException("Already have ${QemuManager.MAX_CONCURRENT_VMS} USB drive(s) open in a VM — that's the phone-resource limit. Close one first.")
+        if (activeCount() >= QemuManager.MAX_CONCURRENT_DRIVES) {
+            throw UsbVmException("Already have ${QemuManager.MAX_CONCURRENT_DRIVES} USB drive(s) attached — that's the concurrency limit. Close one first.")
         }
         val target = resolveDrive(deviceName)
         val info = try {
@@ -344,11 +349,12 @@ class UsbDriveVmManager @Inject constructor(
             // to Terminal. ponytail: a small settle delay beats threading a
             // "don't-switch-to-terminal" flag through the whole connect path.
             kotlinx.coroutines.delay(1500)
-            // Read the real mounts over the now-connected SSH channel —
-            // robust, unlike scraping the transient serial console (kernel
-            // console noise + slow enumeration made that unreliable). Update
-            // the status and land the auto-open on the actual mount.
-            val liveMounts = queryMountsViaSsh(profile.id)
+            // Re-check for this busid's own mount landing late (see
+            // awaitMountsScoped's doc comment for why this reads
+            // QemuManager's busid-scoped state rather than a live,
+            // VM-wide SSH query). Update the status and land the auto-open
+            // on the actual mount.
+            val liveMounts = awaitMountsScoped(busid)
             if (liveMounts.isNotEmpty() && liveMounts != mounts) {
                 updateStatus(busid) { it.copy(mounts = liveMounts) }
             }
@@ -360,11 +366,13 @@ class UsbDriveVmManager @Inject constructor(
     }
 
     /**
-     * Tear down [busid]'s drive: power off its VM, stop its export. The
-     * bookmarked "USB: …" connection (and its now-stale key/port) is kept —
-     * clicking it again re-opens the VM via [reopenForProfile] and refreshes
-     * both. A dead profile between eject and the next click is the point of
-     * the bookmark.
+     * Tear down [busid]'s drive: detach + unmount it and revoke its key on
+     * the shared VM, stop its export. The shared VM itself only actually
+     * powers off once the *last* attached drive is closed — see
+     * [QemuManager.closeDrive]. The bookmarked "USB: …" connection (and its
+     * now-stale key/port) is kept — clicking it again re-opens/reattaches via
+     * [reopenForProfile] and refreshes both. A dead profile between eject and
+     * the next click is the point of the bookmark.
      */
     suspend fun close(busid: String) {
         val s = _sessions.value[busid] ?: return
@@ -394,27 +402,31 @@ class UsbDriveVmManager @Inject constructor(
     }
 
     /**
-     * Read the drive's mount points from /proc/mounts over the VM's SSH session
-     * — the same reliable channel the file browser uses. Preferred over scraping
-     * QemuManager's transient serial console (kernel console noise + slow, retried
-     * enumeration made that miss the report). Returns [] if the client isn't up.
+     * Wait briefly for this busid's mount to land in QemuManager's own
+     * (authoritative, per-busid) [QemuManager.DriveSession.mounts], in case
+     * it arrives just after [bootAndAttach] already captured its snapshot
+     * (slow, retried enumeration).
+     *
+     * This used to instead run `cat /proc/mounts` over the drive's own SSH
+     * session — reliable on its own, but **not busid-scoped**: once multiple
+     * drives can share one VM (#287 multi-drive), that command reads the
+     * WHOLE shared VM's mount table, not just this busid's own. Reproduced
+     * live: unlocking one drive's LUKS partition stamped its mount path into
+     * a completely different, unrelated drive's status, because this
+     * function's un-scoped "live" re-query overwrote the correctly-scoped
+     * value [bootAndAttach] had already recorded. QemuManager's own
+     * [QemuManager.sessions] is already busid-scoped (and, after the
+     * shared-VM rework, its attach report is itself delta-scoped and
+     * verified rather than a blind rescan), so reading it directly is both
+     * simpler and correct where the SSH re-query wasn't.
      */
-    private suspend fun queryMountsViaSsh(profileId: String): List<String> {
-        val client = sshSessionManager.getSshClientForProfile(profileId)
-        if (client == null) { Log.w(TAG, "queryMountsViaSsh: no connected client for $profileId"); return emptyList() }
-        // The mount can land a little AFTER the session connects (slow, retried
-        // enumeration), so poll /proc/mounts for a short window rather than
-        // reading once. Reliable (SSH channel), unlike serial scraping.
+    private suspend fun awaitMountsScoped(busid: String): List<String> {
         repeat(20) { attempt ->
-            val mounts = runCatching {
-                client.execCommand("cat /proc/mounts").stdout.lineSequence()
-                    .mapNotNull { line -> line.split(' ').getOrNull(1)?.takeIf { it.startsWith("/mnt/") } }
-                    .distinct().toList()
-            }.getOrElse { Log.w(TAG, "queryMountsViaSsh exec failed: ${it.message}"); emptyList() }
-            if (mounts.isNotEmpty()) { Log.i(TAG, "queryMountsViaSsh: $mounts (attempt $attempt)"); return mounts }
+            val mounts = qemuManager.sessions.value[busid]?.mounts.orEmpty()
+            if (mounts.isNotEmpty()) { Log.i(TAG, "awaitMountsScoped($busid): $mounts (attempt $attempt)"); return mounts }
             kotlinx.coroutines.delay(2000)
         }
-        Log.w(TAG, "queryMountsViaSsh: no /mnt mount appeared within ~40s")
+        Log.w(TAG, "awaitMountsScoped($busid): no /mnt mount appeared within ~40s")
         return emptyList()
     }
 

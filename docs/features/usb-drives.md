@@ -115,12 +115,17 @@ it just rebuilds itself, once, the next time you open a drive.
   limit what an unexpected kill (app backgrounded under memory pressure,
   crash, battery pull) can corrupt. Read-only stays the safer default.
 
-**Doesn't work (yet, or ever):**
+**Also works: multiple drives at once** — open a second (or third, up to a
+phone-resource limit) drive without ejecting the first. They share one
+running VM rather than each getting their own (the small helper Linux is
+booted once; every additional drive is just another attach inside it),
+each with independent files, mounts, and its own Eject.
+
+**Doesn't work (and never will):**
 
 - **Webcams and USB microphones** — these can *never* work through any of Haven's
   USB features, due to a hard limit in Android's USB support (see
   [USB device forwarding](usb.md) for the details).
-- **More than one drive at a time** — eject one before opening another.
 
 ## Trade-offs and limits
 

@@ -729,7 +729,7 @@ private fun DesktopManagerSection(
     val usbDriveActiveCount = usbDriveSessions.values.count {
         it.phase == sh.haven.app.usb.UsbDriveVmManager.Phase.OPENING || it.phase == sh.haven.app.usb.UsbDriveVmManager.Phase.READY
     }
-    val usbDriveAtCapacity = usbDriveActiveCount >= sh.haven.core.local.QemuManager.MAX_CONCURRENT_VMS
+    val usbDriveAtCapacity = usbDriveActiveCount >= sh.haven.core.local.QemuManager.MAX_CONCURRENT_DRIVES
 
     val activeDistroLabel = installedDistros.firstOrNull { it.id == activeDistroId }?.label
         ?: DistroCatalog.lookup(activeDistroId)?.label
@@ -865,7 +865,7 @@ private fun DesktopManagerSection(
                         )
                         // #287: open a USB mass-storage drive in a VM so its
                         // ext4/GPT/block files are reachable (proot can't). Up
-                        // to MAX_CONCURRENT_VMS at once — each is its own row
+                        // to MAX_CONCURRENT_DRIVES at once — each is its own row
                         // below the picker, with its own Eject.
                         if (!usbDriveAtCapacity) {
                             HorizontalDivider()

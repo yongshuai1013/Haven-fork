@@ -770,7 +770,7 @@ class DesktopViewModel @Inject constructor(
     val userMessages: SharedFlow<String> = _userMessages.asSharedFlow()
 
     // --- "Open USB drive" in a VM (#287) — keyed by busid, up to
-    // QemuManager.MAX_CONCURRENT_VMS concurrently OPENING/READY.
+    // QemuManager.MAX_CONCURRENT_DRIVES concurrently OPENING/READY.
     val usbDriveSessions: StateFlow<Map<String, sh.haven.app.usb.UsbDriveVmManager.Status>> = usbDriveVmManager.sessions
 
     // Whether the persistent USB-helper appliance is provisioned (drives the
