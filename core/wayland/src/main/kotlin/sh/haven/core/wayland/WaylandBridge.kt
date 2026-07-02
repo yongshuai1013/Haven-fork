@@ -5,16 +5,29 @@ import android.util.Log
 /**
  * JNI bridge to the native labwc Wayland compositor.
  * The compositor runs on a dedicated native thread.
+ *
+ * `liblabwc_android.so` is only built for arm64-v8a. On other ABIs
+ * (x86_64, armeabi-v7a) it's absent, so [available] is false. Callers
+ * MUST gate on [available] before invoking any `native*` method — the
+ * methods are bound implicitly (JNI `Java_..._native*` symbols) and calling
+ * one when the library didn't load throws `UnsatisfiedLinkError` ("No
+ * implementation found for native method").
  */
 object WaylandBridge {
     private const val TAG = "WaylandBridge"
 
+    /** True only if the native compositor library loaded (arm64-v8a). */
+    @JvmStatic
+    var available: Boolean = false
+        private set
+
     init {
         try {
             System.loadLibrary("labwc_android")
+            available = true
             Log.i(TAG, "liblabwc_android.so loaded")
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load liblabwc_android.so", e)
+            Log.w(TAG, "liblabwc_android.so not present on this ABI — native Wayland desktop disabled")
         }
     }
 
@@ -36,6 +49,13 @@ object WaylandBridge {
 
     /** Returns true if the compositor event loop is running. */
     external fun nativeIsRunning(): Boolean
+
+    /**
+     * Safe status query for callers that just want to know if the compositor
+     * is up: returns false (instead of throwing) on ABIs without the native
+     * lib. Prefer this over calling [nativeIsRunning] directly.
+     */
+    fun isCompositorRunning(): Boolean = available && nativeIsRunning()
 
     /** Set the Android Surface for compositor output. Pass null to detach. */
     external fun nativeSetSurface(surface: android.view.Surface?)

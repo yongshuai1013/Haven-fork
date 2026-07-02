@@ -150,7 +150,7 @@ class WorkspaceViewModel @Inject constructor(
         }
 
     private fun waylandIsRunning(): Boolean = try {
-        WaylandBridge.nativeIsRunning()
+        WaylandBridge.isCompositorRunning()
     } catch (e: UnsatisfiedLinkError) {
         // The Wayland native lib isn't loaded under unit tests. Treat
         // as "not running" rather than failing the whole capture.

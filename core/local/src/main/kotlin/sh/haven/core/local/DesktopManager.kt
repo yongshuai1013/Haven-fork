@@ -139,6 +139,13 @@ class DesktopManager @Inject constructor(
 
         when (de.spec.launch) {
             is LaunchSpec.NativeCompositor -> {
+                if (!WaylandBridge.available) {
+                    _desktops.update { it + (de to DesktopInstance(
+                        de, 0, 0, DesktopState.ERROR,
+                        errorMessage = "The native Wayland desktop requires an arm64 device",
+                    )) }
+                    return
+                }
                 if (WaylandBridge.nativeIsRunning()) {
                     _desktops.update { it + (de to DesktopInstance(
                         de, 0, 0, DesktopState.ERROR,
@@ -315,7 +322,7 @@ class DesktopManager @Inject constructor(
     fun stopDesktop(de: ProotManager.DesktopEnvironment) {
         val instance = _desktops.value[de] ?: return
         val launch = de.spec.launch
-        if (launch is LaunchSpec.NativeCompositor) {
+        if (launch is LaunchSpec.NativeCompositor && WaylandBridge.available) {
             if (WaylandBridge.nativeIsRunning()) {
                 WaylandBridge.nativeStop()
             }

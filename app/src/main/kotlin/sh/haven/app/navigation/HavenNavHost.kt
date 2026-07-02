@@ -114,7 +114,7 @@ fun HavenNavHost(
     var waylandRunning by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         while (true) {
-            waylandRunning = sh.haven.core.wayland.WaylandBridge.nativeIsRunning()
+            waylandRunning = sh.haven.core.wayland.WaylandBridge.isCompositorRunning()
             kotlinx.coroutines.delay(500)
         }
     }
