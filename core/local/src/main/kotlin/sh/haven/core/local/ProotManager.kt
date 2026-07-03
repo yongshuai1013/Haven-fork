@@ -123,6 +123,23 @@ internal fun clearPathIfWrongType(outFile: File, entryIsDir: Boolean) {
 }
 
 /**
+ * Apply tar `--strip-components=N` to a hard-link entry's link target (#328).
+ *
+ * A tar hard-link target is an archive-relative path that includes the same
+ * leading components as entry names, so it must be stripped identically.
+ * Without this, every hard link in a wrapped tarball (stripComponents=1 — the
+ * shape of every proot-distro import) resolved to a nonexistent path and the
+ * linked file was silently missing from the extracted rootfs. Pure so the
+ * strip rule is unit-testable next to [clearPathIfWrongType].
+ */
+internal fun resolveTarLinkTarget(linkTarget: String, stripComponents: Int): String =
+    if (stripComponents > 0) {
+        linkTarget.split('/').drop(stripComponents).joinToString("/")
+    } else {
+        linkTarget
+    }
+
+/**
  * Return the subset of [binaries] (rootfs-relative paths like
  * `usr/bin/xfwm4`) that are missing under [rootfs].
  *
@@ -1517,15 +1534,34 @@ class ProotManager @Inject constructor(
                         }
                     }
                     '1'.code.toByte() -> {
-                        // Hard link — copy the target file
+                        // Hard link — copy the target file. The tar's link target
+                        // is an unstripped archive path, so apply the same
+                        // --strip-components as entry names; without this every
+                        // hard link in a wrapped (stripComponents=1) tarball —
+                        // i.e. a typical proot-distro import — pointed at a
+                        // nonexistent path and the file was SILENTLY MISSING
+                        // from the rootfs. (#328)
                         outFile.parentFile?.mkdirs()
                         try {
-                            val targetFile = File(destDir, linkTarget)
+                            val strippedTarget = resolveTarLinkTarget(linkTarget, source.stripComponents)
+                            val targetFile = File(destDir, strippedTarget)
                             if (targetFile.exists()) {
                                 targetFile.copyTo(outFile, overwrite = true)
+                                // Restore the entry's mode — copyTo leaves the
+                                // app-umask 0600, dropping exec bits from linked
+                                // binaries. Same restore as the regular-file
+                                // branch. (#328)
+                                modeStr.trim().toIntOrNull(8)?.let { m ->
+                                    try {
+                                        android.system.Os.chmod(outFile.absolutePath, m and 0xFFF)
+                                    } catch (_: Exception) {}
+                                }
+                                fileCount++
+                            } else {
+                                Log.w(TAG, "Hard link target missing: $entryName -> $strippedTarget")
                             }
                         } catch (e: Exception) {
-                            Log.d(TAG, "Hard link failed: $entryName -> $linkTarget: ${e.message}")
+                            Log.w(TAG, "Hard link failed: $entryName -> $linkTarget: ${e.message}")
                         }
                     }
                     '0'.code.toByte(), 0.toByte() -> {
