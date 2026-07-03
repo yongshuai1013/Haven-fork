@@ -1,0 +1,3 @@
+v5.68.4
+- SSH: "Any hardware key" set as a fallback behind a software key no longer prompts for a hardware touch before the software key is tried first (#286).
+- Native X11 (labwc) desktop: fixed a crash (native use-after-free) when stopping or restarting the on-device GPU desktop.

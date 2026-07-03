@@ -5,6 +5,14 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.4
+
+Two fixes: SSH hardware-key auth ordering, and a Native X11 desktop teardown crash.
+
+🔑 **"Any hardware key" no longer prompts ahead of a primary software key (SSH)** — with a software key as your primary auth method and "Any hardware key" as a secondary fallback (and 2+ hardware keys enrolled), Haven asked you to present a hardware key during connect setup — *before* it even tried the primary software key that would have logged you in. It now defers that prompt: the software key is offered first, and the hardware-key pool is only exercised if it fails. When "Any hardware key" is your primary/only method, the present-your-key prompt is unchanged.
+
+🖥️ **Native X11 (labwc) desktop no longer crashes the app on teardown** — stopping or restarting the on-device GPU desktop could crash Haven with a native use-after-free in the Wayland compositor (`liblabwc_android.so`) as it tore down. Fixed by clearing a dangling scene-node reference the moment the surface is destroyed. (Separate from backgrounding, which keeps the compositor alive.)
+
 ## v5.68.3
 
 Fixes duplicated terminal input on the default keyboard for some IMEs (#298).
