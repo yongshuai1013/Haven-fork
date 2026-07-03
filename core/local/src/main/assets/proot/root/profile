@@ -22,8 +22,27 @@ export LC_ALL=${LC_ALL:-C.UTF-8}
 export CLICOLOR=1
 export GREP_COLORS='mt=01;33'
 
-# A compact prompt with user@host and current path
-PS1='\[\033[32m\]\u@proot\[\033[0m\]:\[\033[34m\]\w\[\033[0m\]\$ '
+# If a lesser shell is running interactively and bash is installed, hand
+# over to it — dash (Void's /bin/sh) has no line editing (arrow/Home keys
+# echo ^[[H) and no fancy-prompt expansion. bash -l re-reads this profile
+# with BASH_VERSION set, so there's no exec loop. (#253)
+if [ -z "$BASH_VERSION" ] && [ -t 1 ] && command -v bash >/dev/null 2>&1; then
+    exec bash -l
+fi
+
+# A compact prompt with user@host and current path. The \u/\[ escapes are
+# bash/ash prompt syntax — dash renders them literally
+# ("\[\033[32m\]\u@proot…", #253), so POSIX-only shells get a plain prompt
+# built from parameter expansion (POSIX PS1 re-expands parameters at each
+# display).
+if [ -n "$BASH_VERSION" ] ||
+    case "$(readlink "/proc/$$/exe" 2>/dev/null)" in *busybox*) true ;; *) false ;; esac
+then
+    # bash, and Alpine's busybox ash, both expand bash-style prompts
+    PS1='\[\033[32m\]\u@proot\[\033[0m\]:\[\033[34m\]\w\[\033[0m\]\$ '
+else
+    PS1='${USER:-root}@proot:${PWD}# '
+fi
 
 # Aliases most shells agree on
 alias ll='ls -lh'
