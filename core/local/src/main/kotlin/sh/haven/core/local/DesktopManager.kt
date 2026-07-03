@@ -809,6 +809,8 @@ class DesktopManager @Inject constructor(
             // desktop apps that use POSIX shared memory work. See ProotManager.
             "-b", "${prootManager.ensureDevShm()}:/dev/shm",
             "-b", "${context.cacheDir.absolutePath}:/tmp",
+            // #304: surface the device model at the devicetree path fastfetch reads.
+            *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
@@ -1094,6 +1096,8 @@ class DesktopManager @Inject constructor(
             "-b", prootManager.selinuxMaskBind(rootfsDir),
             "-b", "${context.cacheDir.absolutePath}:/tmp",
             "-b", "${devShmHost.absolutePath}:/dev/shm",
+            // #304: surface the device model at the devicetree path fastfetch reads.
+            *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
@@ -1585,6 +1589,8 @@ class DesktopManager @Inject constructor(
                 "-b", prootManager.selinuxMaskBind(rootfsDir),
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
                 "-b", "${xdgDir.absolutePath}:/tmp/xdg-runtime",
+                // #304: surface the device model at the devicetree path fastfetch reads.
+                *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
                 *customBinds,
                 "-w", "/root",
                 "/bin/sh", "-c",

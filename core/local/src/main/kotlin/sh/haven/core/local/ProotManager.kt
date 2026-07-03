@@ -772,6 +772,20 @@ class ProotManager @Inject constructor(
         }
     }
 
+    /**
+     * proot bind spec that surfaces the seeded device model at the devicetree
+     * path fastfetch reads for its "Host:" line (`/sys/firmware/devicetree/base/model`)
+     * — or null if [writeDeviceModelInfo] didn't produce the file. neofetch already
+     * gets the model from `/tmp/sysinfo/model` directly; this extends coverage to
+     * fastfetch, which reads DMI/devicetree only. proot overlays our host file onto
+     * the (SELinux-unreadable) real node exactly like the `/proc/.loadavg` binds, so
+     * the real node's permissions don't matter. Bind AFTER `/sys` so it shadows it.
+     */
+    fun deviceModelDevicetreeBind(): String? {
+        val f = File(context.cacheDir, "sysinfo/model")
+        return if (f.exists()) "${f.absolutePath}:/sys/firmware/devicetree/base/model" else null
+    }
+
     // --- User-imported distros (#284) ---
 
     /**
@@ -1816,6 +1830,8 @@ class ProotManager @Inject constructor(
             "--bind=$rootfsPath/proc/.sysctl_inotify_max_user_watches:/proc/sys/fs/inotify/max_user_watches",
             "--bind=$sysSelinuxMask",
             "--bind=${context.cacheDir.absolutePath}:/tmp",
+            // #304: surface the device model at the devicetree path fastfetch reads.
+            *(deviceModelDevicetreeBind()?.let { arrayOf("--bind=$it") } ?: emptyArray()),
             // #301: per-distro user-defined extra binds, so a one-shot command
             // (and MCP run_in_proot) sees the same mounts as the shell/desktop.
             *customBindLongArgs(activeDistroId).toTypedArray(),

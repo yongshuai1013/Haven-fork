@@ -309,6 +309,8 @@ class LocalSessionManager @Inject constructor(
                 *storageBinds,
                 *customBinds,
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
+                // #304: surface the device model at the devicetree path fastfetch reads.
+                *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
                 "-w", "/root",
             ) + shellArgs
             val env = arrayOf(
