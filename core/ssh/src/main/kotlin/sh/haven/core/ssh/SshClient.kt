@@ -145,7 +145,11 @@ class SshClient : Closeable {
                 is ConnectionConfig.AuthMethod.FidoKey -> { }
             }
         }
-        applyFidoAuth(flat.filterIsInstance<ConnectionConfig.AuthMethod.FidoKey>(), sess)
+        applyFidoAuth(
+            flat.filterIsInstance<ConnectionConfig.AuthMethod.FidoKey>(),
+            sess,
+            deferAnyKeyDetection = anyHardwareKeyDetectionShouldDefer(flat),
+        )
         return fallbackKiPassword
     }
 
@@ -163,7 +167,11 @@ class SshClient : Closeable {
      *   If nothing is detected (all verify-required, or none presented in time)
      *   it falls back to offering all of them in order.
      */
-    private fun applyFidoAuth(fidoAuths: List<ConnectionConfig.AuthMethod.FidoKey>, sess: Session) {
+    private fun applyFidoAuth(
+        fidoAuths: List<ConnectionConfig.AuthMethod.FidoKey>,
+        sess: Session,
+        deferAnyKeyDetection: Boolean = false,
+    ) {
         if (fidoAuths.isEmpty()) return
         val (anyOfPool, required) = fidoAuths.partition { it.anyOf }
         // Required / pinned: offer all so a multi-key server is satisfiable.
@@ -172,6 +180,18 @@ class SshClient : Closeable {
             anyOfPool.isEmpty() -> {}
             anyOfPool.size == 1 -> addFidoIdentity(anyOfPool[0], sess)
             else -> {
+                if (deferAnyKeyDetection) {
+                    // The pool sits behind a higher-priority software key in the
+                    // ordered list: don't prompt the user to present a key up front
+                    // (that jumped ahead of the primary software key, which usually
+                    // succeeds on its own). Register all pool keys so JSch offers
+                    // them only if the software key fails — first server-trusted
+                    // one wins. Keeps detection when the pool is the primary method.
+                    Log.d(TAG, "Any-hardware-key: deferred (software key precedes) — " +
+                        "registering all ${anyOfPool.size} as fallback, no up-front prompt")
+                    anyOfPool.forEach { addFidoIdentity(it, sess) }
+                    return
+                }
                 val candidates = anyOfPool.map { SkKeyData.deserialize(it.skKeyData) }
                 val detected = try {
                     runBlocking { fidoAuthenticator?.detectPresentSkKey(candidates, keyLabel = null) }
@@ -684,6 +704,35 @@ class SshClient : Closeable {
     companion object {
         /** No-op, kept for API compatibility. DNS is resolved fresh on each connection. */
         fun clearDnsCache() { }
+
+        /**
+         * Whether the "Any hardware key" up-front detection prompt
+         * ([FidoAuthenticator.detectPresentSkKey], used for a pool of >1
+         * enrolled hardware keys) should be SKIPPED because a higher-priority
+         * software key precedes the pool in the ordered auth list [flat].
+         *
+         * Without this the "present your key" prompt fired during connect
+         * *setup* even when the hardware key was a secondary fallback behind a
+         * software key that would have authenticated on its own — so the
+         * hardware key appeared to be "chosen ahead of" the primary. When
+         * deferred, the pool keys are still registered as identities (offered
+         * only if the software key fails, first server-trusted one winning).
+         * Detection is kept when the pool IS the first publickey (no software
+         * key before it), preserving the #237 either-of touch UX.
+         *
+         * A preceding [Password] doesn't count: publickey is always offered
+         * before password, so the pool is still the first publickey tried.
+         */
+        internal fun anyHardwareKeyDetectionShouldDefer(
+            flat: List<ConnectionConfig.AuthMethod>,
+        ): Boolean {
+            val firstFido = flat.indexOfFirst { it is ConnectionConfig.AuthMethod.FidoKey }
+            if (firstFido < 0) return false
+            return flat.take(firstFido).any {
+                it is ConnectionConfig.AuthMethod.PrivateKey ||
+                    it is ConnectionConfig.AuthMethod.PrivateKeys
+            }
+        }
 
         /**
          * Resolve a hostname to an IP address string.
