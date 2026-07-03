@@ -40,6 +40,7 @@ private const val PREF_MIRROR_REGION = "mirror_region"
 /** Proot launch toggles for the local Linux sessions (#300 / #301). */
 private const val PREF_REMAP_LOW_PORTS = "remap_low_ports"
 private const val PREF_SHARE_STORAGE = "share_storage_with_guest"
+private const val PREF_BIND_ANDROID_SYSTEM = "bind_android_system"
 
 /** Per-distro custom bind mounts (#301). Key suffix is the distro id. */
 private const val PREF_CUSTOM_BINDS_PREFIX = "custom_binds_"
@@ -306,6 +307,57 @@ class ProotManager @Inject constructor(
         if (enabled == _shareStorageWithGuest.value) return
         prefs.edit().putBoolean(PREF_SHARE_STORAGE, enabled).apply()
         _shareStorageWithGuest.value = enabled
+    }
+
+    private val _bindAndroidSystem = MutableStateFlow(prefs.getBoolean(PREF_BIND_ANDROID_SYSTEM, false))
+
+    /**
+     * #304 (part 2): when on, the proot launches also bind Android's own system
+     * partitions ([androidSystemPaths]) into the guest at the same paths, so guest
+     * software can run Android's native binaries — e.g. `/system/bin/getprop`, which
+     * dynamically links via `/system/bin/linker64` → `/apex` and reads
+     * `/linkerconfig/ld.config.txt`. Default **off**: these partitions expose device
+     * and vendor internals, and their layout/SELinux labels vary by device and OS
+     * version, so it's opt-in. The partitions are kernel-mounted read-only, so the
+     * bind can't modify them regardless.
+     */
+    val bindAndroidSystemFlow: StateFlow<Boolean> = _bindAndroidSystem.asStateFlow()
+    val bindAndroidSystem: Boolean get() = _bindAndroidSystem.value
+
+    fun setBindAndroidSystem(enabled: Boolean) {
+        if (enabled == _bindAndroidSystem.value) return
+        prefs.edit().putBoolean(PREF_BIND_ANDROID_SYSTEM, enabled).apply()
+        _bindAndroidSystem.value = enabled
+    }
+
+    /**
+     * Android system partitions exposed by [bindAndroidSystem]. `/apex` carries the
+     * dynamic linker (`/system/bin/linker64` → `/apex/com.android.runtime/bin/linker64`)
+     * and the runtime libs; the rest carry the binaries and their libraries. Only
+     * those that exist on this device are bound (proot errors on a missing source).
+     *
+     * `/linkerconfig` is deliberately NOT here: proot can't canonicalize it under the
+     * app's SELinux domain ("can't sanitize binding" warning), and it isn't required —
+     * the Android linker falls back to a default config and still resolves libs from
+     * `/apex`+`/system` (device-verified: getprop/toybox run without it, printing only a
+     * benign "failed to find .../ld.config.txt" linker warning).
+     */
+    private val androidSystemPaths = listOf(
+        "/system", "/vendor", "/apex", "/product", "/system_ext", "/odm",
+    )
+
+    /**
+     * proot bind args exposing Android's system partitions (#304 part 2), or an empty
+     * array when the toggle is off. [longForm] selects `--bind=P` vs `-b P` to match
+     * each launch path's arg style. Bound at the same path in the guest (guests have
+     * no `/system` etc., so nothing is shadowed).
+     */
+    fun androidSystemBindArgs(longForm: Boolean): Array<String> {
+        if (!bindAndroidSystem) return emptyArray()
+        return androidSystemPaths
+            .filter { File(it).exists() }
+            .flatMap { if (longForm) listOf("--bind=$it") else listOf("-b", it) }
+            .toTypedArray()
     }
 
     // --- Per-distro custom bind mounts (#301) ---
@@ -1832,6 +1884,8 @@ class ProotManager @Inject constructor(
             "--bind=${context.cacheDir.absolutePath}:/tmp",
             // #304: surface the device model at the devicetree path fastfetch reads.
             *(deviceModelDevicetreeBind()?.let { arrayOf("--bind=$it") } ?: emptyArray()),
+            // #304 part 2: optionally expose Android's system partitions (opt-in).
+            *androidSystemBindArgs(longForm = true),
             // #301: per-distro user-defined extra binds, so a one-shot command
             // (and MCP run_in_proot) sees the same mounts as the shell/desktop.
             *customBindLongArgs(activeDistroId).toTypedArray(),

@@ -148,6 +148,13 @@ class DesktopViewModel @Inject constructor(
         prootManager.setShareStorageWithGuest(enabled)
     }
 
+    /** #304: bind Android's read-only system partitions into the guest. Pass-through. */
+    val bindAndroidSystem: StateFlow<Boolean> get() = prootManager.bindAndroidSystemFlow
+
+    fun setBindAndroidSystem(enabled: Boolean) {
+        prootManager.setBindAndroidSystem(enabled)
+    }
+
     /**
      * Local-shell open requests keyed by the resolved profile id. Collected
      * by HavenNavHost (which is always composed, unlike TerminalScreen) so

@@ -96,6 +96,8 @@
     <string name="app_desktop_remap_ports_description">Lets guest services listen on privileged ports (&lt;1024): a service on port N becomes reachable at N+2000 (e.g. 80 → 2080). Android blocks the app from binding low ports directly. Off by default; affects every privileged port, including a guest sshd.</string>
     <string name="app_desktop_share_storage_title">Share device storage with guest</string>
     <string name="app_desktop_share_storage_description">Mounts your shared storage into the guest at /storage and /sdcard so it can reach your files. Turn off to keep your photos and downloads hidden from the local Linux environment.</string>
+    <string name="app_desktop_bind_android_system_title">Expose Android system to guest</string>
+    <string name="app_desktop_bind_android_system_description">Mounts Android\'s read-only /system, /vendor, /apex and related partitions into the guest so it can run Android\'s own native binaries (e.g. getprop, toybox). Off by default: this exposes device and vendor internals to the local Linux environment.</string>
     <!-- Desktop manager: custom bind mounts (#301) -->
     <string name="app_desktop_custom_binds_title">Custom mounts (%1$d)</string>
     <string name="app_desktop_custom_binds_description">Expose extra Android paths inside this distro\'s guest, on top of the system mounts. Mounts are read-write.</string>

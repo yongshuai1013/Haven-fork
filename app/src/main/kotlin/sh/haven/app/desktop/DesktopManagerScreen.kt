@@ -112,6 +112,7 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
     val mirrorRegion by viewModel.mirrorRegion.collectAsState()
     val remapLowPorts by viewModel.remapLowPorts.collectAsState()
     val shareStorageWithGuest by viewModel.shareStorageWithGuest.collectAsState()
+    val bindAndroidSystem by viewModel.bindAndroidSystem.collectAsState()
     val customBindsRev by viewModel.customBindsRev.collectAsState()
     val usbDriveSessions by viewModel.usbDriveSessions.collectAsState()
     val applianceProvisioned by viewModel.applianceProvisioned.collectAsState()
@@ -150,6 +151,8 @@ fun DesktopManagerScreen(viewModel: DesktopViewModel = hiltViewModel()) {
             onSetRemapLowPorts = { viewModel.setRemapLowPorts(it) },
             shareStorageWithGuest = shareStorageWithGuest,
             onSetShareStorageWithGuest = { viewModel.setShareStorageWithGuest(it) },
+            bindAndroidSystem = bindAndroidSystem,
+            onSetBindAndroidSystem = { viewModel.setBindAndroidSystem(it) },
             customBindsRev = customBindsRev,
             customBindsFor = { viewModel.customBinds(it) },
             onSetCustomBinds = { id, binds -> viewModel.setCustomBinds(id, binds) },
@@ -696,6 +699,8 @@ private fun DesktopManagerSection(
     onSetRemapLowPorts: (Boolean) -> Unit,
     shareStorageWithGuest: Boolean,
     onSetShareStorageWithGuest: (Boolean) -> Unit,
+    bindAndroidSystem: Boolean,
+    onSetBindAndroidSystem: (Boolean) -> Unit,
     customBindsRev: Int,
     customBindsFor: (String) -> List<sh.haven.core.local.proot.CustomBind>,
     onSetCustomBinds: (String, List<sh.haven.core.local.proot.CustomBind>) -> Unit,
@@ -1060,6 +1065,13 @@ private fun DesktopManagerSection(
                         description = stringResource(AppR.string.app_desktop_share_storage_description),
                         checked = shareStorageWithGuest,
                         onCheckedChange = onSetShareStorageWithGuest,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    BindingToggleRow(
+                        title = stringResource(AppR.string.app_desktop_bind_android_system_title),
+                        description = stringResource(AppR.string.app_desktop_bind_android_system_description),
+                        checked = bindAndroidSystem,
+                        onCheckedChange = onSetBindAndroidSystem,
                     )
                     Spacer(Modifier.height(8.dp))
                     // Custom bind mounts for the active distro (#301). Count reads

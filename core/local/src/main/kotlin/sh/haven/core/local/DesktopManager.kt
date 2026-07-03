@@ -811,6 +811,8 @@ class DesktopManager @Inject constructor(
             "-b", "${context.cacheDir.absolutePath}:/tmp",
             // #304: surface the device model at the devicetree path fastfetch reads.
             *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
+            // #304 part 2: optionally expose Android's system partitions (opt-in).
+            *prootManager.androidSystemBindArgs(longForm = false),
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
@@ -1098,6 +1100,8 @@ class DesktopManager @Inject constructor(
             "-b", "${devShmHost.absolutePath}:/dev/shm",
             // #304: surface the device model at the devicetree path fastfetch reads.
             *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
+            // #304 part 2: optionally expose Android's system partitions (opt-in).
+            *prootManager.androidSystemBindArgs(longForm = false),
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
@@ -1591,6 +1595,8 @@ class DesktopManager @Inject constructor(
                 "-b", "${xdgDir.absolutePath}:/tmp/xdg-runtime",
                 // #304: surface the device model at the devicetree path fastfetch reads.
                 *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
+                // #304 part 2: optionally expose Android's system partitions (opt-in).
+                *prootManager.androidSystemBindArgs(longForm = false),
                 *customBinds,
                 "-w", "/root",
                 "/bin/sh", "-c",

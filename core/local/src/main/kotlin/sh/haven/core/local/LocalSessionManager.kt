@@ -311,6 +311,8 @@ class LocalSessionManager @Inject constructor(
                 "-b", "${context.cacheDir.absolutePath}:/tmp",
                 // #304: surface the device model at the devicetree path fastfetch reads.
                 *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
+                // #304 part 2: optionally expose Android's system partitions (opt-in).
+                *prootManager.androidSystemBindArgs(longForm = false),
                 "-w", "/root",
             ) + shellArgs
             val env = arrayOf(
