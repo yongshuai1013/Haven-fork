@@ -1,0 +1,2 @@
+v5.68.9
+- Agent-driven APK installs (install_apk_from_url) no longer time out on slow links: the download now runs in the background with an immediate pending response, and both install tools report live phase/byte progress via get_app_info activeInstall plus the final outcome in lastInstall — including download failures that were previously invisible (#331). Device-verified over a remote WireGuard link.

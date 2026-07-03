@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.9
+
+Agent-driven APK installs no longer time out on slow links (#331).
+
+📲 **`install_apk_from_url` now stages in the background with pollable progress** — downloading a large APK over a slow link (e.g. updating Haven remotely while traveling) held the MCP request open for the whole transfer, so the call timed out while the install silently continued, leaving the agent blind. The tool now validates the URL synchronously, then downloads and installs in the background, returning `{pending, staging}` immediately. Both install tools (`install_apk_from_url`, `install_apk_from_backend`) publish a live `activeInstall` snapshot in `get_app_info` — phase (connecting / downloading / installing) plus bytes transferred — and the terminal outcome lands in `lastInstall`, including download failures that were previously invisible. Device-verified over a WireGuard-jump travel network, including a real mid-download network abort surfacing as a clean pollable error.
+
 ## v5.68.8
 
 Fixes lines being lost or concatenated on Enter with the Standard keyboard (#298).
