@@ -1,6 +1,7 @@
 package sh.haven.core.local
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -741,7 +742,34 @@ class ProotManager @Inject constructor(
         migrateLegacyAlpineDir()
         backfillInstallMarkers()
         reconcileActiveDistro()
+        writeDeviceModelInfo()
         _state.value = if (isReady) SetupState.Ready else SetupState.NotInstalled
+    }
+
+    /**
+     * Seed `/tmp/sysinfo/model` with this device's model so neofetch/fastfetch
+     * show a real "Host:" line instead of blank (#304). Every proot launch path
+     * binds cacheDir→/tmp, so writing it once here surfaces it in every guest,
+     * every distro. neofetch reads /tmp/sysinfo/model as its final get_model
+     * fallback — under proot on Android the DMI and devicetree branches it tries
+     * first are empty (no DMI) or SELinux-unreadable (devicetree), so this is the
+     * branch that actually fires. Best-effort; a failure just leaves Host blank.
+     */
+    private fun writeDeviceModelInfo() {
+        try {
+            val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
+            val model = Build.MODEL?.trim().orEmpty()
+            if (model.isEmpty()) return
+            val host = if (manufacturer.isEmpty() || model.startsWith(manufacturer, ignoreCase = true)) {
+                model
+            } else {
+                "$manufacturer $model"
+            }
+            val dir = File(context.cacheDir, "sysinfo").apply { mkdirs() }
+            File(dir, "model").writeText("$host\n")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write device model info: ${e.message}")
+        }
     }
 
     // --- User-imported distros (#284) ---
