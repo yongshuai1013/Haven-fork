@@ -1,0 +1,2 @@
+v5.68.11
+- Mosh: when mosh-server is installed but fails to start (typically an ungenerated UTF-8 locale on the server), Haven now shows the real error output instead of the "install mosh" guide — the previous fix's missing-binary check accidentally matched the locale error's own text (#297).

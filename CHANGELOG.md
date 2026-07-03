@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.11
+
+Mosh startup failures now show their real error instead of the install guide (#297).
+
+📡 **Mosh: the real `mosh-server` error is finally surfaced** — when `mosh-server` was installed but refused to start (most commonly the server's UTF-8 locale isn't generated), Haven still showed the "mosh isn't installed" setup guide. The v5.60.7 fix for this defeated itself: its missing-binary check matched the phrase "No such file" anywhere in the output — and the locale error's own text contains exactly that phrase, so the most common failure was re-classified as "not installed" and the detailed error never appeared. The check now only matches output lines that actually name `mosh-server`, so a locale failure shows the real message (including the `locale-gen` hint). The reporter's exact error output is now a regression test.
+
 ## v5.68.10
 
 Two fixes: compose (中) mode swallowed Enter, and imported rootfs lost hard-linked files.
