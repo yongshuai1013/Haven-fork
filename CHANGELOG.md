@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.8
+
+Fixes lines being lost or concatenated on Enter with the Standard keyboard (#298).
+
+⌨️ **Enter now reliably executes the line in Standard keyboard mode** — with a composing keyboard (HeliBoard, swipe/gesture input, and others) in Standard mode, pressing Enter could fail to submit the typed line: the shell either executed an empty line while the text stayed stuck in the composition (Enter "only drew a new prompt"), or received the text with the Enter silently dropped — so successive commands concatenated on one prompt (`ls` ⏎ `ls` ⏎ `exit` arrived as `lslsexit`). Two distinct holes fixed: an accepted composition that was never sent to the shell, and newlines being stripped from keyboards that submit the line as a single commit (which also broke multi-line clipboard paste). Device-verified before/after with HeliBoard: the same key sequence that produced `lslsexit` now executes three lines and exits the shell. Known remaining gap: in the opt-in 中 compose-overlay mode, Enter can still be swallowed — tracked separately.
+
 ## v5.68.7
 
 Optional: run Android's own native binaries inside a Local Linux shell (#304).

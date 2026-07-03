@@ -1,0 +1,2 @@
+v5.68.8
+- Fixes Enter failing to execute the typed line in Standard keyboard mode with composing keyboards (HeliBoard, swipe/gesture input): the line could be lost (empty prompt drawn) or successive commands concatenated as one line, e.g. "lslsexit" (#298). Also fixes newlines being stripped from multi-line clipboard paste. Device-verified before/after with HeliBoard.
