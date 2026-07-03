@@ -1685,7 +1685,7 @@ internal class McpTools(
         ) { _ -> openDeveloperSettings() },
 
         "install_apk_from_url" to ToolHandler(
-            description = "Download an APK from a URL and install it on the device. With Shizuku running and granted, install is silent via `pm install`. Without Shizuku, falls back to firing the system installer dialog (single user tap to confirm) — response includes `pending: true` so the caller knows to wait for the user. Useful for agent-driven self-update or sideloading over VPN where wireless ADB isn't reachable. NOTE: Android's network-security policy blocks cleartext http:// to anything but localhost, so an http:// URL on the LAN (e.g. a workstation IP) is rejected — use https://, or install_apk_from_backend (SFTP/rclone/Reticulum) which carries no cleartext.",
+            description = "Download an APK from a URL and install it on the device. Validates the URL synchronously, then downloads + installs in the BACKGROUND and returns {pending:true, staging:true} immediately — a large APK on a slow link would otherwise outlast the request timeout (#331). Poll get_app_info: `activeInstall` carries the live phase (connecting/downloading/installing) and bytes/totalBytes while in flight; `lastInstall` carries the terminal outcome. With Shizuku running and granted, install is silent via `pm install`; without it a 'tap to install' prompt/notification appears on-device. Useful for agent-driven self-update or sideloading over VPN where wireless ADB isn't reachable. NOTE: Android's network-security policy blocks cleartext http:// to anything but localhost, so an http:// URL on the LAN (e.g. a workstation IP) is rejected — use https://, or install_apk_from_backend (SFTP/rclone/Reticulum) which carries no cleartext.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -1703,7 +1703,7 @@ internal class McpTools(
         ) { args -> installApkFromUrl(args) },
 
         "install_apk_from_backend" to ToolHandler(
-            description = "Install an APK from a path on any connected backend (local, SSH/SFTP, SMB, rclone, Reticulum). Streams APK bytes via the existing FileBackend abstraction. Same Shizuku/system-installer fallback as install_apk_from_url. Because backend transfers can be slow (a big APK over SFTP/rclone/Reticulum), this validates synchronously (missing file, directory, size cap → immediate error) then streams + installs in the background, returning {pending:true, staging:true} right away rather than blocking past the request timeout. Confirm the result with get_app_info (and /mcp reconnect if Haven is updating itself). Gated by Settings → Agent endpoint → \"Allow agents to read file contents\" and confirmed per-call.",
+            description = "Install an APK from a path on any connected backend (local, SSH/SFTP, SMB, rclone, Reticulum). Streams APK bytes via the existing FileBackend abstraction. Same Shizuku/system-installer fallback as install_apk_from_url. Because backend transfers can be slow (a big APK over SFTP/rclone/Reticulum), this validates synchronously (missing file, directory, size cap → immediate error) then streams + installs in the background, returning {pending:true, staging:true} right away rather than blocking past the request timeout. Poll get_app_info: `activeInstall` has live phase/bytes while in flight (#331), `lastInstall` the terminal outcome (and /mcp reconnect if Haven is updating itself). Gated by Settings → Agent endpoint → \"Allow agents to read file contents\" and confirmed per-call.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -3704,6 +3704,17 @@ internal class McpTools(
     @Volatile
     private var lastInstallResult: JSONObject? = null
 
+    /**
+     * Live phase/progress of an in-flight backgrounded APK install (#331):
+     * `{ phase: connecting|downloading|installing, bytes, totalBytes?, source }`.
+     * Surfaced in get_app_info as `activeInstall` so an agent on a slow link can
+     * poll the download instead of going blind after the immediate `pending`
+     * ack. Null when nothing is in flight; the terminal outcome moves to
+     * [lastInstallResult].
+     */
+    @Volatile
+    private var activeInstallProgress: JSONObject? = null
+
     /** Call a tool by name. Throws [McpError] for bad input. */
     suspend fun call(name: String, arguments: JSONObject, clientHint: String? = null): JSONObject {
         currentClientHint = clientHint
@@ -3772,6 +3783,9 @@ internal class McpTools(
             put("wayland")
             put("ffmpeg")
         })
+        // Live phase/bytes of an in-flight backgrounded install (#331) — lets
+        // an agent on a slow link poll the download instead of going blind.
+        activeInstallProgress?.let { put("activeInstall", it) }
         // Terminal result of the last backgrounded backend install, if any —
         // lets a caller confirm a pending install landed. (#245 follow-up)
         lastInstallResult?.let { put("lastInstall", it) }
@@ -6836,6 +6850,7 @@ internal class McpTools(
      */
     private suspend fun streamToStagedApk(
         openInput: suspend () -> java.io.InputStream,
+        onProgress: (Long) -> Unit = {},
         onFailure: (Exception) -> String,
     ): Pair<File, Long> {
         val target = stageApkFile()
@@ -6844,6 +6859,7 @@ internal class McpTools(
                 target.outputStream().use { output ->
                     val buf = ByteArray(64 * 1024)
                     var total = 0L
+                    var lastReported = 0L
                     while (true) {
                         val n = input.read(buf)
                         if (n < 0) break
@@ -6853,7 +6869,15 @@ internal class McpTools(
                             throw McpError(-32603, "APK exceeds ${agentInstallMaxBytes / (1024 * 1024)} MiB cap")
                         }
                         output.write(buf, 0, n)
+                        // #331: progress for the pollable activeInstall snapshot.
+                        // Throttled to every 256 KiB so a fast stream doesn't
+                        // spend its time building JSON.
+                        if (total - lastReported >= 256 * 1024) {
+                            lastReported = total
+                            onProgress(total)
+                        }
                     }
+                    onProgress(total)
                     total
                 }
             }
@@ -6864,6 +6888,16 @@ internal class McpTools(
             throw McpError(-32603, onFailure(e))
         }
         return target to written
+    }
+
+    /** Update [activeInstallProgress] (#331). Pass bytes=-1 for a phase-only update. */
+    private fun reportInstallPhase(source: String, phase: String, bytes: Long = -1, totalBytes: Long = -1) {
+        activeInstallProgress = JSONObject().apply {
+            put("source", source)
+            put("phase", phase)
+            if (bytes >= 0) put("bytes", bytes)
+            if (totalBytes > 0) put("totalBytes", totalBytes)
+        }
     }
 
     private suspend fun installApkFromUrl(args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
@@ -6878,35 +6912,87 @@ internal class McpTools(
         if (url.protocol !in setOf("http", "https")) {
             throw McpError(-32602, "Only http(s) URLs are supported (got ${url.protocol})")
         }
-        // Stage the APK in app cache, then pipe it into `pm install -S`
-        // via Shizuku (or hand off to the system installer dialog).
-        val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
-            connectTimeout = 30_000
-            readTimeout = 60_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "Haven/1.0 (install_apk_from_url)")
-        }
-        val (target, written) = try {
-            try {
-                conn.connect()
-                if (conn.responseCode !in 200..299) {
-                    throw McpError(-32603, "HTTP ${conn.responseCode} from ${url.host}")
-                }
-            } catch (e: McpError) {
-                throw e
-            } catch (e: Exception) {
-                throw McpError(-32603, "Download failed: ${e.message}")
+        // #331: a large APK on a slow link routinely outlasts the MCP request
+        // budget — the call read as a timeout while the download silently
+        // continued (observed live: a 110 MB release over a travel network).
+        // Mirror install_apk_from_backend: validate synchronously above, then
+        // download + install in the background and return a pending ack. The
+        // caller polls get_app_info: `activeInstall` carries live phase/bytes,
+        // `lastInstall` the terminal outcome.
+        reportInstallPhase(urlString, "connecting")
+        backgroundScope.launch {
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "Haven/1.0 (install_apk_from_url)")
             }
-            streamToStagedApk({ conn.inputStream }) { "Download failed: ${it.message}" }
-        } finally {
-            conn.disconnect()
+            runCatching {
+                try {
+                    conn.connect()
+                    if (conn.responseCode !in 200..299) {
+                        throw McpError(-32603, "HTTP ${conn.responseCode} from ${url.host}")
+                    }
+                    val totalBytes = conn.contentLengthLong
+                    reportInstallPhase(urlString, "downloading", 0, totalBytes)
+                    val (target, written) = streamToStagedApk(
+                        openInput = { conn.inputStream },
+                        onProgress = { reportInstallPhase(urlString, "downloading", it, totalBytes) },
+                    ) { "Download failed: ${it.message}" }
+                    // Sanity check — APK is a zip, magic bytes 0x50 0x4B ("PK").
+                    // Rejects HTML / plain-text bodies that 200'd anyway — the
+                    // most common wrong-URL failure mode.
+                    assertApkMagic(target, written)
+                    reportInstallPhase(urlString, "installing", written)
+                    installStagedApk(target, written)
+                } finally {
+                    conn.disconnect()
+                }
+            }.onFailure {
+                android.util.Log.w("McpTools", "URL APK install failed ($urlString): ${it.message}")
+                recordInstallOutcome(
+                    "url", urlString, url.host,
+                    ok = false, detail = it.message, tool = "install_apk_from_url",
+                )
+            }.onSuccess {
+                android.util.Log.i("McpTools", "URL APK install completed ($urlString): $it")
+                // installStagedApk returns {installed} (Shizuku), {restarting}
+                // (self-update deferral), or {pending} (system-installer handoff)
+                // — all mean the download reached the install step without error.
+                val detail = when {
+                    it.optBoolean("restarting", false) -> "self-update committing — expect the MCP link to drop"
+                    it.optBoolean("pending", false) -> "awaiting on-device install confirmation"
+                    else -> "installed"
+                }
+                recordInstallOutcome(
+                    "url", urlString, url.host,
+                    ok = true, detail = detail, tool = "install_apk_from_url",
+                )
+            }
+            activeInstallProgress = null
         }
-        // Sanity check — APK is a zip, magic bytes 0x50 0x4B ("PK").
-        // Reject HTML / plain-text bodies that 200'd despite being the
-        // wrong content type. Cheap and catches the most common
-        // wrong-URL failure mode.
-        assertApkMagic(target, written)
-        return@withContext installStagedApk(target, written)
+        val shizukuReady = sh.haven.core.local.WaylandSocketHelper.isShizukuAvailable() &&
+            sh.haven.core.local.WaylandSocketHelper.hasShizukuPermission()
+        JSONObject().apply {
+            put("installed", false)
+            put("pending", true)
+            put("staging", true)
+            put("url", urlString)
+            put("shizukuReady", shizukuReady)
+            put(
+                "message",
+                "Downloading and installing in the background — a large APK on a slow link " +
+                    "outlasts the request timeout, so this returns immediately. Poll " +
+                    "get_app_info: `activeInstall` has live phase/bytes while in flight, " +
+                    "`lastInstall` the outcome. " +
+                    (if (shizukuReady) {
+                        "Shizuku is available: install is silent. "
+                    } else {
+                        "No Shizuku: a 'tap to install' prompt/notification appears on-device. "
+                    }) +
+                    "If Haven is updating itself the MCP link drops on restart — reconnect first.",
+            )
+        }
     }
 
     /**
@@ -7050,12 +7136,17 @@ internal class McpTools(
         // a pending ack the caller confirms with get_app_info.
         val sizeBytes = entry.size
         val backendLabel = backend.label
+        reportInstallPhase(path, "downloading", 0, sizeBytes)
         backgroundScope.launch {
             runCatching {
-                val (target, written) = streamToStagedApk({ backend.openInputStream(path, 0) }) {
+                val (target, written) = streamToStagedApk(
+                    openInput = { backend.openInputStream(path, 0) },
+                    onProgress = { reportInstallPhase(path, "downloading", it, sizeBytes) },
+                ) {
                     "Read from $backendLabel failed: ${it.message}"
                 }
                 assertApkMagic(target, written)
+                reportInstallPhase(path, "installing", written)
                 installStagedApk(target, written)
             }.onFailure {
                 android.util.Log.w("McpTools", "backend APK install failed ($path): ${it.message}")
@@ -7072,6 +7163,7 @@ internal class McpTools(
                     detail = if (staged) "awaiting on-device install confirmation" else "installed",
                 )
             }
+            activeInstallProgress = null
         }
         val shizukuReady = sh.haven.core.local.WaylandSocketHelper.isShizukuAvailable() &&
             sh.haven.core.local.WaylandSocketHelper.hasShizukuPermission()
@@ -7113,6 +7205,7 @@ internal class McpTools(
         backendLabel: String,
         ok: Boolean,
         detail: String?,
+        tool: String = "install_apk_from_backend",
     ) {
         lastInstallResult = JSONObject().apply {
             put("ok", ok)
@@ -7128,7 +7221,7 @@ internal class McpTools(
                 } else {
                     sh.haven.core.data.db.entities.ConnectionLog.Status.FAILED
                 },
-                details = "install_apk_from_backend: $path — ${detail ?: if (ok) "ok" else "failed"}",
+                details = "$tool: $path — ${detail ?: if (ok) "ok" else "failed"}",
             )
         }
     }
