@@ -83,6 +83,8 @@ class AgentTurnHeuristicsTest {
     fun busy_spinnerAndEscToInterrupt() {
         assertTrue(looksBusy(listOf("✳ Simmering… (esc to interrupt · 32s)")))
         assertTrue(looksBusy(listOf("· 12.4k tokens")))
+        // ASCII spinner frame captured live on-device (#226 round 2)
+        assertTrue(looksBusy(listOf("* Incubating… (5m 8s · thought for 2s)")))
         assertFalse(looksBusy(listOf("$ ls", "README.md", "? for shortcuts")))
     }
 
@@ -133,7 +135,56 @@ class AgentTurnHeuristicsTest {
         assertFalse(looksLikeAgentRepl(listOf("user@host:~$ ls", "README.md")))
     }
 
+    // ── idlePoll: REPL chrome overrides stale OSC 133 ───────────────────
+
+    @Test
+    fun idlePoll_agentReplWithStaleSegments_usesHeuristic() {
+        // claude launched from an integrated shell: the outer shell's stale
+        // PROMPT row is still visible but the cursor lives in the REPL's
+        // input box — osc133 would read busy forever (device-reproduced).
+        val s = snap(
+            3,
+            line("$ claude", seg("PROMPT", 1, 0, 2), seg("COMMAND_INPUT", 1, 2, 8)),
+            line("● done thinking"),
+            line("│ ❯ type here │"),
+            line("  ? for shortcuts"),
+        )
+        assertEquals(true to "heuristic", idlePoll(s, stable = true))
+        assertEquals(false to "heuristic", idlePoll(s, stable = false))
+    }
+
+    @Test
+    fun idlePoll_plainIntegratedShell_stillUsesOsc133() {
+        val s = snap(
+            1,
+            line("$ ls", seg("PROMPT", 1, 0, 2), seg("COMMAND_INPUT", 1, 2, 4)),
+            line("$ ", seg("PROMPT", 2, 0, 2), seg("COMMAND_INPUT", 2, 2, 2)),
+        )
+        // stable irrelevant on the osc133 path
+        assertEquals(true to "osc133", idlePoll(s, stable = false))
+    }
+
     // ── scrapeLastAgentBlock ─────────────────────────────────────────────
+
+    @Test
+    fun scrape_labeledDividerAndTmuxStatus_areChrome() {
+        // Verbatim shape of a real tmux-carried Claude Code screen (#226
+        // device capture): labeled divider + tmux status blocked the walk.
+        val screen = listOf(
+            "● read_last_turn osc133 path verified —",
+            "  clean ls / output only.",
+            "",
+            "──────────── triage-github-issues-action ──",
+            "❯",
+            "───────────────────────────────────────────",
+            "  ⏵⏵ bypass permissions on (shift+tab t ·",
+            "[haven] un verify after ta\" 01:34 04-Jul-26",
+        )
+        assertEquals(
+            "● read_last_turn osc133 path verified —\n  clean ls / output only.",
+            scrapeLastAgentBlock(screen),
+        )
+    }
 
     @Test
     fun scrape_lastBulletBlockAboveInputBox() {

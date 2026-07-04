@@ -125,6 +125,18 @@ class TerminalSessionRegistry @Inject constructor() {
             )
     }
 
+    /**
+     * Attach just the output-injection handle. Used by the agent's headless
+     * shell path (open_local_shell), whose registry emulator is NOT a UI
+     * tab's — without this, tab adoption attached the TAB's feedOutput to
+     * the agent entry and feed_terminal_output injected into an emulator
+     * the agent tools never read (silent no-op).
+     */
+    fun setFeedOutput(sessionId: String, feedOutput: (ByteArray, Int, Int) -> Unit) {
+        val current = _sessions.value[sessionId] ?: return
+        _sessions.value = _sessions.value + (sessionId to current.copy(feedOutput = feedOutput))
+    }
+
     fun unregister(sessionId: String) {
         _sessions.value = _sessions.value - sessionId
     }

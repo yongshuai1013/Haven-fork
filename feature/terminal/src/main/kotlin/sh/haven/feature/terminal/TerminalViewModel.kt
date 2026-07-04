@@ -1639,16 +1639,19 @@ class TerminalViewModel @Inject constructor(
             }
             // Attach the agent test handles once. Covers both fresh tabs
             // and the agent-headless-then-adopted case, where the registry
-            // entry already exists (registered by open_local_shell) but
-            // has no feedOutput yet.
-            if (existing?.feedOutput == null) {
+            // entry already exists (registered by open_local_shell). An
+            // agent-registered entry keeps ITS feedOutput: the registry's
+            // emulator is the headless one, and the tab's feedOutput writes
+            // to the tab's own emulator — attaching it made
+            // feed_terminal_output a silent no-op for agent reads.
+            if (existing?.oscHandler == null) {
                 terminalSessionRegistry.setAgentHandles(
                     tab.sessionId,
                     tab.mouseMode,
                     tab.activeMouseMode,
                     tab.bracketPasteMode,
                     tab.oscHandler,
-                    tab.feedOutput,
+                    existing?.feedOutput ?: tab.feedOutput,
                 )
             }
         }

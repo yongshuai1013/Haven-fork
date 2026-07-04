@@ -24,7 +24,7 @@ import org.connectbot.terminal.AgentSnapshot
 /** A Claude-Code-style REPL is mid-turn (still working). */
 internal val AGENT_BUSY = Regex(
     "esc to interrupt" +
-        "|[✶✻✢✳✽✺·]\\s+\\S+…" + // spinner frame + gerund, e.g. "✳ Simmering…"
+        "|[✶✻✢✳✽✺·*+]\\s+\\S+…" + // spinner frame + gerund, e.g. "✳ Simmering…" (ASCII frames * and + seen live)
         "|[·↑↓]\\s*\\d+(\\.\\d+)?k?\\s*tokens",
 )
 
@@ -77,6 +77,22 @@ internal fun looksLikeAgentRepl(lines: List<String>, window: Int = 15): Boolean 
     }
 
 /**
+ * One await_turn idle poll over a snapshot. Agent-REPL chrome forces the
+ * heuristic path even when OSC 133 segments are visible: a REPL launched
+ * from an integrated shell leaves the outer shell's stale PROMPT rows
+ * on-screen, and the cursor never returns to them, so the osc133 test
+ * reads busy forever until they scroll off (device-reproduced, #226).
+ * Returns idle to "osc133"|"heuristic".
+ */
+internal fun idlePoll(snap: AgentSnapshot, stable: Boolean): Pair<Boolean, String> {
+    val texts = snap.lines.map { it.text }
+    if (!looksLikeAgentRepl(texts)) {
+        osc133Idle(snap)?.let { return it to "osc133" }
+    }
+    return (!looksBusy(texts) && promptPresent(texts) && stable) to "heuristic"
+}
+
+/**
  * OSC 133 idle test over the VISIBLE screen. Returns null when no semantic
  * segments are visible (no shell integration, or a TUI owns the screen) —
  * caller falls back to screen heuristics.
@@ -97,6 +113,12 @@ internal fun osc133Idle(snap: AgentSnapshot): Boolean? {
 
 private val BOX_OR_RULE = Regex("^[─╌═━╭╮╰╯│┌┐└┘\\s]+$")
 
+/** Claude Code's labeled divider, e.g. "──────── my-task-name ──". */
+private val LABELED_RULE = Regex("^─+\\s.+\\s─+$")
+
+/** A tmux status line, e.g. "[haven] 0:zsh* …" — present on every tmux-carried REPL. */
+private val TMUX_STATUS = Regex("^\\[[^\\]]+\\]\\s")
+
 /**
  * Claude-Code-aware scrape of the assistant's latest reply: drop the input
  * box / status chrome from the bottom, then return the last contiguous
@@ -112,7 +134,8 @@ internal fun scrapeLastAgentBlock(rawLines: List<String>): String? {
         val l = lines[cut - 1]
         val t = l.trim()
         val chrome = t.isEmpty() || looksLikePromptLine(t) ||
-            BOX_OR_RULE.matches(l) || AGENT_REPL_MARKERS.containsMatchIn(l)
+            BOX_OR_RULE.matches(l) || AGENT_REPL_MARKERS.containsMatchIn(l) ||
+            LABELED_RULE.matches(t) || TMUX_STATUS.containsMatchIn(t)
         if (!chrome) break
         cut--
     }

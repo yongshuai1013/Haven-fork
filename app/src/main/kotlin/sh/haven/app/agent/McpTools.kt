@@ -1509,7 +1509,7 @@ internal class McpTools(
         ) { args -> readLastTurn(args) },
 
         "feed_terminal_output" to ToolHandler(
-            description = "Inject raw bytes into a terminal session's OUTPUT stream — as if they had arrived from the remote — running the exact pipeline the live data callback uses (OSC scan → mouse-mode scan → emulator). Distinct from send_terminal_input, which sends to the PTY input as if typed. Use this to deterministically exercise output-side parsing without a cooperating remote: e.g. feed an OSC 52 sequence to test the clipboard round-trip, a DECSET 1000/1002/1003 to flip mouseMode, an OSC 8 hyperlink, or a partial escape split across two calls (the OSC scanner keeps state between calls). Provide exactly one of `text` (UTF-8) or `bytesBase64` (for control bytes / ESC). Hard cap 65536 bytes per call. Not supported for headless agent shells (no UI tab) — returns an error. Returns { sessionId, bytesFed }.",
+            description = "Inject raw bytes into a terminal session's OUTPUT stream — as if they had arrived from the remote — running the exact pipeline the live data callback uses (OSC scan → mouse-mode scan → emulator). Distinct from send_terminal_input, which sends to the PTY input as if typed. Use this to deterministically exercise output-side parsing without a cooperating remote: e.g. feed an OSC 52 sequence to test the clipboard round-trip, a DECSET 1000/1002/1003 to flip mouseMode, an OSC 8 hyperlink, or a partial escape split across two calls (the OSC scanner keeps state between calls). Provide exactly one of `text` (UTF-8) or `bytesBase64` (for control bytes / ESC). Hard cap 65536 bytes per call. On agent-opened local shells the bytes go straight into the agent emulator (no OSC/mouse scan — same as their live pipeline). Errors when the session has no output pipeline. Returns { sessionId, bytesFed }.",
             inputSchema = JSONObject().apply {
                 put("type", "object")
                 put("properties", JSONObject().apply {
@@ -6731,15 +6731,8 @@ internal class McpTools(
             val stable = haveHash && hash == lastHash
             lastHash = hash
             haveHash = true
-            val osc = osc133Idle(snap)
-            val idle: Boolean
-            if (osc != null) {
-                method = "osc133"
-                idle = osc
-            } else {
-                method = "heuristic"
-                idle = !looksBusy(texts) && promptPresent(texts) && stable
-            }
+            val (idle, pollMethod) = idlePoll(snap, stable)
+            method = pollMethod
             if (idle) {
                 if (idleSince < 0) idleSince = now
                 if (now - idleSince >= settleMs) {
@@ -8316,15 +8309,22 @@ internal class McpTools(
             // (notably 133 prompt markers and OSC 2 title). Mirroring
             // EmulatorWriteBuffer's main-thread post pattern.
             val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            val agentFeed: (ByteArray, Int, Int) -> Unit = { data, off, len ->
+                val copy = data.copyOfRange(off, off + len)
+                mainHandler.post { agentEmulator.writeInput(copy, 0, copy.size) }
+            }
             localSessionManager.startHeadlessShell(
                 sessionId,
-                extraOnData = { data, off, len ->
-                    val copy = data.copyOfRange(off, off + len)
-                    mainHandler.post { agentEmulator.writeInput(copy, 0, copy.size) }
-                },
+                extraOnData = agentFeed,
                 plain = plain,
             )
             terminalSessionRegistry.register(sessionId, agentEmulator)
+            // feed_terminal_output must inject into THIS emulator — the one
+            // the agent tools read. Registering a feed here also stops the
+            // later UI-tab adoption from attaching the tab's feedOutput
+            // (which writes to the tab's own emulator — silent no-op for
+            // agent reads; found testing #226).
+            terminalSessionRegistry.setFeedOutput(sessionId, agentFeed)
         } else {
             // No-op when an existing LocalSession is attached, regardless of
             // the original plain choice — see LocalSessionManager.startHeadlessShell.

@@ -406,6 +406,7 @@ class LocalSessionManager @Inject constructor(
         }
         val mirroredOnData: (ByteArray, Int, Int) -> Unit = { data, off, len ->
             ring.append(data, off, len)
+            agentTee[sessionId]?.invoke(data, off, len)
             onDataReceived(data, off, len)
         }
 
@@ -520,6 +521,7 @@ class LocalSessionManager @Inject constructor(
         val ring = agentScrollback.computeIfAbsent(sessionId) { ScrollbackRing(agentScrollbackBytes) }
         live.replaceDataCallback { data, off, len ->
             ring.append(data, off, len)
+            agentTee[sessionId]?.invoke(data, off, len)
             onDataReceived(data, off, len)
         }
         return live
@@ -543,6 +545,7 @@ class LocalSessionManager @Inject constructor(
         val session = _sessions.value[sessionId] ?: return
         _sessions.update { it - sessionId }
         agentScrollback.remove(sessionId)
+        agentTee.remove(sessionId)
         ioExecutor.execute {
             try {
                 session.localSession?.close()
@@ -562,6 +565,15 @@ class LocalSessionManager @Inject constructor(
     // session that renders nowhere" mode can subsume them cleanly.
 
     private val agentScrollback = ConcurrentHashMap<String, ScrollbackRing>()
+
+    /**
+     * Permanent agent-emulator tee, keyed like [agentScrollback] and invoked
+     * from the SAME mirrors (create + reattach). It must NOT live inside the
+     * replaceable data callback: reattachTerminalSession (#272) swaps that
+     * callback for the new UI tab's pipeline, which silently disconnected the
+     * headless emulator the MCP snapshot tools read (found testing #226).
+     */
+    private val agentTee = ConcurrentHashMap<String, (ByteArray, Int, Int) -> Unit>()
 
     /**
      * Soft cap on the agent-scope mirror of recent stdout for headless
@@ -589,13 +601,17 @@ class LocalSessionManager @Inject constructor(
         plain: Boolean = false,
     ) {
         val session = _sessions.value[sessionId] ?: return
+        // The agent-emulator tee is registered in [agentTee] so it survives
+        // reattachTerminalSession's callback swap; the create/reattach mirrors
+        // invoke it alongside the scrollback ring. Registered even when a UI
+        // tab already owns the LocalSession (the early return below) — the
+        // mirrors look it up dynamically, so the agent emulator starts
+        // receiving from here on (blank until then; no replay).
+        extraOnData?.let { agentTee[sessionId] = it }
         if (session.localSession != null) return
-        // createTerminalSession now owns the agent-scrollback ring tee, so the
-        // headless path only forwards the optional extra tee (open_local_shell
-        // uses it to also feed an agent-side TerminalEmulator).
         val ls = createTerminalSession(
             sessionId,
-            onDataReceived = { data, off, len -> extraOnData?.invoke(data, off, len) },
+            onDataReceived = { _, _, _ -> },
             plain = plain,
         ) ?: return
         // Default to a sensible PTY size; the UI will resize once a tab
