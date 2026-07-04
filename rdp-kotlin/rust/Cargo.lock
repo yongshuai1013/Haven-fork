@@ -1358,14 +1358,14 @@ dependencies = [
 
 [[package]]
 name = "ironrdp-cliprdr"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c9b4286b677b65b57bb1d5c4453ef46c1cf3858f30515b2016465978b4b1e2b"
+checksum = "d6aa0a35408ce5100b0aabb1bb596379d4f730f23a032122c19e93ff3bbc4f5f"
 dependencies = [
  "bitflags 2.11.0",
- "ironrdp-core 0.1.5",
- "ironrdp-pdu 0.7.0",
- "ironrdp-svc 0.6.0",
+ "ironrdp-core 0.2.0",
+ "ironrdp-pdu 0.8.0",
+ "ironrdp-svc 0.7.0",
  "tracing",
 ]
 
@@ -1558,9 +1558,9 @@ dependencies = [
 
 [[package]]
 name = "ironrdp-tls"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a301516949e619a5bd9c4476dfeeccaf7709b9997ea5958d01c9432085dc64d8"
+checksum = "b5946a24ebc6b5600c566e6bcb5ac29bc8eef5246c8a6b717c18b836f3ffe503"
 dependencies = [
  "tokio",
  "tokio-rustls",
@@ -1706,9 +1706,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.31"
+version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
+checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "md-5"
@@ -1779,9 +1779,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.1.1"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a69bcab0ad47271a0234d9422b131806bf3968021e5dc9328caf2d4cd58557fc"
+checksum = "02bd0af71c67b473010cbbc60715ee815645a4dc942899111f494b4b737d6fda"
 dependencies = [
  "libc",
  "wasi",
@@ -2923,9 +2923,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.50.0"
+version = "1.52.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27ad5e34374e03cfffefc301becb44e9dc3c17584f414349ebe29ed26661822d"
+checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
 dependencies = [
  "bytes",
  "libc",
