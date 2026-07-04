@@ -3719,7 +3719,8 @@ class ConnectionsViewModel @Inject constructor(
                     }
                     val detail = stderr.ifBlank { out }.take(300)
                         .ifBlank { "(no output; mosh-server exited ${result.exitStatus})" }
-                    throw Exception("mosh-server failed to start:\n$detail")
+                    val hint = moshLocaleWorkaroundHint(customMoshCmd != null, stderr)
+                    throw Exception("mosh-server failed to start:\n$detail$hint")
                 }
 
             val parts = connectLine.split(" ")
@@ -4933,6 +4934,24 @@ internal fun moshServerLooksMissing(exitStatus: Int, stderr: String): Boolean {
                     line.contains("not found", ignoreCase = true)
                 )
     }
+}
+
+/**
+ * When a mosh-server start fails on a missing UTF-8 locale, append a line
+ * pointing at Haven's own workaround: force a locale in the connection's
+ * custom mosh-server command, fixing it on-device without touching the server
+ * (#297 — the reporter noted the surfaced stderr suggests server-side
+ * `locale-gen` but not this in-app option).
+ *
+ * Returns "" (no hint) unless the failure looks locale-related AND they're on
+ * the DEFAULT command — telling someone whose own custom command just failed
+ * to "set a custom command" would be wrong, and their command may already
+ * carry a locale override that failed for a different reason.
+ */
+internal fun moshLocaleWorkaroundHint(hasCustomCommand: Boolean, stderr: String): String {
+    if (hasCustomCommand || !stderr.contains("locale", ignoreCase = true)) return ""
+    return "\n\nOr set this connection's mosh-server command to force a UTF-8 " +
+        "locale: LC_ALL=C.UTF-8 mosh-server new -s -c 256"
 }
 
 /**

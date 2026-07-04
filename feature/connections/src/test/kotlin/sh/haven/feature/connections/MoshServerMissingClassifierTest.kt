@@ -1,5 +1,6 @@
 package sh.haven.feature.connections
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -64,5 +65,29 @@ class MoshServerMissingClassifierTest {
     @Test
     fun `empty stderr with non-127 exit is not missing`() {
         assertFalse(moshServerLooksMissing(1, ""))
+    }
+
+    // moshLocaleWorkaroundHint — the in-app LC_ALL override line (#297)
+
+    @Test
+    fun `locale failure on the default command gets the workaround hint`() {
+        val stderr = "mosh-server needs a UTF-8 native locale to run.\n" +
+            "locale: Cannot set LC_CTYPE to default locale: No such file or directory"
+        val hint = moshLocaleWorkaroundHint(hasCustomCommand = false, stderr = stderr)
+        assertTrue(hint.contains("LC_ALL=C.UTF-8"))
+    }
+
+    @Test
+    fun `no hint when a custom command is already set`() {
+        // They chose their own mosh-server command; suggesting they set one is
+        // wrong, and it may already carry a locale override that failed.
+        val stderr = "mosh-server needs a UTF-8 native locale to run."
+        assertEquals("", moshLocaleWorkaroundHint(hasCustomCommand = true, stderr = stderr))
+    }
+
+    @Test
+    fun `no hint when the failure is not locale-related`() {
+        val stderr = "mosh-server: /usr/bin/mosh-server: Permission denied"
+        assertEquals("", moshLocaleWorkaroundHint(hasCustomCommand = false, stderr = stderr))
     }
 }
