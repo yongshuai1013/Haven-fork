@@ -395,4 +395,21 @@
     <string name="settings_desktop_key_left">左侧</string>
     <string name="settings_desktop_key_right">右侧</string>
     <string name="settings_desktop_key_hidden">隐藏</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Shell 提示符字符</string>
+    <string name="settings_prompt_chars_subtitle">默认：$ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">用于识别 shell 提示符结尾的额外字符，以便在提示符重新出现时（如重新连接或重新附加 tmux 后）发送排队的命令。请添加自定义提示符的结尾字符——内置的 $ # % &gt; ❯ 始终会被识别。</string>
+    <string name="settings_prompt_chars_label">额外提示符字符</string>
+    <string name="settings_terminal_locale_title">终端语言环境</string>
+    <string name="settings_terminal_locale_description">导出到本地 Linux shell 的 LANG 值。en_US.UTF-8（默认）和 C.UTF-8 始终可用；其他语言环境（如 zh_CN.UTF-8）可能需要先在客机中用 locale-gen 生成，程序才能使用。</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">背景不透明度</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">低于 100%% 时，Haven 将变为半透明，在所有界面（终端、列表、设置）后面显示设备壁纸。按连接的覆盖设置仅作用于该终端。</string>
+    <string name="settings_section_mcp">AI 代理（MCP）</string>
+    <string name="settings_audio_bridge_title">Proot 音频（实验性）</string>
+    <string name="settings_audio_bridge_subtitle">通过客机内的 PulseAudio 桥接，将 Linux 应用的声音经设备扬声器播放。仅支持输出。开启期间会持续传输——不用时请关闭。</string>
+    <string name="settings_reverse_tunnel_status_active">Near（SSH）：经由 %1$s — 已连接</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near（SSH）：未连接 — 打开 %1$s 以启用</string>
 </resources>

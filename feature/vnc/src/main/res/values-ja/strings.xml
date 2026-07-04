@@ -27,4 +27,8 @@
     <string name="vnc_gesture_help_title">タッチ操作</string>
     <string name="vnc_gesture_help_two_finger">2 本指でドラッグするとスクロール、ピンチで拡大縮小します。1 本指はマウスです。</string>
     <string name="vnc_gesture_help_three_finger">3 本指でピンチすると、全画面のままアプリのサイズを変更できます。</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">2 本指でビューをパン（タップでリモート側のスクロールに切替）</string>
+    <string name="vnc_cd_two_finger_scroll_on">2 本指でリモート側をスクロール（タップでビューのパンに切替）</string>
 </resources>

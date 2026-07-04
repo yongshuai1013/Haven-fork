@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">বাম</string>
     <string name="settings_desktop_key_right">ডান</string>
     <string name="settings_desktop_key_hidden">লুকানো</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">শেল প্রম্পট অক্ষর</string>
+    <string name="settings_prompt_chars_subtitle">ডিফল্ট: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">আপনার শেল প্রম্পটের শেষে থাকা অতিরিক্ত অক্ষর, যাতে প্রম্পট আবার দেখা দিলেই সারিবদ্ধ কমান্ড পাঠানো হয় (যেমন পুনরায় সংযোগ বা tmux পুনরায় সংযুক্ত করার পরে)। আপনার কাস্টম প্রম্পটের শেষ অক্ষরগুলি যোগ করুন — বিল্ট-ইন $ # % &gt; ❯ সবসময় শনাক্ত হয়।</string>
+    <string name="settings_prompt_chars_label">অতিরিক্ত প্রম্পট অক্ষর</string>
+    <string name="settings_terminal_locale_title">টার্মিনাল লোকেল</string>
+    <string name="settings_terminal_locale_description">স্থানীয় Linux শেলে এক্সপোর্ট হওয়া LANG মান। en_US.UTF-8 (ডিফল্ট) ও C.UTF-8 সবসময় কাজ করে; অন্যান্য লোকেল (যেমন zh_CN.UTF-8) প্রোগ্রামে ব্যবহারের আগে গেস্টে locale-gen দিয়ে জেনারেট করা লাগতে পারে।</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">ব্যাকগ্রাউন্ড অস্বচ্ছতা</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">100%%-এর নিচে Haven স্বচ্ছপ্রায় হয়ে যায় এবং প্রতিটি স্ক্রিনের (টার্মিনাল, তালিকা, সেটিংস) পিছনে আপনার ডিভাইসের ওয়ালপেপার দেখায়। প্রতি-সংযোগ ওভাররাইড কেবল সেই টার্মিনালে প্রযোজ্য।</string>
+    <string name="settings_section_mcp">AI এজেন্ট (MCP)</string>
+    <string name="settings_audio_bridge_title">Proot অডিও (পরীক্ষামূলক)</string>
+    <string name="settings_audio_bridge_subtitle">গেস্টের ভিতরের PulseAudio ব্রিজের মাধ্যমে Linux অ্যাপের শব্দ ডিভাইসের স্পিকারে বাজান। শুধু আউটপুট। চালু থাকলে অবিরাম স্ট্রিম হয় — ব্যবহার না করলে বন্ধ করুন।</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): %1$s-এর মাধ্যমে চলছে — সংযুক্ত</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): সংযুক্ত নয় — চালু করতে %1$s খুলুন</string>
 </resources>

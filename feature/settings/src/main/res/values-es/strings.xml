@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">Izquierda</string>
     <string name="settings_desktop_key_right">Derecha</string>
     <string name="settings_desktop_key_hidden">Oculta</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Caracteres del prompt del shell</string>
+    <string name="settings_prompt_chars_subtitle">Predeterminado: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Caracteres adicionales con los que termina tu prompt del shell, para que un comando en cola se envíe en cuanto el prompt reaparezca (p. ej. tras reconectar o volver a adjuntar tmux). Añade el o los caracteres finales de tu prompt personalizado — los integrados $ # % &gt; ❯ se reconocen siempre.</string>
+    <string name="settings_prompt_chars_label">Caracteres de prompt adicionales</string>
+    <string name="settings_terminal_locale_title">Configuración regional del terminal</string>
+    <string name="settings_terminal_locale_description">El valor LANG exportado al shell Linux local. en_US.UTF-8 (predeterminado) y C.UTF-8 funcionan siempre; otras locales (p. ej. zh_CN.UTF-8) pueden requerir generarse en el invitado con locale-gen antes de que los programas las usen.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">Opacidad del fondo</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">Por debajo del 100%%, Haven se vuelve translúcido y muestra tu fondo de pantalla detrás de cada pantalla (terminal, listas, ajustes). Un ajuste por conexión solo se aplica a ese terminal.</string>
+    <string name="settings_section_mcp">Agente de IA (MCP)</string>
+    <string name="settings_audio_bridge_title">Audio de proot (experimental)</string>
+    <string name="settings_audio_bridge_subtitle">Reproduce el sonido de las apps de Linux por el altavoz del dispositivo mediante un puente PulseAudio en el invitado. Solo salida. Transmite continuamente mientras está activado — desactívalo cuando no lo uses.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): a través de %1$s — conectado</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): no conectado — abre %1$s para activarlo</string>
 </resources>

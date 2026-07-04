@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">Monter</string>
     <string name="keys_move_down">Descendre</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">Enregistrer la phrase secrète sur cet appareil</string>
+    <string name="keys_store_passphrase_warning">Enregistre la phrase secrète de cette clé dans le stockage chiffré adossé au matériel de cet appareil, afin que les connexions utilisant cette clé ne la demandent plus jamais. Quiconque peut déverrouiller cet appareil peut utiliser la clé. À activer uniquement si vous acceptez ce risque.</string>
+    <string name="keys_store_passphrase_confirm">Enregistrer</string>
+    <string name="keys_age_section_header">Identités de chiffrement (age) · %1$d</string>
+    <string name="keys_generate_age">Générer une identité age</string>
+    <string name="keys_generate_age_hint">Une paire de clés X25519 pour chiffrer des fichiers (age)</string>
+    <string name="keys_generate_age_title">Nouvelle identité age</string>
+    <string name="keys_age_label_hint">Libellé</string>
+    <string name="keys_age_recipient_copied">Destinataire copié</string>
 </resources>

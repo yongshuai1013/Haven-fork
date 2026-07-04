@@ -1333,7 +1333,19 @@
      "en": "Compositor",
      "comment": "Desktop manager: header / intro",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "المُركِّب (compositor)",
+      "bn": "কম্পোজিটর",
+      "de": "Compositor",
+      "es": "Compositor",
+      "fr": "Compositeur",
+      "hi": "कंपोज़िटर",
+      "ja": "コンポジタ",
+      "ko": "컴포지터",
+      "pt": "Compositor",
+      "ru": "Композитор",
+      "zh": "合成器"
+     }
     },
     {
      "name": "app_desktop_manager_description",
@@ -1359,84 +1371,228 @@
      "en": "Package mirror",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "مرآة الحزم",
+      "bn": "প্যাকেজ মিরর",
+      "de": "Paketspiegel",
+      "es": "Espejo de paquetes",
+      "fr": "Miroir de paquets",
+      "hi": "पैकेज मिरर",
+      "ja": "パッケージミラー",
+      "ko": "패키지 미러",
+      "pt": "Espelho de pacotes",
+      "ru": "Зеркало пакетов",
+      "zh": "软件包镜像"
+     }
     },
     {
      "name": "app_desktop_mirror_description",
      "en": "Where distro packages are downloaded from. Pick a region closer to you for faster, more reliable installs. Default uses each distro\\'s own CDN.",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "المصدر الذي تُنزَّل منه حزم التوزيعة. اختر منطقة أقرب إليك لتثبيت أسرع وأكثر موثوقية. الخيار الافتراضي يستخدم CDN الخاص بكل توزيعة.",
+      "bn": "distro প্যাকেজ কোথা থেকে ডাউনলোড হয়। দ্রুত ও নির্ভরযোগ্য ইনস্টলের জন্য আপনার কাছাকাছি অঞ্চল বেছে নিন। ডিফল্ট প্রতিটি distro-র নিজস্ব CDN ব্যবহার করে।",
+      "de": "Legt fest, woher Distributionspakete heruntergeladen werden. Wähle eine Region in deiner Nähe für schnellere, zuverlässigere Installationen. Standard verwendet das eigene CDN jeder Distribution.",
+      "es": "De dónde se descargan los paquetes de la distribución. Elige una región cercana para instalaciones más rápidas y fiables. El valor predeterminado usa el CDN propio de cada distribución.",
+      "fr": "D\\'où sont téléchargés les paquets de la distribution. Choisissez une région proche de vous pour des installations plus rapides et plus fiables. Par défaut, le CDN propre à chaque distribution est utilisé.",
+      "hi": "distro पैकेज कहाँ से डाउनलोड होते हैं। तेज़ और अधिक भरोसेमंद इंस्टॉल के लिए अपने नज़दीकी क्षेत्र को चुनें। डिफ़ॉल्ट हर distro का अपना CDN उपयोग करता है।",
+      "ja": "ディストリビューションのパッケージのダウンロード元です。近い地域を選ぶとインストールがより速く安定します。デフォルトでは各ディストリビューション自身の CDN を使用します。",
+      "ko": "배포판 패키지를 다운로드할 위치입니다. 가까운 지역을 선택하면 설치가 더 빠르고 안정적입니다. 기본값은 각 배포판의 자체 CDN을 사용합니다.",
+      "pt": "De onde os pacotes da distro são baixados. Escolha uma região mais próxima de você para instalações mais rápidas e confiáveis. O padrão usa o CDN da própria distro.",
+      "ru": "Откуда загружаются пакеты дистрибутива. Выберите ближайший к вам регион для более быстрой и надёжной установки. По умолчанию используется собственный CDN каждого дистрибутива.",
+      "zh": "发行版软件包的下载来源。选择离您较近的区域，安装更快、更可靠。默认使用各发行版自己的 CDN。"
+     }
     },
     {
      "name": "app_desktop_mirror_default",
      "en": "Default (CDN)",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "افتراضي (CDN)",
+      "bn": "ডিফল্ট (CDN)",
+      "de": "Standard (CDN)",
+      "es": "Predeterminado (CDN)",
+      "fr": "Par défaut (CDN)",
+      "hi": "डिफ़ॉल्ट (CDN)",
+      "ja": "デフォルト (CDN)",
+      "ko": "기본값 (CDN)",
+      "pt": "Padrão (CDN)",
+      "ru": "По умолчанию (CDN)",
+      "zh": "默认（CDN）"
+     }
     },
     {
      "name": "app_desktop_mirror_europe",
      "en": "Europe",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أوروبا",
+      "bn": "ইউরোপ",
+      "de": "Europa",
+      "es": "Europa",
+      "fr": "Europe",
+      "hi": "यूरोप",
+      "ja": "ヨーロッパ",
+      "ko": "유럽",
+      "pt": "Europa",
+      "ru": "Европа",
+      "zh": "欧洲"
+     }
     },
     {
      "name": "app_desktop_mirror_asia",
      "en": "Asia",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "آسيا",
+      "bn": "এশিয়া",
+      "de": "Asien",
+      "es": "Asia",
+      "fr": "Asie",
+      "hi": "एशिया",
+      "ja": "アジア",
+      "ko": "아시아",
+      "pt": "Ásia",
+      "ru": "Азия",
+      "zh": "亚洲"
+     }
     },
     {
      "name": "app_desktop_mirror_americas",
      "en": "Americas",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الأمريكتان",
+      "bn": "আমেরিকা",
+      "de": "Amerika",
+      "es": "América",
+      "fr": "Amériques",
+      "hi": "अमेरिका",
+      "ja": "南北アメリカ",
+      "ko": "아메리카",
+      "pt": "Américas",
+      "ru": "Америка",
+      "zh": "美洲"
+     }
     },
     {
      "name": "app_desktop_remap_ports_title",
      "en": "Remap low ports",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إعادة تعيين المنافذ المنخفضة",
+      "bn": "নিচু পোর্ট রিম্যাপ করুন",
+      "de": "Niedrige Ports umleiten",
+      "es": "Reasignar puertos bajos",
+      "fr": "Remapper les ports bas",
+      "hi": "निचले पोर्ट रीमैप करें",
+      "ja": "低番号ポートの再マッピング",
+      "ko": "낮은 포트 재매핑",
+      "pt": "Remapear portas baixas",
+      "ru": "Переназначать низкие порты",
+      "zh": "重映射低端口"
+     }
     },
     {
      "name": "app_desktop_remap_ports_description",
      "en": "Lets guest services listen on privileged ports (&lt;1024): a service on port N becomes reachable at N+2000 (e.g. 80 → 2080). Android blocks the app from binding low ports directly. Off by default; affects every privileged port, including a guest sshd.",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يتيح لخدمات الضيف الاستماع على المنافذ المميزة (&lt;1024): تصبح الخدمة على المنفذ N متاحة على N+2000 (مثلًا 80 ← 2080). يمنع Android التطبيق من ربط المنافذ المنخفضة مباشرة. معطّل افتراضيًا؛ يؤثر على كل منفذ مميز، بما في ذلك sshd الضيف.",
+      "bn": "গেস্ট সার্ভিসগুলিকে বিশেষাধিকারপ্রাপ্ত পোর্টে (&lt;1024) শুনতে দেয়: পোর্ট N-এর সার্ভিস N+2000-এ পৌঁছানো যায় (যেমন 80 → 2080)। Android অ্যাপকে সরাসরি নিচু পোর্ট বাইন্ড করতে দেয় না। ডিফল্টে বন্ধ; গেস্ট sshd সহ প্রতিটি বিশেষাধিকারপ্রাপ্ত পোর্টে প্রযোজ্য।",
+      "de": "Erlaubt Gast-Diensten, auf privilegierten Ports (&lt;1024) zu lauschen: Ein Dienst auf Port N wird unter N+2000 erreichbar (z. B. 80 → 2080). Android verhindert, dass die App niedrige Ports direkt bindet. Standardmäßig aus; betrifft jeden privilegierten Port, auch einen sshd im Gast.",
+      "es": "Permite que los servicios del invitado escuchen en puertos privilegiados (&lt;1024): un servicio en el puerto N pasa a estar accesible en N+2000 (p. ej. 80 → 2080). Android impide que la app vincule puertos bajos directamente. Desactivado por defecto; afecta a cada puerto privilegiado, incluido un sshd del invitado.",
+      "fr": "Permet aux services du guest d\\'écouter sur les ports privilégiés (&lt;1024) : un service sur le port N devient joignable sur N+2000 (ex. 80 → 2080). Android empêche l\\'appli de lier directement les ports bas. Désactivé par défaut ; concerne tous les ports privilégiés, y compris un sshd du guest.",
+      "hi": "गेस्ट सेवाओं को विशेषाधिकार-प्राप्त पोर्ट (&lt;1024) पर सुनने देता है: पोर्ट N की सेवा N+2000 पर उपलब्ध हो जाती है (जैसे 80 → 2080)। Android ऐप को निचले पोर्ट सीधे बाइंड करने से रोकता है। डिफ़ॉल्ट रूप से बंद; गेस्ट sshd सहित हर विशेषाधिकार-प्राप्त पोर्ट पर लागू होता है।",
+      "ja": "ゲストのサービスが特権ポート（&lt;1024）でリッスンできるようにします。ポート N のサービスは N+2000 でアクセスできます（例: 80 → 2080）。Android はアプリが低番号ポートを直接バインドすることを許可しません。デフォルトはオフ。ゲストの sshd を含むすべての特権ポートに影響します。",
+      "ko": "게스트 서비스가 특권 포트(&lt;1024)에서 수신 대기할 수 있게 합니다. 포트 N의 서비스는 N+2000으로 접근할 수 있습니다(예: 80 → 2080). Android는 앱이 낮은 포트를 직접 바인딩하는 것을 차단합니다. 기본값은 꺼짐이며, 게스트 sshd를 포함한 모든 특권 포트에 영향을 줍니다.",
+      "pt": "Permite que serviços do convidado escutem em portas privilegiadas (&lt;1024): um serviço na porta N fica acessível em N+2000 (ex.: 80 → 2080). O Android impede o app de vincular portas baixas diretamente. Desativado por padrão; afeta todas as portas privilegiadas, incluindo um sshd do convidado.",
+      "ru": "Позволяет гостевым службам слушать привилегированные порты (&lt;1024): служба на порту N становится доступной на N+2000 (напр. 80 → 2080). Android не даёт приложению напрямую занимать низкие порты. По умолчанию выключено; затрагивает каждый привилегированный порт, включая гостевой sshd.",
+      "zh": "允许客机服务监听特权端口（&lt;1024）：端口 N 上的服务可通过 N+2000 访问（如 80 → 2080）。Android 禁止应用直接绑定低端口。默认关闭；影响所有特权端口，包括客机的 sshd。"
+     }
     },
     {
      "name": "app_desktop_share_storage_title",
      "en": "Share device storage with guest",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إتاحة تخزين الجهاز للضيف",
+      "bn": "ডিভাইস স্টোরেজ গেস্টের সাথে শেয়ার করুন",
+      "de": "Gerätespeicher mit dem Gast teilen",
+      "es": "Compartir el almacenamiento del dispositivo con el invitado",
+      "fr": "Partager le stockage de l\\'appareil avec le guest",
+      "hi": "डिवाइस स्टोरेज गेस्ट के साथ साझा करें",
+      "ja": "デバイスのストレージをゲストと共有",
+      "ko": "기기 저장소를 게스트와 공유",
+      "pt": "Compartilhar armazenamento do dispositivo com o convidado",
+      "ru": "Открыть хранилище устройства для гостя",
+      "zh": "与客机共享设备存储"
+     }
     },
     {
      "name": "app_desktop_share_storage_description",
      "en": "Mounts your shared storage into the guest at /storage and /sdcard so it can reach your files. Turn off to keep your photos and downloads hidden from the local Linux environment.",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يركّب وحدة التخزين المشتركة داخل الضيف في /storage و /sdcard ليتمكن من الوصول إلى ملفاتك. أوقفه لإبقاء صورك وتنزيلاتك مخفية عن بيئة Linux المحلية.",
+      "bn": "আপনার শেয়ার্ড স্টোরেজ গেস্টে /storage ও /sdcard-এ মাউন্ট করে যাতে সে আপনার ফাইলে পৌঁছাতে পারে। ফটো ও ডাউনলোড স্থানীয় Linux পরিবেশ থেকে লুকিয়ে রাখতে বন্ধ করুন।",
+      "de": "Bindet deinen gemeinsamen Speicher unter /storage und /sdcard in den Gast ein, damit er auf deine Dateien zugreifen kann. Ausschalten, um Fotos und Downloads vor der lokalen Linux-Umgebung verborgen zu halten.",
+      "es": "Monta tu almacenamiento compartido en el invitado en /storage y /sdcard para que pueda acceder a tus archivos. Desactívalo para mantener tus fotos y descargas ocultas del entorno Linux local.",
+      "fr": "Monte votre stockage partagé dans le guest sous /storage et /sdcard pour qu\\'il puisse accéder à vos fichiers. Désactivez pour garder vos photos et téléchargements hors de portée de l\\'environnement Linux local.",
+      "hi": "आपके साझा स्टोरेज को गेस्ट में /storage और /sdcard पर माउंट करता है ताकि वह आपकी फ़ाइलों तक पहुँच सके। अपनी फ़ोटो और डाउनलोड स्थानीय Linux वातावरण से छिपाए रखने के लिए बंद करें।",
+      "ja": "共有ストレージをゲストの /storage と /sdcard にマウントし、ファイルへアクセスできるようにします。オフにすると、写真やダウンロードはローカル Linux 環境から見えなくなります。",
+      "ko": "공유 저장소를 게스트의 /storage와 /sdcard에 마운트하여 파일에 접근할 수 있게 합니다. 끄면 사진과 다운로드가 로컬 Linux 환경에 노출되지 않습니다.",
+      "pt": "Monta seu armazenamento compartilhado no convidado em /storage e /sdcard para que ele acesse seus arquivos. Desative para manter suas fotos e downloads ocultos do ambiente Linux local.",
+      "ru": "Монтирует общее хранилище в гостевую систему в /storage и /sdcard, чтобы гость имел доступ к вашим файлам. Выключите, чтобы скрыть ваши фотографии и загрузки от локальной среды Linux.",
+      "zh": "将共享存储挂载到客机的 /storage 和 /sdcard，使其可以访问您的文件。关闭后，本地 Linux 环境将无法看到您的照片和下载内容。"
+     }
     },
     {
      "name": "app_desktop_bind_android_system_title",
      "en": "Expose Android system to guest",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إتاحة نظام Android للضيف",
+      "bn": "Android সিস্টেম গেস্টে প্রকাশ করুন",
+      "de": "Android-System dem Gast bereitstellen",
+      "es": "Exponer el sistema Android al invitado",
+      "fr": "Exposer le système Android au guest",
+      "hi": "Android सिस्टम गेस्ट को एक्सपोज़ करें",
+      "ja": "Android システムをゲストに公開",
+      "ko": "Android 시스템을 게스트에 노출",
+      "pt": "Expor o sistema Android ao convidado",
+      "ru": "Открыть систему Android для гостя",
+      "zh": "向客机暴露 Android 系统"
+     }
     },
     {
      "name": "app_desktop_bind_android_system_description",
      "en": "Mounts Android\\'s read-only /system, /vendor, /apex and related partitions into the guest so it can run Android\\'s own native binaries (e.g. getprop, toybox). Off by default: this exposes device and vendor internals to the local Linux environment.",
      "comment": "Desktop manager: package mirror (#263)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يركّب أقسام Android للقراءة فقط /system و /vendor و /apex وما يتصل بها داخل الضيف ليتمكن من تشغيل ثنائيات Android الأصلية (مثل getprop و toybox). معطّل افتراضيًا: هذا يكشف دواخل الجهاز والمصنّع لبيئة Linux المحلية.",
+      "bn": "Android-এর রিড-ওনলি /system, /vendor, /apex ও সংশ্লিষ্ট পার্টিশন গেস্টে মাউন্ট করে যাতে সে Android-এর নিজস্ব নেটিভ বাইনারি (যেমন getprop, toybox) চালাতে পারে। ডিফল্টে বন্ধ: এটি ডিভাইস ও ভেন্ডরের অভ্যন্তরীণ বিষয় স্থানীয় Linux পরিবেশের কাছে উন্মুক্ত করে।",
+      "de": "Bindet Androids schreibgeschützte Partitionen /system, /vendor, /apex und verwandte in den Gast ein, damit er Androids eigene native Binärdateien ausführen kann (z. B. getprop, toybox). Standardmäßig aus: Dies legt Geräte- und Hersteller-Interna gegenüber der lokalen Linux-Umgebung offen.",
+      "es": "Monta en el invitado las particiones de solo lectura de Android /system, /vendor, /apex y relacionadas, para que pueda ejecutar los binarios nativos de Android (p. ej. getprop, toybox). Desactivado por defecto: esto expone los internos del dispositivo y del fabricante al entorno Linux local.",
+      "fr": "Monte dans le guest les partitions Android en lecture seule /system, /vendor, /apex et associées, pour qu\\'il puisse exécuter les binaires natifs d\\'Android (ex. getprop, toybox). Désactivé par défaut : cela expose les éléments internes de l\\'appareil et du fabricant à l\\'environnement Linux local.",
+      "hi": "Android के रीड-ओनली /system, /vendor, /apex और संबंधित पार्टीशन गेस्ट में माउंट करता है ताकि वह Android के अपने नेटिव बाइनरी (जैसे getprop, toybox) चला सके। डिफ़ॉल्ट रूप से बंद: यह डिवाइस और वेंडर की आंतरिक जानकारी स्थानीय Linux वातावरण के सामने खोल देता है।",
+      "ja": "Android の読み取り専用の /system、/vendor、/apex などのパーティションをゲストにマウントし、Android 自身のネイティブバイナリ（getprop、toybox など）を実行できるようにします。デフォルトはオフ: デバイスやベンダーの内部がローカル Linux 環境に公開されます。",
+      "ko": "Android의 읽기 전용 /system, /vendor, /apex 및 관련 파티션을 게스트에 마운트하여 Android 자체 네이티브 바이너리(예: getprop, toybox)를 실행할 수 있게 합니다. 기본값은 꺼짐: 기기 및 제조사 내부가 로컬 Linux 환경에 노출됩니다.",
+      "pt": "Monta as partições somente leitura /system, /vendor, /apex e relacionadas do Android no convidado, para que ele execute os binários nativos do próprio Android (ex.: getprop, toybox). Desativado por padrão: isso expõe detalhes internos do dispositivo e do fabricante ao ambiente Linux local.",
+      "ru": "Монтирует доступные только для чтения разделы Android /system, /vendor, /apex и связанные с ними в гостевую систему, чтобы гость мог запускать собственные нативные бинарники Android (напр. getprop, toybox). По умолчанию выключено: это открывает внутренности устройства и вендора локальной среде Linux.",
+      "zh": "将 Android 只读的 /system、/vendor、/apex 及相关分区挂载到客机，使其可运行 Android 自带的原生程序（如 getprop、toybox）。默认关闭：这会将设备和厂商内部信息暴露给本地 Linux 环境。"
+     }
     },
     {
      "name": "app_desktop_custom_binds_title",
@@ -1445,14 +1601,38 @@
      "args": [
       "%1$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "نقاط تركيب مخصصة (%1$d)",
+      "bn": "কাস্টম মাউন্ট (%1$d)",
+      "de": "Eigene Mounts (%1$d)",
+      "es": "Montajes personalizados (%1$d)",
+      "fr": "Montages personnalisés (%1$d)",
+      "hi": "कस्टम माउंट (%1$d)",
+      "ja": "カスタムマウント (%1$d)",
+      "ko": "사용자 지정 마운트 (%1$d)",
+      "pt": "Montagens personalizadas (%1$d)",
+      "ru": "Свои точки монтирования (%1$d)",
+      "zh": "自定义挂载（%1$d）"
+     }
     },
     {
      "name": "app_desktop_custom_binds_description",
      "en": "Expose extra Android paths inside this distro\\'s guest, on top of the system mounts. Mounts are read-write.",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إتاحة مسارات Android إضافية داخل ضيف هذه التوزيعة، إضافةً إلى نقاط تركيب النظام. نقاط التركيب قابلة للقراءة والكتابة.",
+      "bn": "সিস্টেম মাউন্টের পাশাপাশি এই distro-র গেস্টে অতিরিক্ত Android পাথ প্রকাশ করুন। মাউন্টগুলি রিড-রাইট।",
+      "de": "Stellt zusätzliche Android-Pfade im Gast dieser Distribution bereit, zusätzlich zu den System-Mounts. Mounts sind beschreibbar.",
+      "es": "Expone rutas de Android adicionales dentro del invitado de esta distribución, además de los montajes del sistema. Los montajes son de lectura y escritura.",
+      "fr": "Expose des chemins Android supplémentaires dans le guest de cette distribution, en plus des montages système. Les montages sont en lecture-écriture.",
+      "hi": "सिस्टम माउंट के अलावा इस distro के गेस्ट में अतिरिक्त Android पथ एक्सपोज़ करें। माउंट रीड-राइट होते हैं।",
+      "ja": "システムマウントに加えて、追加の Android パスをこのディストリビューションのゲスト内に公開します。マウントは読み書き可能です。",
+      "ko": "시스템 마운트에 더해 추가 Android 경로를 이 배포판의 게스트에 노출합니다. 마운트는 읽기-쓰기입니다.",
+      "pt": "Expõe caminhos extras do Android dentro do convidado desta distro, além das montagens do sistema. As montagens são de leitura e gravação.",
+      "ru": "Открывает дополнительные пути Android внутри гостевой системы этого дистрибутива, помимо системных точек монтирования. Монтирования доступны для чтения и записи.",
+      "zh": "在系统挂载之外，向此发行版的客机暴露额外的 Android 路径。挂载为可读写。"
+     }
     },
     {
      "name": "app_desktop_custom_binds_dialog_title",
@@ -1461,105 +1641,285 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "نقاط تركيب مخصصة — %1$s",
+      "bn": "কাস্টম মাউন্ট — %1$s",
+      "de": "Eigene Mounts — %1$s",
+      "es": "Montajes personalizados — %1$s",
+      "fr": "Montages personnalisés — %1$s",
+      "hi": "कस्टम माउंट — %1$s",
+      "ja": "カスタムマウント — %1$s",
+      "ko": "사용자 지정 마운트 — %1$s",
+      "pt": "Montagens personalizadas — %1$s",
+      "ru": "Свои точки монтирования — %1$s",
+      "zh": "自定义挂载 — %1$s"
+     }
     },
     {
      "name": "app_desktop_custom_binds_host_hint",
      "en": "Android path (e.g. /storage/emulated/0/Sync)",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "مسار Android (مثل /storage/emulated/0/Sync)",
+      "bn": "Android পাথ (যেমন /storage/emulated/0/Sync)",
+      "de": "Android-Pfad (z. B. /storage/emulated/0/Sync)",
+      "es": "Ruta de Android (p. ej. /storage/emulated/0/Sync)",
+      "fr": "Chemin Android (ex. /storage/emulated/0/Sync)",
+      "hi": "Android पथ (जैसे /storage/emulated/0/Sync)",
+      "ja": "Android パス（例: /storage/emulated/0/Sync）",
+      "ko": "Android 경로 (예: /storage/emulated/0/Sync)",
+      "pt": "Caminho do Android (ex.: /storage/emulated/0/Sync)",
+      "ru": "Путь Android (напр. /storage/emulated/0/Sync)",
+      "zh": "Android 路径（如 /storage/emulated/0/Sync）"
+     }
     },
     {
      "name": "app_desktop_custom_binds_guest_hint",
      "en": "Guest path (optional — defaults to the same path)",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "مسار الضيف (اختياري — الافتراضي هو المسار نفسه)",
+      "bn": "গেস্ট পাথ (ঐচ্ছিক — ডিফল্ট একই পাথ)",
+      "de": "Gast-Pfad (optional — Standard: derselbe Pfad)",
+      "es": "Ruta en el invitado (opcional — por defecto la misma ruta)",
+      "fr": "Chemin dans le guest (facultatif — même chemin par défaut)",
+      "hi": "गेस्ट पथ (वैकल्पिक — डिफ़ॉल्ट वही पथ)",
+      "ja": "ゲストパス（省略可 — デフォルトは同じパス）",
+      "ko": "게스트 경로 (선택 사항 — 기본값은 동일한 경로)",
+      "pt": "Caminho no convidado (opcional — usa o mesmo caminho por padrão)",
+      "ru": "Путь в гостевой системе (необязательно — по умолчанию тот же путь)",
+      "zh": "客机路径（可选，默认使用相同路径）"
+     }
     },
     {
      "name": "app_desktop_custom_binds_add",
      "en": "Add mount",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إضافة نقطة تركيب",
+      "bn": "মাউন্ট যোগ করুন",
+      "de": "Mount hinzufügen",
+      "es": "Añadir montaje",
+      "fr": "Ajouter un montage",
+      "hi": "माउंट जोड़ें",
+      "ja": "マウントを追加",
+      "ko": "마운트 추가",
+      "pt": "Adicionar montagem",
+      "ru": "Добавить монтирование",
+      "zh": "添加挂载"
+     }
     },
     {
      "name": "app_desktop_custom_binds_empty",
      "en": "No custom mounts. Add one to expose an Android path in the guest.",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لا توجد نقاط تركيب مخصصة. أضف واحدة لإتاحة مسار Android داخل الضيف.",
+      "bn": "কোনো কাস্টম মাউন্ট নেই। গেস্টে একটি Android পাথ প্রকাশ করতে একটি যোগ করুন।",
+      "de": "Keine eigenen Mounts. Füge einen hinzu, um einen Android-Pfad im Gast bereitzustellen.",
+      "es": "No hay montajes personalizados. Añade uno para exponer una ruta de Android en el invitado.",
+      "fr": "Aucun montage personnalisé. Ajoutez-en un pour exposer un chemin Android dans le guest.",
+      "hi": "कोई कस्टम माउंट नहीं। गेस्ट में कोई Android पथ एक्सपोज़ करने के लिए एक जोड़ें।",
+      "ja": "カスタムマウントはまだありません。追加すると Android パスをゲスト内に公開できます。",
+      "ko": "사용자 지정 마운트가 없습니다. 추가하면 Android 경로를 게스트에 노출할 수 있습니다.",
+      "pt": "Nenhuma montagem personalizada. Adicione uma para expor um caminho do Android no convidado.",
+      "ru": "Своих точек монтирования нет. Добавьте одну, чтобы открыть путь Android в гостевой системе.",
+      "zh": "暂无自定义挂载。添加一个以在客机中暴露 Android 路径。"
+     }
     },
     {
      "name": "app_desktop_custom_binds_remove_cd",
      "en": "Remove mount",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إزالة نقطة التركيب",
+      "bn": "মাউন্ট সরান",
+      "de": "Mount entfernen",
+      "es": "Quitar montaje",
+      "fr": "Supprimer le montage",
+      "hi": "माउंट हटाएँ",
+      "ja": "マウントを削除",
+      "ko": "마운트 제거",
+      "pt": "Remover montagem",
+      "ru": "Удалить монтирование",
+      "zh": "移除挂载"
+     }
     },
     {
      "name": "app_desktop_custom_binds_takes_effect",
      "en": "Applies on the next shell, command, or desktop start for this distro.",
      "comment": "Desktop manager: custom bind mounts (#301)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يُطبَّق عند التشغيل التالي لـ shell أو أمر أو سطح المكتب لهذه التوزيعة.",
+      "bn": "এই distro-র পরবর্তী শেল, কমান্ড বা ডেস্কটপ চালুর সময় প্রযোজ্য হয়।",
+      "de": "Gilt ab dem nächsten Start einer Shell, eines Befehls oder eines Desktops für diese Distribution.",
+      "es": "Se aplica en el próximo inicio de un shell, un comando o un escritorio de esta distribución.",
+      "fr": "S\\'applique au prochain démarrage d\\'un shell, d\\'une commande ou d\\'un bureau pour cette distribution.",
+      "hi": "इस distro के अगले शेल, कमांड या डेस्कटॉप शुरू होने पर लागू होता है।",
+      "ja": "このディストリビューションで次にシェル、コマンド、またはデスクトップを起動したときに適用されます。",
+      "ko": "이 배포판에서 다음에 셸, 명령 또는 데스크톱을 시작할 때 적용됩니다.",
+      "pt": "Aplica-se no próximo shell, comando ou início da área de trabalho desta distro.",
+      "ru": "Применяется при следующем запуске shell, команды или рабочего стола этого дистрибутива.",
+      "zh": "在此发行版下次启动 shell、命令或桌面时生效。"
+     }
     },
     {
      "name": "app_desktop_import_rootfs",
      "en": "Import rootfs…",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "استيراد rootfs…",
+      "bn": "rootfs ইমপোর্ট করুন…",
+      "de": "Rootfs importieren…",
+      "es": "Importar rootfs…",
+      "fr": "Importer un rootfs…",
+      "hi": "rootfs आयात करें…",
+      "ja": "rootfs をインポート…",
+      "ko": "rootfs 가져오기…",
+      "pt": "Importar rootfs…",
+      "ru": "Импортировать rootfs…",
+      "zh": "导入 rootfs…"
+     }
     },
     {
      "name": "app_desktop_options_section",
      "en": "Options &amp; mounts",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الخيارات ونقاط التركيب",
+      "bn": "অপশন ও মাউন্ট",
+      "de": "Optionen &amp; Mounts",
+      "es": "Opciones y montajes",
+      "fr": "Options et montages",
+      "hi": "विकल्प और माउंट",
+      "ja": "オプションとマウント",
+      "ko": "옵션 및 마운트",
+      "pt": "Opções e montagens",
+      "ru": "Параметры и точки монтирования",
+      "zh": "选项与挂载"
+     }
     },
     {
      "name": "app_desktop_open_usb_drive",
      "en": "Open USB drive…",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فتح قرص USB…",
+      "bn": "USB ড্রাইভ খুলুন…",
+      "de": "USB-Laufwerk öffnen…",
+      "es": "Abrir unidad USB…",
+      "fr": "Ouvrir un lecteur USB…",
+      "hi": "USB ड्राइव खोलें…",
+      "ja": "USB ドライブを開く…",
+      "ko": "USB 드라이브 열기…",
+      "pt": "Abrir unidade USB…",
+      "ru": "Открыть USB-накопитель…",
+      "zh": "打开 USB 驱动器…"
+     }
     },
     {
      "name": "app_desktop_open_usb_drive_writable",
      "en": "Open USB drive (writable)…",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فتح قرص USB (قابل للكتابة)…",
+      "bn": "USB ড্রাইভ খুলুন (লিখনযোগ্য)…",
+      "de": "USB-Laufwerk öffnen (beschreibbar)…",
+      "es": "Abrir unidad USB (escritura)…",
+      "fr": "Ouvrir un lecteur USB (en écriture)…",
+      "hi": "USB ड्राइव खोलें (लिखने योग्य)…",
+      "ja": "USB ドライブを開く（書き込み可）…",
+      "ko": "USB 드라이브 열기 (쓰기 가능)…",
+      "pt": "Abrir unidade USB (gravável)…",
+      "ru": "Открыть USB-накопитель (с записью)…",
+      "zh": "打开 USB 驱动器（可写）…"
+     }
     },
     {
      "name": "app_desktop_open_usb_drive_writable_confirm_title",
      "en": "Mount read-write?",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التركيب للقراءة والكتابة؟",
+      "bn": "রিড-রাইট মাউন্ট করবেন?",
+      "de": "Mit Schreibzugriff einbinden?",
+      "es": "¿Montar en lectura y escritura?",
+      "fr": "Monter en lecture-écriture ?",
+      "hi": "रीड-राइट माउंट करें?",
+      "ja": "読み書き可能でマウントしますか？",
+      "ko": "읽기-쓰기로 마운트할까요?",
+      "pt": "Montar como leitura e gravação?",
+      "ru": "Смонтировать для чтения и записи?",
+      "zh": "以读写方式挂载？"
+     }
     },
     {
      "name": "app_desktop_open_usb_drive_writable_confirm_body",
      "en": "This mounts the drive read-write. If the VM loses power mid-write (killed, crash, battery pull), the filesystem can be corrupted. Read-only is the safer default.",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "هذا يركّب القرص للقراءة والكتابة. إذا فقدت الـ VM الطاقة أثناء الكتابة (إنهاء، انهيار، نزع البطارية) فقد يتلف نظام الملفات. القراءة فقط هي الخيار الافتراضي الأكثر أمانًا.",
+      "bn": "এটি ড্রাইভকে রিড-রাইট মাউন্ট করে। লেখার মাঝে VM-এর পাওয়ার চলে গেলে (বন্ধ করা, ক্র্যাশ, ব্যাটারি খোলা), ফাইল সিস্টেম নষ্ট হতে পারে। রিড-ওনলি নিরাপদ ডিফল্ট।",
+      "de": "Dies bindet das Laufwerk mit Schreibzugriff ein. Verliert die VM mitten im Schreibvorgang den Strom (beendet, Absturz, Akku entfernt), kann das Dateisystem beschädigt werden. Nur-Lesen ist der sicherere Standard.",
+      "es": "Esto monta la unidad en lectura y escritura. Si la VM pierde la alimentación en mitad de una escritura (cierre forzado, fallo, batería retirada), el sistema de archivos puede corromperse. Solo lectura es el valor predeterminado más seguro.",
+      "fr": "Ceci monte le lecteur en lecture-écriture. Si la VM perd l\\'alimentation en pleine écriture (arrêt forcé, plantage, batterie retirée), le système de fichiers peut être corrompu. La lecture seule est la valeur par défaut la plus sûre.",
+      "hi": "यह ड्राइव को रीड-राइट माउंट करता है। यदि लिखते समय VM की पावर चली जाए (बंद किया गया, क्रैश, बैटरी निकली), तो फ़ाइल सिस्टम खराब हो सकता है। रीड-ओनली अधिक सुरक्षित डिफ़ॉल्ट है।",
+      "ja": "ドライブを読み書き可能でマウントします。書き込み中に VM の電源が失われると（強制終了、クラッシュ、バッテリー切れ）、ファイルシステムが破損する可能性があります。読み取り専用の方が安全なデフォルトです。",
+      "ko": "드라이브를 읽기-쓰기로 마운트합니다. 쓰기 도중 VM 전원이 끊기면(강제 종료, 충돌, 배터리 분리) 파일 시스템이 손상될 수 있습니다. 읽기 전용이 더 안전한 기본값입니다.",
+      "pt": "Isso monta a unidade em modo de leitura e gravação. Se a VM perder energia no meio de uma gravação (encerrada, travamento, bateria removida), o sistema de arquivos pode ser corrompido. Somente leitura é o padrão mais seguro.",
+      "ru": "Накопитель будет смонтирован для чтения и записи. Если VM потеряет питание во время записи (завершение, сбой, извлечение батареи), файловая система может быть повреждена. Только чтение — более безопасный вариант по умолчанию.",
+      "zh": "这会以读写方式挂载该驱动器。如果 VM 在写入过程中断电（被终止、崩溃、拔出电池），文件系统可能损坏。只读是更安全的默认选择。"
+     }
     },
     {
      "name": "app_desktop_eject_usb_drive",
      "en": "Eject USB drive",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إخراج قرص USB",
+      "bn": "USB ড্রাইভ ইজেক্ট করুন",
+      "de": "USB-Laufwerk auswerfen",
+      "es": "Expulsar unidad USB",
+      "fr": "Éjecter le lecteur USB",
+      "hi": "USB ड्राइव निकालें",
+      "ja": "USB ドライブを取り外す",
+      "ko": "USB 드라이브 꺼내기",
+      "pt": "Ejetar unidade USB",
+      "ru": "Извлечь USB-накопитель",
+      "zh": "弹出 USB 驱动器"
+     }
     },
     {
      "name": "app_desktop_delete_usb_appliance",
      "en": "Delete USB helper Linux",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "حذف نظام Linux المساعد لـ USB",
+      "bn": "USB সহায়ক Linux মুছুন",
+      "de": "USB-Hilfs-Linux löschen",
+      "es": "Eliminar el Linux auxiliar de USB",
+      "fr": "Supprimer le Linux auxiliaire USB",
+      "hi": "USB सहायक Linux हटाएँ",
+      "ja": "USB ヘルパー Linux を削除",
+      "ko": "USB 도우미 Linux 삭제",
+      "pt": "Excluir o Linux auxiliar de USB",
+      "ru": "Удалить вспомогательный Linux для USB",
+      "zh": "删除 USB 辅助 Linux"
+     }
     },
     {
      "name": "app_desktop_usb_drive_progress",
@@ -1568,7 +1928,19 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "قرص USB: %1$s",
+      "bn": "USB ড্রাইভ: %1$s",
+      "de": "USB-Laufwerk: %1$s",
+      "es": "Unidad USB: %1$s",
+      "fr": "Lecteur USB : %1$s",
+      "hi": "USB ड्राइव: %1$s",
+      "ja": "USB ドライブ: %1$s",
+      "ko": "USB 드라이브: %1$s",
+      "pt": "Unidade USB: %1$s",
+      "ru": "USB-накопитель: %1$s",
+      "zh": "USB 驱动器：%1$s"
+     }
     },
     {
      "name": "app_desktop_usb_drive_locked",
@@ -1577,14 +1949,38 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "%1$s مقفل (LUKS)",
+      "bn": "%1$s লক করা (LUKS)",
+      "de": "%1$s ist gesperrt (LUKS)",
+      "es": "%1$s está bloqueado (LUKS)",
+      "fr": "%1$s est verrouillé (LUKS)",
+      "hi": "%1$s लॉक है (LUKS)",
+      "ja": "%1$s はロックされています (LUKS)",
+      "ko": "%1$s이(가) 잠겨 있습니다 (LUKS)",
+      "pt": "%1$s está bloqueada (LUKS)",
+      "ru": "%1$s заблокирован (LUKS)",
+      "zh": "%1$s 已锁定（LUKS）"
+     }
     },
     {
      "name": "app_desktop_usb_drive_unlock",
      "en": "Unlock…",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فتح القفل…",
+      "bn": "আনলক করুন…",
+      "de": "Entsperren…",
+      "es": "Desbloquear…",
+      "fr": "Déverrouiller…",
+      "hi": "अनलॉक करें…",
+      "ja": "ロック解除…",
+      "ko": "잠금 해제…",
+      "pt": "Desbloquear…",
+      "ru": "Разблокировать…",
+      "zh": "解锁…"
+     }
     },
     {
      "name": "app_desktop_usb_drive_unlock_title",
@@ -1593,77 +1989,209 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "فتح قفل %1$s",
+      "bn": "%1$s আনলক করুন",
+      "de": "%1$s entsperren",
+      "es": "Desbloquear %1$s",
+      "fr": "Déverrouiller %1$s",
+      "hi": "%1$s अनलॉक करें",
+      "ja": "%1$s のロックを解除",
+      "ko": "%1$s 잠금 해제",
+      "pt": "Desbloquear %1$s",
+      "ru": "Разблокировать %1$s",
+      "zh": "解锁 %1$s"
+     }
     },
     {
      "name": "app_desktop_usb_drive_unlock_passphrase",
      "en": "Passphrase",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "عبارة المرور",
+      "bn": "পাসফ্রেজ",
+      "de": "Passphrase",
+      "es": "Frase de contraseña",
+      "fr": "Phrase secrète",
+      "hi": "पासफ़्रेज़",
+      "ja": "パスフレーズ",
+      "ko": "암호문",
+      "pt": "Frase secreta",
+      "ru": "Парольная фраза",
+      "zh": "密码短语"
+     }
     },
     {
      "name": "app_desktop_import_dialog_title",
      "en": "Import a rootfs",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "استيراد rootfs",
+      "bn": "একটি rootfs ইমপোর্ট করুন",
+      "de": "Rootfs importieren",
+      "es": "Importar un rootfs",
+      "fr": "Importer un rootfs",
+      "hi": "rootfs आयात करें",
+      "ja": "rootfs をインポート",
+      "ko": "rootfs 가져오기",
+      "pt": "Importar um rootfs",
+      "ru": "Импорт rootfs",
+      "zh": "导入 rootfs"
+     }
     },
     {
      "name": "app_desktop_import_description",
      "en": "Bring your own rootfs tarball (.tar.gz or .tar.xz) — a proot-distro image, a Docker export, or a second copy of a distro you already have. It is used as-is (no packages installed).",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أحضر ملف tarball لـ rootfs خاص بك (.tar.gz أو .tar.xz) — صورة proot-distro أو تصديرًا من Docker أو نسخة ثانية من توزيعة لديك بالفعل. يُستخدم كما هو (دون تثبيت حزم).",
+      "bn": "নিজের rootfs টারবল (.tar.gz বা .tar.xz) আনুন — একটি proot-distro ইমেজ, Docker এক্সপোর্ট, বা আপনার বিদ্যমান distro-র দ্বিতীয় কপি। এটি যেমন আছে তেমনই ব্যবহৃত হয় (কোনো প্যাকেজ ইনস্টল হয় না)।",
+      "de": "Bring dein eigenes Rootfs-Tarball mit (.tar.gz oder .tar.xz) — ein proot-distro-Abbild, ein Docker-Export oder eine zweite Kopie einer vorhandenen Distribution. Es wird unverändert verwendet (keine Pakete installiert).",
+      "es": "Trae tu propio tarball de rootfs (.tar.gz o .tar.xz): una imagen de proot-distro, una exportación de Docker o una segunda copia de una distribución que ya tengas. Se usa tal cual (sin instalar paquetes).",
+      "fr": "Apportez votre propre archive rootfs (.tar.gz ou .tar.xz) — une image proot-distro, un export Docker ou une seconde copie d\\'une distribution que vous avez déjà. Elle est utilisée telle quelle (aucun paquet installé).",
+      "hi": "अपना rootfs टारबॉल (.tar.gz या .tar.xz) लाएँ — कोई proot-distro इमेज, Docker एक्सपोर्ट, या आपके मौजूदा distro की दूसरी कॉपी। इसे ज्यों का त्यों उपयोग किया जाता है (कोई पैकेज इंस्टॉल नहीं होता)।",
+      "ja": "独自の rootfs tarball（.tar.gz または .tar.xz）を取り込みます — proot-distro イメージ、Docker のエクスポート、既存ディストリビューションの複製など。そのまま使用されます（パッケージはインストールされません）。",
+      "ko": "직접 준비한 rootfs tarball(.tar.gz 또는 .tar.xz)을 가져옵니다 — proot-distro 이미지, Docker 내보내기, 또는 이미 있는 배포판의 사본. 그대로 사용됩니다(패키지를 설치하지 않음).",
+      "pt": "Traga seu próprio tarball de rootfs (.tar.gz ou .tar.xz) — uma imagem proot-distro, uma exportação do Docker ou uma segunda cópia de uma distro que você já tem. Ele é usado como está (nenhum pacote é instalado).",
+      "ru": "Используйте собственный tarball rootfs (.tar.gz или .tar.xz) — образ proot-distro, экспорт Docker или вторую копию уже установленного дистрибутива. Он используется как есть (пакеты не устанавливаются).",
+      "zh": "使用您自己的 rootfs 压缩包（.tar.gz 或 .tar.xz）——可以是 proot-distro 镜像、Docker 导出，或已有发行版的第二份副本。将按原样使用（不安装任何软件包）。"
+     }
     },
     {
      "name": "app_desktop_import_id_hint",
      "en": "Distro id (slug, e.g. ubuntu-test)",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "معرّف التوزيعة (slug، مثل ubuntu-test)",
+      "bn": "Distro id (স্লাগ, যেমন ubuntu-test)",
+      "de": "Distro-ID (Slug, z. B. ubuntu-test)",
+      "es": "ID de la distro (slug, p. ej. ubuntu-test)",
+      "fr": "Identifiant de distro (slug, ex. ubuntu-test)",
+      "hi": "Distro id (स्लग, जैसे ubuntu-test)",
+      "ja": "ディストリビューション ID（スラッグ、例: ubuntu-test）",
+      "ko": "배포판 ID (슬러그, 예: ubuntu-test)",
+      "pt": "Id da distro (slug, ex.: ubuntu-test)",
+      "ru": "Id дистрибутива (slug, напр. ubuntu-test)",
+      "zh": "发行版 ID（短标识，如 ubuntu-test）"
+     }
     },
     {
      "name": "app_desktop_import_label_hint",
      "en": "Label (e.g. Ubuntu 26.04 imported)",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التسمية (مثل Ubuntu 26.04 مستورد)",
+      "bn": "লেবেল (যেমন Ubuntu 26.04 imported)",
+      "de": "Bezeichnung (z. B. Ubuntu 26.04 importiert)",
+      "es": "Etiqueta (p. ej. Ubuntu 26.04 importado)",
+      "fr": "Libellé (ex. Ubuntu 26.04 importé)",
+      "hi": "लेबल (जैसे Ubuntu 26.04 imported)",
+      "ja": "ラベル（例: Ubuntu 26.04 imported）",
+      "ko": "라벨 (예: Ubuntu 26.04 imported)",
+      "pt": "Rótulo (ex.: Ubuntu 26.04 importado)",
+      "ru": "Метка (напр. «Импорт Ubuntu 26.04»)",
+      "zh": "标签（如 Ubuntu 26.04 imported）"
+     }
     },
     {
      "name": "app_desktop_import_source_hint",
      "en": "Tarball URL (https://…)",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "عنوان URL للـ tarball ‏(https://…)",
+      "bn": "টারবল URL (https://…)",
+      "de": "Tarball-URL (https://…)",
+      "es": "URL del tarball (https://…)",
+      "fr": "URL de l\\'archive (https://…)",
+      "hi": "टारबॉल URL (https://…)",
+      "ja": "tarball の URL (https://…)",
+      "ko": "Tarball URL (https://…)",
+      "pt": "URL do tarball (https://…)",
+      "ru": "URL tarball (https://…)",
+      "zh": "压缩包 URL（https://…）"
+     }
     },
     {
      "name": "app_desktop_import_family",
      "en": "Package family",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "عائلة الحزم",
+      "bn": "প্যাকেজ ফ্যামিলি",
+      "de": "Paketfamilie",
+      "es": "Familia de paquetes",
+      "fr": "Famille de paquets",
+      "hi": "पैकेज फ़ैमिली",
+      "ja": "パッケージファミリー",
+      "ko": "패키지 계열",
+      "pt": "Família de pacotes",
+      "ru": "Семейство пакетов",
+      "zh": "软件包体系"
+     }
     },
     {
      "name": "app_desktop_import_confirm",
      "en": "Import",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "استيراد",
+      "bn": "ইমপোর্ট",
+      "de": "Importieren",
+      "es": "Importar",
+      "fr": "Importer",
+      "hi": "आयात करें",
+      "ja": "インポート",
+      "ko": "가져오기",
+      "pt": "Importar",
+      "ru": "Импорт",
+      "zh": "导入"
+     }
     },
     {
      "name": "app_desktop_cancel",
      "en": "Cancel",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إلغاء",
+      "bn": "বাতিল",
+      "de": "Abbrechen",
+      "es": "Cancelar",
+      "fr": "Annuler",
+      "hi": "रद्द करें",
+      "ja": "キャンセル",
+      "ko": "취소",
+      "pt": "Cancelar",
+      "ru": "Отмена",
+      "zh": "取消"
+     }
     },
     {
      "name": "app_desktop_save",
      "en": "Save",
      "comment": "Desktop manager: import custom rootfs (#284)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "حفظ",
+      "bn": "সংরক্ষণ",
+      "de": "Speichern",
+      "es": "Guardar",
+      "fr": "Enregistrer",
+      "hi": "सहेजें",
+      "ja": "保存",
+      "ko": "저장",
+      "pt": "Salvar",
+      "ru": "Сохранить",
+      "zh": "保存"
+     }
     },
     {
      "name": "app_desktop_app_windows_title",
@@ -1927,7 +2455,19 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "فتح طرفية في %1$s",
+      "bn": "%1$s-এ টার্মিনাল খুলুন",
+      "de": "Terminal in %1$s öffnen",
+      "es": "Abrir terminal en %1$s",
+      "fr": "Ouvrir un terminal dans %1$s",
+      "hi": "%1$s में टर्मिनल खोलें",
+      "ja": "%1$s でターミナルを開く",
+      "ko": "%1$s에서 터미널 열기",
+      "pt": "Abrir terminal em %1$s",
+      "ru": "Открыть терминал в %1$s",
+      "zh": "在 %1$s 中打开终端"
+     }
     },
     {
      "name": "app_desktop_browse_installed_apps",
@@ -5906,7 +6446,19 @@
      "en": "Native Android shell",
      "comment": "Connection tree item",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "‏shell الأصلي لنظام Android",
+      "bn": "নেটিভ Android শেল",
+      "de": "Native Android-Shell",
+      "es": "Shell nativo de Android",
+      "fr": "Shell Android natif",
+      "hi": "नेटिव Android शेल",
+      "ja": "ネイティブ Android シェル",
+      "ko": "네이티브 Android 셸",
+      "pt": "Shell nativo do Android",
+      "ru": "Нативная оболочка Android",
+      "zh": "原生 Android shell"
+     }
     },
     {
      "name": "connections_launch_desktop",
@@ -8644,14 +9196,38 @@
      "en": "Override background opacity",
      "comment": "#135 follow-up: hardcoded English strings replaced with resources for zh-CN and the other 9 locales. Same audit pass that v5.24.83 and v5.24.89 did for SettingsScreen and the bulk of ConnectionEditDialog — these are the ones the previous round missed.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تجاوز عتامة الخلفية",
+      "bn": "ব্যাকগ্রাউন্ড অস্বচ্ছতা ওভাররাইড করুন",
+      "de": "Hintergrund-Deckkraft überschreiben",
+      "es": "Sobrescribir la opacidad del fondo",
+      "fr": "Remplacer l\\'opacité de l\\'arrière-plan",
+      "hi": "बैकग्राउंड अपारदर्शिता ओवरराइड करें",
+      "ja": "背景の不透明度を上書き",
+      "ko": "배경 불투명도 재정의",
+      "pt": "Substituir opacidade do fundo",
+      "ru": "Переопределить непрозрачность фона",
+      "zh": "覆盖背景不透明度"
+     }
     },
     {
      "name": "connections_helper_background_opacity",
      "en": "Below 100%% the terminal becomes translucent and shows the device wallpaper behind the text for this profile. Off = use the global setting.",
      "comment": "#135 follow-up: hardcoded English strings replaced with resources for zh-CN and the other 9 locales. Same audit pass that v5.24.83 and v5.24.89 did for SettingsScreen and the bulk of ConnectionEditDialog — these are the ones the previous round missed.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أقل من 100%% تصبح الطرفية شبه شفافة وتُظهر خلفية الجهاز خلف النص لهذا الملف الشخصي. معطّل = استخدام الإعداد العام.",
+      "bn": "100%%-এর নিচে টার্মিনাল স্বচ্ছপ্রায় হয়ে যায় এবং এই প্রোফাইলে টেক্সটের পিছনে ডিভাইসের ওয়ালপেপার দেখায়। বন্ধ = গ্লোবাল সেটিং ব্যবহার।",
+      "de": "Unter 100%% wird das Terminal durchscheinend und zeigt für dieses Profil das Hintergrundbild des Geräts hinter dem Text. Aus = globale Einstellung verwenden.",
+      "es": "Por debajo del 100%%, el terminal se vuelve translúcido y muestra el fondo de pantalla del dispositivo detrás del texto para este perfil. Desactivado = usar el ajuste global.",
+      "fr": "En dessous de 100%%, le terminal devient translucide et affiche le fond d\\'écran de l\\'appareil derrière le texte pour ce profil. Désactivé = utiliser le réglage global.",
+      "hi": "100%% से नीचे यह टर्मिनल पारभासी हो जाता है और इस प्रोफ़ाइल के टेक्स्ट के पीछे डिवाइस का वॉलपेपर दिखाता है। बंद = ग्लोबल सेटिंग उपयोग करें।",
+      "ja": "100%% 未満にすると、このプロファイルのターミナルが半透明になり、文字の背後にデバイスの壁紙が表示されます。オフ = グローバル設定を使用。",
+      "ko": "100%% 미만이면 이 프로필의 터미널이 반투명해지고 글자 뒤로 기기 배경화면이 표시됩니다. 끄면 전역 설정을 사용합니다.",
+      "pt": "Abaixo de 100%% o terminal fica translúcido e mostra o papel de parede do dispositivo atrás do texto neste perfil. Desativado = usar a configuração global.",
+      "ru": "Ниже 100%% терминал становится полупрозрачным и показывает обои устройства за текстом для этого профиля. Выключено = используется глобальная настройка.",
+      "zh": "低于 100%% 时，此配置的终端将变为半透明，在文字后面显示设备壁纸。关闭 = 使用全局设置。"
+     }
     },
     {
      "name": "connections_background_opacity_value",
@@ -8660,7 +9236,19 @@
      "args": [
       "%1$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "العتامة: %1$d%%",
+      "bn": "অস্বচ্ছতা: %1$d%%",
+      "de": "Deckkraft: %1$d%%",
+      "es": "Opacidad: %1$d%%",
+      "fr": "Opacité : %1$d%%",
+      "hi": "अपारदर्शिता: %1$d%%",
+      "ja": "不透明度: %1$d%%",
+      "ko": "불투명도: %1$d%%",
+      "pt": "Opacidade: %1$d%%",
+      "ru": "Непрозрачность: %1$d%%",
+      "zh": "不透明度：%1$d%%"
+     }
     },
     {
      "name": "connections_tunnel_dropdown_label",
@@ -10347,14 +10935,38 @@
      "en": "Reveal saved password",
      "comment": "ConnectionsScreen top-level",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إظهار كلمة المرور المحفوظة",
+      "bn": "সংরক্ষিত পাসওয়ার্ড দেখান",
+      "de": "Gespeichertes Passwort anzeigen",
+      "es": "Mostrar la contraseña guardada",
+      "fr": "Afficher le mot de passe enregistré",
+      "hi": "सहेजा गया पासवर्ड दिखाएँ",
+      "ja": "保存済みパスワードを表示",
+      "ko": "저장된 비밀번호 표시",
+      "pt": "Revelar senha salva",
+      "ru": "Показать сохранённый пароль",
+      "zh": "显示已保存的密码"
+     }
     },
     {
      "name": "connections_reveal_password_subtitle",
      "en": "Confirm it\\'s you to show the saved password",
      "comment": "ConnectionsScreen top-level",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أكّد هويتك لعرض كلمة المرور المحفوظة",
+      "bn": "সংরক্ষিত পাসওয়ার্ড দেখাতে নিশ্চিত করুন যে এটি আপনিই",
+      "de": "Bestätige deine Identität, um das gespeicherte Passwort anzuzeigen",
+      "es": "Confirma que eres tú para mostrar la contraseña guardada",
+      "fr": "Confirmez votre identité pour afficher le mot de passe enregistré",
+      "hi": "सहेजा गया पासवर्ड देखने के लिए पुष्टि करें कि यह आप ही हैं",
+      "ja": "本人確認を行うと保存済みパスワードが表示されます",
+      "ko": "본인 확인 후 저장된 비밀번호를 표시합니다",
+      "pt": "Confirme que é você para mostrar a senha salva",
+      "ru": "Подтвердите, что это вы, чтобы показать сохранённый пароль",
+      "zh": "验证身份后显示已保存的密码"
+     }
     },
     {
      "name": "connections_renewing_cert",
@@ -11102,56 +11714,152 @@
      "en": "Import rclone remotes",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "استيراد سجلات rclone البعيدة",
+      "bn": "rclone রিমোট ইমপোর্ট করুন",
+      "de": "rclone-Remotes importieren",
+      "es": "Importar remotos de rclone",
+      "fr": "Importer des dépôts distants rclone",
+      "hi": "rclone रिमोट आयात करें",
+      "ja": "rclone リモートをインポート",
+      "ko": "rclone 원격 가져오기",
+      "pt": "Importar remotos rclone",
+      "ru": "Импорт удалённых хранилищ rclone",
+      "zh": "导入 rclone 远程"
+     }
     },
     {
      "name": "rclone_import_intro",
      "en": "Paste your Linux rclone.conf, or pick the file. Remotes (including OAuth tokens) are imported as-is, so you don\\'t reconfigure them.",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الصق ملف rclone.conf من Linux أو اختر الملف. تُستورد السجلات البعيدة (بما فيها رموز OAuth) كما هي، فلا تحتاج إلى إعادة تهيئتها.",
+      "bn": "আপনার Linux rclone.conf পেস্ট করুন, বা ফাইলটি বেছে নিন। রিমোটগুলি (OAuth টোকেন সহ) যেমন আছে তেমনই ইমপোর্ট হয়, তাই আবার কনফিগার করতে হয় না।",
+      "de": "Füge deine rclone.conf von Linux ein oder wähle die Datei aus. Remotes (einschließlich OAuth-Tokens) werden unverändert importiert, sodass du sie nicht neu konfigurieren musst.",
+      "es": "Pega tu rclone.conf de Linux o elige el archivo. Los remotos (incluidos los tokens OAuth) se importan tal cual, así no tienes que reconfigurarlos.",
+      "fr": "Collez votre rclone.conf Linux ou choisissez le fichier. Les dépôts distants (y compris les jetons OAuth) sont importés tels quels, sans reconfiguration.",
+      "hi": "अपना Linux rclone.conf पेस्ट करें, या फ़ाइल चुनें। रिमोट (OAuth टोकन सहित) ज्यों के त्यों आयात होते हैं, ताकि आपको उन्हें दोबारा कॉन्फ़िगर न करना पड़े।",
+      "ja": "Linux の rclone.conf を貼り付けるか、ファイルを選択してください。リモート（OAuth トークンを含む）はそのままインポートされるため、再設定は不要です。",
+      "ko": "Linux의 rclone.conf를 붙여넣거나 파일을 선택하세요. 원격(OAuth 토큰 포함)이 그대로 가져와지므로 다시 구성할 필요가 없습니다.",
+      "pt": "Cole seu rclone.conf do Linux ou escolha o arquivo. Os remotos (incluindo tokens OAuth) são importados como estão, então você não precisa reconfigurá-los.",
+      "ru": "Вставьте ваш rclone.conf из Linux или выберите файл. Удалённые хранилища (включая токены OAuth) импортируются как есть, поэтому перенастраивать их не нужно.",
+      "zh": "粘贴 Linux 上的 rclone.conf，或选择该文件。远程（包括 OAuth 令牌）将按原样导入，无需重新配置。"
+     }
     },
     {
      "name": "rclone_import_pick_file",
      "en": "Pick rclone.conf…",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "اختيار rclone.conf…",
+      "bn": "rclone.conf বেছে নিন…",
+      "de": "rclone.conf auswählen…",
+      "es": "Elegir rclone.conf…",
+      "fr": "Choisir rclone.conf…",
+      "hi": "rclone.conf चुनें…",
+      "ja": "rclone.conf を選択…",
+      "ko": "rclone.conf 선택…",
+      "pt": "Escolher rclone.conf…",
+      "ru": "Выбрать rclone.conf…",
+      "zh": "选择 rclone.conf…"
+     }
     },
     {
      "name": "rclone_import_paste_label",
      "en": "rclone.conf contents",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "محتوى rclone.conf",
+      "bn": "rclone.conf-এর বিষয়বস্তু",
+      "de": "Inhalt der rclone.conf",
+      "es": "Contenido de rclone.conf",
+      "fr": "Contenu de rclone.conf",
+      "hi": "rclone.conf की सामग्री",
+      "ja": "rclone.conf の内容",
+      "ko": "rclone.conf 내용",
+      "pt": "Conteúdo do rclone.conf",
+      "ru": "Содержимое rclone.conf",
+      "zh": "rclone.conf 内容"
+     }
     },
     {
      "name": "rclone_import_parse",
      "en": "Find remotes",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "البحث عن السجلات البعيدة",
+      "bn": "রিমোট খুঁজুন",
+      "de": "Remotes suchen",
+      "es": "Buscar remotos",
+      "fr": "Rechercher les dépôts distants",
+      "hi": "रिमोट खोजें",
+      "ja": "リモートを検出",
+      "ko": "원격 찾기",
+      "pt": "Encontrar remotos",
+      "ru": "Найти удалённые хранилища",
+      "zh": "查找远程"
+     }
     },
     {
      "name": "rclone_import_encrypted",
      "en": "That file is a password-encrypted rclone config. Run \\\"rclone config show\\\" on the desktop and paste the decrypted output instead.",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "هذا الملف هو تهيئة rclone مشفّرة بكلمة مرور. نفّذ \\\"rclone config show\\\" على الحاسوب والصق المخرجات المفكوكة التشفير بدلًا منه.",
+      "bn": "ফাইলটি পাসওয়ার্ড-এনক্রিপ্টেড rclone কনফিগ। ডেস্কটপে \\\"rclone config show\\\" চালান এবং ডিক্রিপ্ট করা আউটপুট পেস্ট করুন।",
+      "de": "Diese Datei ist eine passwortverschlüsselte rclone-Konfiguration. Führe auf dem Desktop-Rechner \\\"rclone config show\\\" aus und füge stattdessen die entschlüsselte Ausgabe ein.",
+      "es": "Ese archivo es una configuración de rclone cifrada con contraseña. Ejecuta \\\"rclone config show\\\" en el ordenador y pega la salida descifrada en su lugar.",
+      "fr": "Ce fichier est une configuration rclone chiffrée par mot de passe. Exécutez \\\"rclone config show\\\" sur l\\'ordinateur et collez plutôt la sortie déchiffrée.",
+      "hi": "वह फ़ाइल पासवर्ड-एन्क्रिप्टेड rclone कॉन्फ़िग है। डेस्कटॉप पर \\\"rclone config show\\\" चलाएँ और उसकी डिक्रिप्टेड आउटपुट पेस्ट करें।",
+      "ja": "このファイルはパスワードで暗号化された rclone 設定です。デスクトップで「rclone config show」を実行し、復号された出力を貼り付けてください。",
+      "ko": "이 파일은 비밀번호로 암호화된 rclone 구성입니다. 데스크톱에서 “rclone config show”를 실행한 뒤 복호화된 출력을 붙여넣으세요.",
+      "pt": "Esse arquivo é uma configuração rclone criptografada por senha. Execute \\\"rclone config show\\\" no computador e cole a saída descriptografada.",
+      "ru": "Этот файл — конфигурация rclone, зашифрованная паролем. Выполните \\\"rclone config show\\\" на компьютере и вставьте расшифрованный вывод.",
+      "zh": "该文件是使用密码加密的 rclone 配置。请在桌面端运行 “rclone config show”，然后粘贴解密后的输出。"
+     }
     },
     {
      "name": "rclone_import_already_added",
      "en": "already added",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أُضيف بالفعل",
+      "bn": "আগেই যোগ করা",
+      "de": "bereits hinzugefügt",
+      "es": "ya añadido",
+      "fr": "déjà ajouté",
+      "hi": "पहले से जोड़ा गया",
+      "ja": "追加済み",
+      "ko": "이미 추가됨",
+      "pt": "já adicionado",
+      "ru": "уже добавлен",
+      "zh": "已添加"
+     }
     },
     {
      "name": "rclone_import_no_type",
      "en": "no type",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "بدون نوع",
+      "bn": "কোনো টাইপ নেই",
+      "de": "kein Typ",
+      "es": "sin tipo",
+      "fr": "aucun type",
+      "hi": "कोई प्रकार नहीं",
+      "ja": "タイプなし",
+      "ko": "유형 없음",
+      "pt": "sem tipo",
+      "ru": "без типа",
+      "zh": "无类型"
+     }
     },
     {
      "name": "rclone_import_select_count",
@@ -11160,7 +11868,19 @@
      "args": [
       "%1$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "استيراد %1$d من السجلات البعيدة",
+      "bn": "%1$d রিমোট ইমপোর্ট করুন",
+      "de": "%1$d Remote(s) importieren",
+      "es": "Importar %1$d remoto(s)",
+      "fr": "Importer %1$d dépôt(s) distant(s)",
+      "hi": "%1$d रिमोट आयात करें",
+      "ja": "%1$d 件のリモートをインポート",
+      "ko": "원격 %1$d개 가져오기",
+      "pt": "Importar %1$d remoto(s)",
+      "ru": "Импортировать хранилища (%1$d)",
+      "zh": "导入 %1$d 个远程"
+     }
     },
     {
      "name": "rclone_import_done",
@@ -11171,14 +11891,38 @@
       "%2$d",
       "%3$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "تم استيراد %1$d، وتخطي %2$d، وفشل %3$d.",
+      "bn": "%1$d ইমপোর্ট হয়েছে, %2$d বাদ, %3$d ব্যর্থ।",
+      "de": "%1$d importiert, %2$d übersprungen, %3$d fehlgeschlagen.",
+      "es": "%1$d importados, %2$d omitidos, %3$d fallidos.",
+      "fr": "%1$d importé(s), %2$d ignoré(s), %3$d en échec.",
+      "hi": "%1$d आयात हुए, %2$d छोड़े गए, %3$d विफल।",
+      "ja": "インポート %1$d 件、スキップ %2$d 件、失敗 %3$d 件。",
+      "ko": "가져옴 %1$d개, 건너뜀 %2$d개, 실패 %3$d개.",
+      "pt": "Importados %1$d, ignorados %2$d, com falha %3$d.",
+      "ru": "Импортировано: %1$d, пропущено: %2$d, с ошибкой: %3$d.",
+      "zh": "已导入 %1$d 个，跳过 %2$d 个，失败 %3$d 个。"
+     }
     },
     {
      "name": "rclone_import_menu",
      "en": "Import rclone config…",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "استيراد تهيئة rclone…",
+      "bn": "rclone কনফিগ ইমপোর্ট করুন…",
+      "de": "rclone-Konfiguration importieren…",
+      "es": "Importar configuración de rclone…",
+      "fr": "Importer la configuration rclone…",
+      "hi": "rclone कॉन्फ़िग आयात करें…",
+      "ja": "rclone 設定をインポート…",
+      "ko": "rclone 구성 가져오기…",
+      "pt": "Importar configuração rclone…",
+      "ru": "Импорт конфигурации rclone…",
+      "zh": "导入 rclone 配置…"
+     }
     },
     {
      "name": "connections_section_vnc",
@@ -11223,7 +11967,19 @@
      "en": "SPICE settings",
      "comment": "Import rclone.conf (#251)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إعدادات SPICE",
+      "bn": "SPICE সেটিংস",
+      "de": "SPICE-Einstellungen",
+      "es": "Ajustes de SPICE",
+      "fr": "Paramètres SPICE",
+      "hi": "SPICE सेटिंग्स",
+      "ja": "SPICE 設定",
+      "ko": "SPICE 설정",
+      "pt": "Configurações SPICE",
+      "ru": "Настройки SPICE",
+      "zh": "SPICE 设置"
+     }
     },
     {
      "name": "connections_section_smb",
@@ -11802,7 +12558,19 @@
      "en": "AI agent (MCP)",
      "comment": "Connection edit dialog: remaining field labels, toggles and helper text.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "وكيل الذكاء الاصطناعي (MCP)",
+      "bn": "AI এজেন্ট (MCP)",
+      "de": "KI-Agent (MCP)",
+      "es": "Agente de IA (MCP)",
+      "fr": "Agent IA (MCP)",
+      "hi": "AI एजेंट (MCP)",
+      "ja": "AI エージェント (MCP)",
+      "ko": "AI 에이전트 (MCP)",
+      "pt": "Agente de IA (MCP)",
+      "ru": "ИИ-агент (MCP)",
+      "zh": "AI 代理（MCP）"
+     }
     },
     {
      "name": "connections_local_shell_android_desc",
@@ -11980,7 +12748,19 @@
      "en": "Tap “Configure &amp; verify” to save this remote before you can Save the connection.",
      "comment": "Connection edit dialog: remaining field labels, toggles and helper text.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "اضغط “تهيئة والتحقق” لحفظ هذا السجل البعيد قبل أن تتمكن من حفظ الاتصال.",
+      "bn": "সংযোগ সংরক্ষণের আগে এই রিমোট সংরক্ষণ করতে “কনফিগার ও যাচাই”-এ ট্যাপ করুন।",
+      "de": "Tippe auf „Konfigurieren &amp; prüfen“, um dieses Remote zu speichern, bevor du die Verbindung speichern kannst.",
+      "es": "Toca “Configurar y verificar” para guardar este remoto antes de poder guardar la conexión.",
+      "fr": "Touchez « Configurer et vérifier » pour enregistrer ce dépôt distant avant de pouvoir enregistrer la connexion.",
+      "hi": "कनेक्शन सहेजने से पहले इस रिमोट को सहेजने के लिए “कॉन्फ़िगर करें और सत्यापित करें” पर टैप करें।",
+      "ja": "接続を保存する前に、「設定して確認」をタップしてこのリモートを保存してください。",
+      "ko": "연결을 저장하려면 먼저 “구성 및 확인”을 탭하여 이 원격을 저장하세요.",
+      "pt": "Toque em “Configurar e verificar” para salvar este remoto antes de poder Salvar a conexão.",
+      "ru": "Нажмите «Настроить и проверить», чтобы сохранить это хранилище, прежде чем сохранять подключение.",
+      "zh": "请先点按“配置并验证”保存此远程，然后才能保存连接。"
+     }
     },
     {
      "name": "connections_dropdown_select_ssh",
@@ -12274,7 +13054,19 @@
      "en": "SPICE uses a single optional ticket/password. Leave blank for an unticketed server.",
      "comment": "Connection edit dialog: remaining field labels, toggles and helper text.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يستخدم SPICE تذكرة/كلمة مرور واحدة اختيارية. اتركها فارغة لخادم بدون تذكرة.",
+      "bn": "SPICE একটিমাত্র ঐচ্ছিক টিকিট/পাসওয়ার্ড ব্যবহার করে। টিকিটবিহীন সার্ভারের জন্য ফাঁকা রাখুন।",
+      "de": "SPICE verwendet ein einzelnes optionales Ticket/Passwort. Für einen Server ohne Ticket leer lassen.",
+      "es": "SPICE usa un único ticket/contraseña opcional. Déjalo en blanco para un servidor sin ticket.",
+      "fr": "SPICE utilise un seul ticket/mot de passe facultatif. Laissez vide pour un serveur sans ticket.",
+      "hi": "SPICE एक ही वैकल्पिक टिकट/पासवर्ड उपयोग करता है। बिना टिकट वाले सर्वर के लिए खाली छोड़ें।",
+      "ja": "SPICE は単一の任意のチケット／パスワードを使用します。チケットなしのサーバーの場合は空欄のままにしてください。",
+      "ko": "SPICE는 선택적 티켓/비밀번호 하나를 사용합니다. 티켓이 없는 서버라면 비워 두세요.",
+      "pt": "O SPICE usa um único ticket/senha opcional. Deixe em branco para um servidor sem ticket.",
+      "ru": "SPICE использует один необязательный тикет/пароль. Оставьте пустым для сервера без тикета.",
+      "zh": "SPICE 使用单个可选的票据/密码。服务器未启用票据时请留空。"
+     }
     },
     {
      "name": "connections_helper_rdp_host_via_ssh",
@@ -13105,7 +13897,19 @@
      "en": "Any hardware key (FIDO)",
      "comment": "#210 i18n sweep: ordered multi-factor auth methods editor (#166).",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أي مفتاح أمان (FIDO)",
+      "bn": "যেকোনো হার্ডওয়্যার কী (FIDO)",
+      "de": "Beliebiger Hardware-Schlüssel (FIDO)",
+      "es": "Cualquier llave de hardware (FIDO)",
+      "fr": "N\\'importe quelle clé matérielle (FIDO)",
+      "hi": "कोई भी हार्डवेयर कुंजी (FIDO)",
+      "ja": "任意のハードウェアキー (FIDO)",
+      "ko": "모든 하드웨어 키 (FIDO)",
+      "pt": "Qualquer chave de hardware (FIDO)",
+      "ru": "Любой аппаратный ключ (FIDO)",
+      "zh": "任意硬件密钥（FIDO）"
+     }
     },
     {
      "name": "connections_auth_method_keyboard_interactive",
@@ -13532,7 +14336,19 @@
      "en": "Connect?",
      "comment": "#210 i18n sweep: VM-setup copy toasts and code-block copy action.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "هل تريد الاتصال؟",
+      "bn": "সংযোগ করবেন?",
+      "de": "Verbinden?",
+      "es": "¿Conectar?",
+      "fr": "Se connecter ?",
+      "hi": "कनेक्ट करें?",
+      "ja": "接続しますか？",
+      "ko": "연결할까요?",
+      "pt": "Conectar?",
+      "ru": "Подключиться?",
+      "zh": "要连接吗？"
+     }
     },
     {
      "name": "connections_deeplink_confirm_message",
@@ -13541,7 +14357,19 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "يطلب رابط الاتصال بـ %1$s.",
+      "bn": "একটি লিংক %1$s-এ সংযোগ করতে চায়।",
+      "de": "Ein Link möchte sich mit %1$s verbinden.",
+      "es": "Un enlace quiere conectarse a %1$s.",
+      "fr": "Un lien souhaite se connecter à %1$s.",
+      "hi": "एक लिंक %1$s से कनेक्ट करना चाहता है।",
+      "ja": "リンクが %1$s への接続を要求しています。",
+      "ko": "링크가 %1$s에 연결하려고 합니다.",
+      "pt": "Um link quer se conectar a %1$s.",
+      "ru": "Ссылка запрашивает подключение к %1$s.",
+      "zh": "一个链接请求连接到 %1$s。"
+     }
     },
     {
      "name": "connections_deeplink_confirm_session",
@@ -13551,14 +14379,38 @@
       "%1$s",
       "%2$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "يطلب رابط الاتصال بـ %1$s وإرفاق الجلسة “%2$s”.",
+      "bn": "একটি লিংক %1$s-এ সংযোগ করে সেশন “%2$s” সংযুক্ত করতে চায়।",
+      "de": "Ein Link möchte sich mit %1$s verbinden und die Sitzung „%2$s“ anhängen.",
+      "es": "Un enlace quiere conectarse a %1$s y adjuntar la sesión “%2$s”.",
+      "fr": "Un lien souhaite se connecter à %1$s et attacher la session « %2$s ».",
+      "hi": "एक लिंक %1$s से कनेक्ट होकर सत्र “%2$s” अटैच करना चाहता है।",
+      "ja": "リンクが %1$s に接続し、セッション「%2$s」にアタッチしようとしています。",
+      "ko": "링크가 %1$s에 연결하고 세션 “%2$s”에 연결하려고 합니다.",
+      "pt": "Um link quer se conectar a %1$s e anexar a sessão “%2$s”.",
+      "ru": "Ссылка запрашивает подключение к %1$s и присоединение к сессии «%2$s».",
+      "zh": "一个链接请求连接到 %1$s 并附加会话“%2$s”。"
+     }
     },
     {
      "name": "connections_deeplink_confirm_connect",
      "en": "Connect",
      "comment": "#210 i18n sweep: VM-setup copy toasts and code-block copy action.",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "اتصال",
+      "bn": "সংযোগ",
+      "de": "Verbinden",
+      "es": "Conectar",
+      "fr": "Se connecter",
+      "hi": "कनेक्ट करें",
+      "ja": "接続",
+      "ko": "연결",
+      "pt": "Conectar",
+      "ru": "Подключиться",
+      "zh": "连接"
+     }
     }
    ]
   },
@@ -15483,21 +16335,57 @@
      "en": "Store passphrase on this device",
      "comment": "copyPublicKey",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تخزين عبارة المرور على هذا الجهاز",
+      "bn": "পাসফ্রেজ এই ডিভাইসে সংরক্ষণ করুন",
+      "de": "Passphrase auf diesem Gerät speichern",
+      "es": "Guardar la frase de contraseña en este dispositivo",
+      "fr": "Enregistrer la phrase secrète sur cet appareil",
+      "hi": "पासफ़्रेज़ इस डिवाइस पर संग्रहीत करें",
+      "ja": "パスフレーズをこのデバイスに保存",
+      "ko": "이 기기에 암호문 저장",
+      "pt": "Armazenar frase secreta neste dispositivo",
+      "ru": "Хранить парольную фразу на этом устройстве",
+      "zh": "在此设备上存储密码短语"
+     }
     },
     {
      "name": "keys_store_passphrase_warning",
      "en": "Save this key\\'s passphrase to this device\\'s hardware-backed encrypted storage so connections using this key never prompt for it. Anyone who can unlock this device can use the key. Enable only if you accept that risk.",
      "comment": "copyPublicKey",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "يحفظ عبارة مرور هذا المفتاح في التخزين المشفّر المدعوم بالعتاد على هذا الجهاز، فلا تطلبها الاتصالات التي تستخدم هذا المفتاح أبدًا. يمكن لأي شخص يستطيع فتح قفل هذا الجهاز استخدام المفتاح. فعّله فقط إذا قبلت هذه المخاطرة.",
+      "bn": "এই কী-র পাসফ্রেজ এই ডিভাইসের হার্ডওয়্যার-সমর্থিত এনক্রিপ্টেড স্টোরেজে সংরক্ষণ করুন, যাতে এই কী ব্যবহারকারী সংযোগগুলি কখনো এটি জিজ্ঞাসা না করে। যে কেউ এই ডিভাইস আনলক করতে পারে, সে কী-টি ব্যবহার করতে পারবে। এই ঝুঁকি মেনে নিলে তবেই চালু করুন।",
+      "de": "Speichert die Passphrase dieses Schlüssels im hardwaregestützten verschlüsselten Speicher dieses Geräts, sodass Verbindungen mit diesem Schlüssel nie danach fragen. Jeder, der dieses Gerät entsperren kann, kann den Schlüssel verwenden. Nur aktivieren, wenn Sie dieses Risiko akzeptieren.",
+      "es": "Guarda la frase de contraseña de esta clave en el almacenamiento cifrado con respaldo de hardware de este dispositivo, de modo que las conexiones que usen esta clave no la pidan nunca. Cualquiera que pueda desbloquear este dispositivo podrá usar la clave. Actívalo solo si aceptas ese riesgo.",
+      "fr": "Enregistre la phrase secrète de cette clé dans le stockage chiffré adossé au matériel de cet appareil, afin que les connexions utilisant cette clé ne la demandent plus jamais. Quiconque peut déverrouiller cet appareil peut utiliser la clé. À activer uniquement si vous acceptez ce risque.",
+      "hi": "इस कुंजी का पासफ़्रेज़ इस डिवाइस के हार्डवेयर-समर्थित एन्क्रिप्टेड स्टोरेज में सहेजें, ताकि इस कुंजी वाले कनेक्शन इसे कभी न पूछें। जो कोई भी यह डिवाइस अनलॉक कर सकता है, वह कुंजी का उपयोग कर सकता है। केवल तभी चालू करें जब आपको यह जोखिम स्वीकार हो।",
+      "ja": "この鍵のパスフレーズをこのデバイスのハードウェア保護付き暗号化ストレージに保存し、この鍵を使う接続で入力を求められないようにします。このデバイスをロック解除できる人は誰でもこの鍵を使えます。そのリスクを許容できる場合のみ有効にしてください。",
+      "ko": "이 키의 암호문을 이 기기의 하드웨어 기반 암호화 저장소에 저장하여, 이 키를 사용하는 연결에서 다시 묻지 않게 합니다. 이 기기를 잠금 해제할 수 있는 사람은 누구나 이 키를 사용할 수 있습니다. 이 위험을 감수할 수 있을 때만 켜세요.",
+      "pt": "Salva a frase secreta desta chave no armazenamento criptografado com suporte de hardware deste dispositivo, para que conexões com esta chave nunca a solicitem. Qualquer pessoa que consiga desbloquear este dispositivo pode usar a chave. Ative apenas se aceitar esse risco.",
+      "ru": "Сохраняет парольную фразу этого ключа в аппаратно защищённом зашифрованном хранилище устройства, чтобы подключения с этим ключом никогда её не запрашивали. Любой, кто может разблокировать это устройство, сможет использовать ключ. Включайте, только если принимаете этот риск.",
+      "zh": "将此密钥的密码短语保存到本设备由硬件支持的加密存储中，使用此密钥的连接将不再提示输入。任何能解锁本设备的人都可以使用该密钥。仅在接受该风险时启用。"
+     }
     },
     {
      "name": "keys_store_passphrase_confirm",
      "en": "Store",
      "comment": "copyPublicKey",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تخزين",
+      "bn": "সংরক্ষণ করুন",
+      "de": "Speichern",
+      "es": "Guardar",
+      "fr": "Enregistrer",
+      "hi": "संग्रहीत करें",
+      "ja": "保存",
+      "ko": "저장",
+      "pt": "Armazenar",
+      "ru": "Сохранить",
+      "zh": "存储"
+     }
     },
     {
      "name": "keys_sk_require_pin",
@@ -17182,42 +18070,114 @@
      "args": [
       "%1$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "هويات التشفير (age) · %1$d",
+      "bn": "এনক্রিপশন পরিচয় (age) · %1$d",
+      "de": "Verschlüsselungsidentitäten (age) · %1$d",
+      "es": "Identidades de cifrado (age) · %1$d",
+      "fr": "Identités de chiffrement (age) · %1$d",
+      "hi": "एन्क्रिप्शन पहचानें (age) · %1$d",
+      "ja": "暗号化アイデンティティ (age) · %1$d",
+      "ko": "암호화 ID (age) · %1$d",
+      "pt": "Identidades de criptografia (age) · %1$d",
+      "ru": "Идентификаторы шифрования (age) · %1$d",
+      "zh": "加密身份（age）· %1$d"
+     }
     },
     {
      "name": "keys_generate_age",
      "en": "Generate age identity",
      "comment": "age file-encryption identities (VISION §2)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إنشاء هوية age",
+      "bn": "age পরিচয় তৈরি করুন",
+      "de": "age-Identität erzeugen",
+      "es": "Generar identidad age",
+      "fr": "Générer une identité age",
+      "hi": "age पहचान बनाएँ",
+      "ja": "age アイデンティティを生成",
+      "ko": "age ID 생성",
+      "pt": "Gerar identidade age",
+      "ru": "Создать идентификатор age",
+      "zh": "生成 age 身份"
+     }
     },
     {
      "name": "keys_generate_age_hint",
      "en": "An X25519 keypair for encrypting files (age)",
      "comment": "age file-encryption identities (VISION §2)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "زوج مفاتيح X25519 لتشفير الملفات (age)",
+      "bn": "ফাইল এনক্রিপ্ট করার জন্য একটি X25519 কী-জোড়া (age)",
+      "de": "Ein X25519-Schlüsselpaar zum Verschlüsseln von Dateien (age)",
+      "es": "Un par de claves X25519 para cifrar archivos (age)",
+      "fr": "Une paire de clés X25519 pour chiffrer des fichiers (age)",
+      "hi": "फ़ाइलें एन्क्रिप्ट करने के लिए एक X25519 कुंजी-युग्म (age)",
+      "ja": "ファイル暗号化用の X25519 鍵ペア (age)",
+      "ko": "파일 암호화용 X25519 키 쌍 (age)",
+      "pt": "Um par de chaves X25519 para criptografar arquivos (age)",
+      "ru": "Пара ключей X25519 для шифрования файлов (age)",
+      "zh": "用于加密文件的 X25519 密钥对（age）"
+     }
     },
     {
      "name": "keys_generate_age_title",
      "en": "New age identity",
      "comment": "age file-encryption identities (VISION §2)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "هوية age جديدة",
+      "bn": "নতুন age পরিচয়",
+      "de": "Neue age-Identität",
+      "es": "Nueva identidad age",
+      "fr": "Nouvelle identité age",
+      "hi": "नई age पहचान",
+      "ja": "新しい age アイデンティティ",
+      "ko": "새 age ID",
+      "pt": "Nova identidade age",
+      "ru": "Новый идентификатор age",
+      "zh": "新建 age 身份"
+     }
     },
     {
      "name": "keys_age_label_hint",
      "en": "Label",
      "comment": "age file-encryption identities (VISION §2)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التسمية",
+      "bn": "লেবেল",
+      "de": "Bezeichnung",
+      "es": "Etiqueta",
+      "fr": "Libellé",
+      "hi": "लेबल",
+      "ja": "ラベル",
+      "ko": "라벨",
+      "pt": "Rótulo",
+      "ru": "Метка",
+      "zh": "标签"
+     }
     },
     {
      "name": "keys_age_recipient_copied",
      "en": "Recipient copied",
      "comment": "age file-encryption identities (VISION §2)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تم نسخ المستلم",
+      "bn": "প্রাপক কপি হয়েছে",
+      "de": "Empfänger kopiert",
+      "es": "Destinatario copiado",
+      "fr": "Destinataire copié",
+      "hi": "प्राप्तकर्ता कॉपी हो गया",
+      "ja": "受信者をコピーしました",
+      "ko": "수신자 복사됨",
+      "pt": "Destinatário copiado",
+      "ru": "Получатель скопирован",
+      "zh": "已复制接收者"
+     }
     },
     {
      "name": "keys_fido_pin_title",
@@ -20103,14 +21063,38 @@
      "en": "Two-finger pans the view (tap to scroll the remote)",
      "comment": "",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إصبعان يحرّكان العرض (اضغط لتمرير الشاشة البعيدة)",
+      "bn": "দুই আঙুলে ভিউ প্যান হয় (রিমোট স্ক্রোল করতে ট্যাপ করুন)",
+      "de": "Zwei Finger verschieben die Ansicht (tippen, um den entfernten Bildschirm zu scrollen)",
+      "es": "Dos dedos mueven la vista (toca para desplazar la pantalla remota)",
+      "fr": "Deux doigts déplacent la vue (toucher pour faire défiler l\\'écran distant)",
+      "hi": "दो उँगलियाँ व्यू पैन करती हैं (रिमोट स्क्रॉल करने के लिए टैप करें)",
+      "ja": "2 本指でビューをパン（タップでリモート側のスクロールに切替）",
+      "ko": "두 손가락으로 화면 이동 (원격 스크롤로 전환하려면 탭)",
+      "pt": "Dois dedos deslocam a visualização (toque para rolar o remoto)",
+      "ru": "Два пальца перемещают вид (нажмите, чтобы прокручивать удалённый экран)",
+      "zh": "双指平移视图（点按切换为滚动远程端）"
+     }
     },
     {
      "name": "rdp_cd_two_finger_scroll_on",
      "en": "Two-finger scrolls the remote (tap to pan the view)",
      "comment": "",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إصبعان يمرّران الشاشة البعيدة (اضغط لتحريك العرض)",
+      "bn": "দুই আঙুলে রিমোট স্ক্রোল হয় (ভিউ প্যান করতে ট্যাপ করুন)",
+      "de": "Zwei Finger scrollen den entfernten Bildschirm (tippen, um die Ansicht zu verschieben)",
+      "es": "Dos dedos desplazan la pantalla remota (toca para mover la vista)",
+      "fr": "Deux doigts font défiler l\\'écran distant (toucher pour déplacer la vue)",
+      "hi": "दो उँगलियाँ रिमोट स्क्रॉल करती हैं (व्यू पैन करने के लिए टैप करें)",
+      "ja": "2 本指でリモート側をスクロール（タップでビューのパンに切替）",
+      "ko": "두 손가락으로 원격 스크롤 (화면 이동으로 전환하려면 탭)",
+      "pt": "Dois dedos rolam o remoto (toque para deslocar a visualização)",
+      "ru": "Два пальца прокручивают удалённый экран (нажмите, чтобы перемещать вид)",
+      "zh": "双指滚动远程端（点按切换为平移视图）"
+     }
     },
     {
      "name": "rdp_orientation_landscape_desc",
@@ -22044,49 +23028,133 @@
      "en": "Shell prompt characters",
      "comment": "Custom shell prompt characters (#280)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أحرف موجه shell",
+      "bn": "শেল প্রম্পট অক্ষর",
+      "de": "Shell-Prompt-Zeichen",
+      "es": "Caracteres del prompt del shell",
+      "fr": "Caractères d\\'invite du shell",
+      "hi": "शेल प्रॉम्प्ट वर्ण",
+      "ja": "シェルプロンプト文字",
+      "ko": "셸 프롬프트 문자",
+      "pt": "Caracteres do prompt do shell",
+      "ru": "Символы приглашения shell",
+      "zh": "Shell 提示符字符"
+     }
     },
     {
      "name": "settings_prompt_chars_subtitle",
      "en": "Default: $ # % &gt; ❯",
      "comment": "Custom shell prompt characters (#280)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الافتراضي: $ # % &gt; ❯",
+      "bn": "ডিফল্ট: $ # % &gt; ❯",
+      "de": "Standard: $ # % &gt; ❯",
+      "es": "Predeterminado: $ # % &gt; ❯",
+      "fr": "Par défaut : $ # % &gt; ❯",
+      "hi": "डिफ़ॉल्ट: $ # % &gt; ❯",
+      "ja": "デフォルト: $ # % &gt; ❯",
+      "ko": "기본값: $ # % &gt; ❯",
+      "pt": "Padrão: $ # % &gt; ❯",
+      "ru": "По умолчанию: $ # % &gt; ❯",
+      "zh": "默认：$ # % &gt; ❯"
+     }
     },
     {
      "name": "settings_prompt_chars_description",
      "en": "Extra characters that end your shell prompt, so a queued command is sent once the prompt reappears (e.g. after reconnecting or reattaching tmux). Add the trailing character(s) of your custom prompt — the built-in $ # % &gt; ❯ are always recognised.",
      "comment": "Custom shell prompt characters (#280)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أحرف إضافية ينتهي بها موجه shell لديك، بحيث يُرسل الأمر المُجدوَل بمجرد ظهور الموجه من جديد (مثلًا بعد إعادة الاتصال أو إعادة إرفاق tmux). أضف الحرف أو الأحرف الأخيرة لموجهك المخصص — الأحرف المدمجة $ # % &gt; ❯ يتم التعرف عليها دائمًا.",
+      "bn": "আপনার শেল প্রম্পটের শেষে থাকা অতিরিক্ত অক্ষর, যাতে প্রম্পট আবার দেখা দিলেই সারিবদ্ধ কমান্ড পাঠানো হয় (যেমন পুনরায় সংযোগ বা tmux পুনরায় সংযুক্ত করার পরে)। আপনার কাস্টম প্রম্পটের শেষ অক্ষরগুলি যোগ করুন — বিল্ট-ইন $ # % &gt; ❯ সবসময় শনাক্ত হয়।",
+      "de": "Zusätzliche Zeichen, mit denen dein Shell-Prompt endet, damit ein wartender Befehl gesendet wird, sobald der Prompt wieder erscheint (z. B. nach dem Neuverbinden oder erneutem Anhängen von tmux). Füge die Endzeichen deines eigenen Prompts hinzu — die eingebauten $ # % &gt; ❯ werden immer erkannt.",
+      "es": "Caracteres adicionales con los que termina tu prompt del shell, para que un comando en cola se envíe en cuanto el prompt reaparezca (p. ej. tras reconectar o volver a adjuntar tmux). Añade el o los caracteres finales de tu prompt personalizado — los integrados $ # % &gt; ❯ se reconocen siempre.",
+      "fr": "Caractères supplémentaires qui terminent votre invite shell, afin qu\\'une commande en file d\\'attente soit envoyée dès que l\\'invite réapparaît (ex. après une reconnexion ou un rattachement tmux). Ajoutez le ou les caractères finaux de votre invite personnalisée — les caractères intégrés $ # % &gt; ❯ sont toujours reconnus.",
+      "hi": "आपके शेल प्रॉम्प्ट के अंत में आने वाले अतिरिक्त वर्ण, ताकि प्रॉम्प्ट फिर से दिखते ही कतारबद्ध कमांड भेज दी जाए (जैसे पुनः कनेक्ट या tmux दोबारा अटैच करने के बाद)। अपने कस्टम प्रॉम्प्ट के अंतिम वर्ण जोड़ें — बिल्ट-इन $ # % &gt; ❯ हमेशा पहचाने जाते हैं।",
+      "ja": "シェルプロンプトの末尾に付く追加の文字です。プロンプトが再表示されたとき（再接続や tmux の再アタッチ後など）に、キューに入れたコマンドが送信されます。カスタムプロンプトの末尾文字を追加してください — 組み込みの $ # % &gt; ❯ は常に認識されます。",
+      "ko": "셸 프롬프트 끝을 나타내는 추가 문자입니다. 프롬프트가 다시 나타나면(예: 재연결 또는 tmux 재연결 후) 대기 중인 명령이 전송됩니다. 사용자 지정 프롬프트의 끝 문자를 추가하세요 — 기본 제공되는 $ # % &gt; ❯는 항상 인식됩니다.",
+      "pt": "Caracteres extras que terminam seu prompt de shell, para que um comando enfileirado seja enviado quando o prompt reaparecer (ex.: após reconectar ou reanexar o tmux). Adicione o(s) caractere(s) final(is) do seu prompt personalizado — os padrões $ # % &gt; ❯ são sempre reconhecidos.",
+      "ru": "Дополнительные символы, которыми заканчивается ваше приглашение shell, чтобы отложенная команда отправлялась, как только приглашение появится снова (напр. после переподключения или повторного подключения tmux). Добавьте завершающие символы вашего приглашения — встроенные $ # % &gt; ❯ распознаются всегда.",
+      "zh": "用于识别 shell 提示符结尾的额外字符，以便在提示符重新出现时（如重新连接或重新附加 tmux 后）发送排队的命令。请添加自定义提示符的结尾字符——内置的 $ # % &gt; ❯ 始终会被识别。"
+     }
     },
     {
      "name": "settings_prompt_chars_label",
      "en": "Extra prompt characters",
      "comment": "Custom shell prompt characters (#280)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أحرف موجه إضافية",
+      "bn": "অতিরিক্ত প্রম্পট অক্ষর",
+      "de": "Zusätzliche Prompt-Zeichen",
+      "es": "Caracteres de prompt adicionales",
+      "fr": "Caractères d\\'invite supplémentaires",
+      "hi": "अतिरिक्त प्रॉम्प्ट वर्ण",
+      "ja": "追加のプロンプト文字",
+      "ko": "추가 프롬프트 문자",
+      "pt": "Caracteres extras de prompt",
+      "ru": "Дополнительные символы приглашения",
+      "zh": "额外提示符字符"
+     }
     },
     {
      "name": "settings_terminal_locale_title",
      "en": "Terminal locale",
      "comment": "Local terminal locale / LANG (#282)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لغة الطرفية",
+      "bn": "টার্মিনাল লোকেল",
+      "de": "Terminal-Locale",
+      "es": "Configuración regional del terminal",
+      "fr": "Locale du terminal",
+      "hi": "टर्मिनल लोकेल",
+      "ja": "ターミナルのロケール",
+      "ko": "터미널 로캘",
+      "pt": "Localidade do terminal",
+      "ru": "Локаль терминала",
+      "zh": "终端语言环境"
+     }
     },
     {
      "name": "settings_terminal_locale_description",
      "en": "The LANG value exported into the local Linux shell. en_US.UTF-8 (default) and C.UTF-8 always work; other locales (e.g. zh_CN.UTF-8) may need generating in the guest with locale-gen before programs use them.",
      "comment": "Local terminal locale / LANG (#282)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "قيمة LANG المُصدَّرة إلى shell Linux المحلي. تعمل en_US.UTF-8 (الافتراضية) و C.UTF-8 دائمًا؛ أما اللغات الأخرى (مثل zh_CN.UTF-8) فقد تحتاج إلى توليدها داخل الضيف بالأمر locale-gen قبل أن تستخدمها البرامج.",
+      "bn": "স্থানীয় Linux শেলে এক্সপোর্ট হওয়া LANG মান। en_US.UTF-8 (ডিফল্ট) ও C.UTF-8 সবসময় কাজ করে; অন্যান্য লোকেল (যেমন zh_CN.UTF-8) প্রোগ্রামে ব্যবহারের আগে গেস্টে locale-gen দিয়ে জেনারেট করা লাগতে পারে।",
+      "de": "Der LANG-Wert, der in die lokale Linux-Shell exportiert wird. en_US.UTF-8 (Standard) und C.UTF-8 funktionieren immer; andere Locales (z. B. zh_CN.UTF-8) müssen im Gast eventuell erst mit locale-gen erzeugt werden, bevor Programme sie verwenden.",
+      "es": "El valor LANG exportado al shell Linux local. en_US.UTF-8 (predeterminado) y C.UTF-8 funcionan siempre; otras locales (p. ej. zh_CN.UTF-8) pueden requerir generarse en el invitado con locale-gen antes de que los programas las usen.",
+      "fr": "La valeur LANG exportée dans le shell Linux local. en_US.UTF-8 (par défaut) et C.UTF-8 fonctionnent toujours ; d\\'autres locales (ex. zh_CN.UTF-8) peuvent devoir être générées dans le guest avec locale-gen avant que les programmes puissent les utiliser.",
+      "hi": "स्थानीय Linux शेल में एक्सपोर्ट होने वाला LANG मान। en_US.UTF-8 (डिफ़ॉल्ट) और C.UTF-8 हमेशा काम करते हैं; अन्य लोकेल (जैसे zh_CN.UTF-8) को प्रोग्रामों के उपयोग से पहले गेस्ट में locale-gen से जनरेट करना पड़ सकता है।",
+      "ja": "ローカル Linux シェルにエクスポートされる LANG の値です。en_US.UTF-8（デフォルト）と C.UTF-8 は常に機能します。その他のロケール（例: zh_CN.UTF-8）は、プログラムが使う前にゲスト内で locale-gen による生成が必要な場合があります。",
+      "ko": "로컬 Linux 셸로 내보내는 LANG 값입니다. en_US.UTF-8(기본값)과 C.UTF-8은 항상 작동합니다. 다른 로캘(예: zh_CN.UTF-8)은 프로그램이 사용하기 전에 게스트에서 locale-gen으로 생성해야 할 수 있습니다.",
+      "pt": "O valor de LANG exportado para o shell Linux local. en_US.UTF-8 (padrão) e C.UTF-8 sempre funcionam; outras localidades (ex.: zh_CN.UTF-8) podem precisar ser geradas no convidado com locale-gen antes que os programas as usem.",
+      "ru": "Значение LANG, экспортируемое в локальный shell Linux. en_US.UTF-8 (по умолчанию) и C.UTF-8 работают всегда; другие локали (напр. zh_CN.UTF-8) может потребоваться сгенерировать в гостевой системе командой locale-gen, прежде чем программы смогут их использовать.",
+      "zh": "导出到本地 Linux shell 的 LANG 值。en_US.UTF-8（默认）和 C.UTF-8 始终可用；其他语言环境（如 zh_CN.UTF-8）可能需要先在客机中用 locale-gen 生成，程序才能使用。"
+     }
     },
     {
      "name": "settings_terminal_locale_label",
      "en": "LANG",
      "comment": "Local terminal locale / LANG (#282)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "LANG",
+      "bn": "LANG",
+      "de": "LANG",
+      "es": "LANG",
+      "fr": "LANG",
+      "hi": "LANG",
+      "ja": "LANG",
+      "ko": "LANG",
+      "pt": "LANG",
+      "ru": "LANG",
+      "zh": "LANG"
+     }
     },
     {
      "name": "settings_export_backup_title",
@@ -23032,7 +24100,19 @@
      "en": "Background opacity",
      "comment": "Terminal background opacity",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "عتامة الخلفية",
+      "bn": "ব্যাকগ্রাউন্ড অস্বচ্ছতা",
+      "de": "Hintergrund-Deckkraft",
+      "es": "Opacidad del fondo",
+      "fr": "Opacité de l\\'arrière-plan",
+      "hi": "बैकग्राउंड अपारदर्शिता",
+      "ja": "背景の不透明度",
+      "ko": "배경 불투명도",
+      "pt": "Opacidade do fundo",
+      "ru": "Непрозрачность фона",
+      "zh": "背景不透明度"
+     }
     },
     {
      "name": "settings_terminal_opacity_value",
@@ -23041,14 +24121,38 @@
      "args": [
       "%1$d"
      ],
-     "t": {}
+     "t": {
+      "ar": "%1$d%%",
+      "bn": "%1$d%%",
+      "de": "%1$d%%",
+      "es": "%1$d%%",
+      "fr": "%1$d%%",
+      "hi": "%1$d%%",
+      "ja": "%1$d%%",
+      "ko": "%1$d%%",
+      "pt": "%1$d%%",
+      "ru": "%1$d%%",
+      "zh": "%1$d%%"
+     }
     },
     {
      "name": "settings_terminal_opacity_hint",
      "en": "Below 100%% Haven becomes translucent and shows your device wallpaper behind every screen (terminal, lists, settings). A per-connection override applies only to that terminal.",
      "comment": "Terminal background opacity",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أقل من 100%% يصبح Haven شبه شفاف ويعرض خلفية جهازك خلف كل شاشة (الطرفية، القوائم، الإعدادات). التجاوز الخاص بكل اتصال ينطبق على طرفيته فقط.",
+      "bn": "100%%-এর নিচে Haven স্বচ্ছপ্রায় হয়ে যায় এবং প্রতিটি স্ক্রিনের (টার্মিনাল, তালিকা, সেটিংস) পিছনে আপনার ডিভাইসের ওয়ালপেপার দেখায়। প্রতি-সংযোগ ওভাররাইড কেবল সেই টার্মিনালে প্রযোজ্য।",
+      "de": "Unter 100%% wird Haven durchscheinend und zeigt dein Hintergrundbild hinter jedem Bildschirm (Terminal, Listen, Einstellungen). Eine Überschreibung pro Verbindung gilt nur für dieses Terminal.",
+      "es": "Por debajo del 100%%, Haven se vuelve translúcido y muestra tu fondo de pantalla detrás de cada pantalla (terminal, listas, ajustes). Un ajuste por conexión solo se aplica a ese terminal.",
+      "fr": "En dessous de 100%%, Haven devient translucide et affiche votre fond d\\'écran derrière chaque écran (terminal, listes, paramètres). Un remplacement par connexion ne s\\'applique qu\\'à ce terminal.",
+      "hi": "100%% से नीचे Haven पारभासी हो जाता है और हर स्क्रीन (टर्मिनल, सूचियाँ, सेटिंग्स) के पीछे आपके डिवाइस का वॉलपेपर दिखाता है। प्रति-कनेक्शन ओवरराइड केवल उसी टर्मिनल पर लागू होता है।",
+      "ja": "100%% 未満にすると Haven が半透明になり、すべての画面（ターミナル、リスト、設定）の背後にデバイスの壁紙が表示されます。接続ごとの上書きはそのターミナルにのみ適用されます。",
+      "ko": "100%% 미만이면 Haven이 반투명해지고 모든 화면(터미널, 목록, 설정) 뒤로 기기 배경화면이 표시됩니다. 연결별 재정의는 해당 터미널에만 적용됩니다.",
+      "pt": "Abaixo de 100%% o Haven fica translúcido e mostra o papel de parede do dispositivo atrás de todas as telas (terminal, listas, configurações). Uma substituição por conexão se aplica apenas àquele terminal.",
+      "ru": "Ниже 100%% Haven становится полупрозрачным и показывает обои устройства за каждым экраном (терминал, списки, настройки). Переопределение для отдельного подключения действует только на его терминал.",
+      "zh": "低于 100%% 时，Haven 将变为半透明，在所有界面（终端、列表、设置）后面显示设备壁纸。按连接的覆盖设置仅作用于该终端。"
+     }
     },
     {
      "name": "settings_scrollback_rows_dialog_title",
@@ -23931,7 +25035,19 @@
      "en": "AI agent (MCP)",
      "comment": "Common strings",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "وكيل الذكاء الاصطناعي (MCP)",
+      "bn": "AI এজেন্ট (MCP)",
+      "de": "KI-Agent (MCP)",
+      "es": "Agente de IA (MCP)",
+      "fr": "Agent IA (MCP)",
+      "hi": "AI एजेंट (MCP)",
+      "ja": "AI エージェント (MCP)",
+      "ko": "AI 에이전트 (MCP)",
+      "pt": "Agente de IA (MCP)",
+      "ru": "ИИ-агент (MCP)",
+      "zh": "AI 代理（MCP）"
+     }
     },
     {
      "name": "settings_section_backup",
@@ -24977,14 +26093,38 @@
      "en": "Proot audio (experimental)",
      "comment": "USB exposure",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "صوت proot (تجريبي)",
+      "bn": "Proot অডিও (পরীক্ষামূলক)",
+      "de": "Proot-Audio (experimentell)",
+      "es": "Audio de proot (experimental)",
+      "fr": "Audio proot (expérimental)",
+      "hi": "Proot ऑडियो (प्रायोगिक)",
+      "ja": "Proot オーディオ（試験的）",
+      "ko": "Proot 오디오 (실험적)",
+      "pt": "Áudio do proot (experimental)",
+      "ru": "Звук proot (экспериментально)",
+      "zh": "Proot 音频（实验性）"
+     }
     },
     {
      "name": "settings_audio_bridge_subtitle",
      "en": "Play sound from Linux apps through the device speaker via an in-guest PulseAudio bridge. Output only. Streams continuously while on — turn off when not in use.",
      "comment": "USB exposure",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تشغيل الصوت من تطبيقات Linux عبر مكبّر صوت الجهاز من خلال جسر PulseAudio داخل الضيف. إخراج فقط. يبث باستمرار أثناء تفعيله — أوقفه عند عدم الاستخدام.",
+      "bn": "গেস্টের ভিতরের PulseAudio ব্রিজের মাধ্যমে Linux অ্যাপের শব্দ ডিভাইসের স্পিকারে বাজান। শুধু আউটপুট। চালু থাকলে অবিরাম স্ট্রিম হয় — ব্যবহার না করলে বন্ধ করুন।",
+      "de": "Gibt Ton aus Linux-Apps über den Gerätelautsprecher aus, per PulseAudio-Brücke im Gast. Nur Ausgabe. Streamt dauerhaft, solange aktiviert — bei Nichtgebrauch ausschalten.",
+      "es": "Reproduce el sonido de las apps de Linux por el altavoz del dispositivo mediante un puente PulseAudio en el invitado. Solo salida. Transmite continuamente mientras está activado — desactívalo cuando no lo uses.",
+      "fr": "Diffuse le son des applis Linux sur le haut-parleur de l\\'appareil via un pont PulseAudio dans le guest. Sortie uniquement. Diffuse en continu tant que c\\'est activé — désactivez quand vous ne l\\'utilisez pas.",
+      "hi": "गेस्ट के अंदर PulseAudio ब्रिज के ज़रिये Linux ऐप्स की आवाज़ डिवाइस स्पीकर से चलाएँ। केवल आउटपुट। चालू रहने पर लगातार स्ट्रीम होता है — उपयोग में न हो तो बंद करें।",
+      "ja": "ゲスト内の PulseAudio ブリッジ経由で、Linux アプリの音をデバイスのスピーカーから再生します。出力のみ。オンの間は常時ストリーミングされるため、使わないときはオフにしてください。",
+      "ko": "게스트 내 PulseAudio 브리지를 통해 Linux 앱의 소리를 기기 스피커로 재생합니다. 출력 전용. 켜져 있는 동안 계속 스트리밍되므로 사용하지 않을 때는 끄세요.",
+      "pt": "Reproduz o som de apps Linux no alto-falante do dispositivo por uma ponte PulseAudio dentro do convidado. Apenas saída. Transmite continuamente enquanto ativado — desative quando não estiver em uso.",
+      "ru": "Воспроизводит звук из приложений Linux через динамик устройства с помощью моста PulseAudio в гостевой системе. Только вывод. Поток идёт непрерывно, пока включено — выключайте, когда не используется.",
+      "zh": "通过客机内的 PulseAudio 桥接，将 Linux 应用的声音经设备扬声器播放。仅支持输出。开启期间会持续传输——不用时请关闭。"
+     }
     },
     {
      "name": "settings_proot_install_log_title",
@@ -25394,7 +26534,19 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "Near (SSH): عبر %1$s — متصل",
+      "bn": "Near (SSH): %1$s-এর মাধ্যমে চলছে — সংযুক্ত",
+      "de": "Near (SSH): läuft über %1$s — verbunden",
+      "es": "Near (SSH): a través de %1$s — conectado",
+      "fr": "Near (SSH) : via %1$s — connecté",
+      "hi": "Near (SSH): %1$s के ज़रिये चल रहा है — कनेक्टेड",
+      "ja": "Near (SSH): %1$s 経由 — 接続済み",
+      "ko": "Near (SSH): %1$s 경유 — 연결됨",
+      "pt": "Near (SSH): usando %1$s — conectado",
+      "ru": "Near (SSH): через %1$s — подключено",
+      "zh": "Near（SSH）：经由 %1$s — 已连接"
+     }
     },
     {
      "name": "settings_reverse_tunnel_status_inactive",
@@ -25403,7 +26555,19 @@
      "args": [
       "%1$s"
      ],
-     "t": {}
+     "t": {
+      "ar": "Near (SSH): غير متصل — افتح %1$s للتفعيل",
+      "bn": "Near (SSH): সংযুক্ত নয় — চালু করতে %1$s খুলুন",
+      "de": "Near (SSH): nicht verbunden — öffne %1$s zum Aktivieren",
+      "es": "Near (SSH): no conectado — abre %1$s para activarlo",
+      "fr": "Near (SSH) : non connecté — ouvrez %1$s pour l\\'activer",
+      "hi": "Near (SSH): कनेक्टेड नहीं — सक्षम करने के लिए %1$s खोलें",
+      "ja": "Near (SSH): 未接続 — 有効にするには %1$s を開いてください",
+      "ko": "Near (SSH): 연결 안 됨 — 사용하려면 %1$s을(를) 여세요",
+      "pt": "Near (SSH): não conectado — abra %1$s para ativar",
+      "ru": "Near (SSH): не подключено — откройте %1$s, чтобы включить",
+      "zh": "Near（SSH）：未连接 — 打开 %1$s 以启用"
+     }
     },
     {
      "name": "settings_mcp_wireguard_title",
@@ -28021,7 +29185,19 @@
      "en": "New rclone sync",
      "comment": "Folder sync",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "مزامنة rclone جديدة",
+      "bn": "নতুন rclone সিঙ্ক",
+      "de": "Neue rclone-Synchronisierung",
+      "es": "Nueva sincronización de rclone",
+      "fr": "Nouvelle synchronisation rclone",
+      "hi": "नया rclone सिंक",
+      "ja": "新しい rclone 同期",
+      "ko": "새 rclone 동기화",
+      "pt": "Nova sincronização rclone",
+      "ru": "Новая синхронизация rclone",
+      "zh": "新建 rclone 同步"
+     }
     },
     {
      "name": "sftp_folder_sync",
@@ -28655,63 +29831,171 @@
      "en": "Encrypt (age)",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تشفير (age)",
+      "bn": "এনক্রিপ্ট (age)",
+      "de": "Verschlüsseln (age)",
+      "es": "Cifrar (age)",
+      "fr": "Chiffrer (age)",
+      "hi": "एन्क्रिप्ट करें (age)",
+      "ja": "暗号化 (age)",
+      "ko": "암호화 (age)",
+      "pt": "Criptografar (age)",
+      "ru": "Зашифровать (age)",
+      "zh": "加密（age）"
+     }
     },
     {
      "name": "sftp_encrypt_sub",
      "en": "Encrypt to an age key — readable anywhere with the age tool",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التشفير إلى مفتاح age — قابل للقراءة في أي مكان باستخدام أداة age",
+      "bn": "একটি age কী-তে এনক্রিপ্ট করুন — age টুল দিয়ে যেকোনো জায়গায় পড়া যায়",
+      "de": "Mit einem age-Schlüssel verschlüsseln — überall mit dem age-Tool lesbar",
+      "es": "Cifrar para una clave age — legible en cualquier lugar con la herramienta age",
+      "fr": "Chiffrer vers une clé age — lisible partout avec l\\'outil age",
+      "hi": "किसी age कुंजी के लिए एन्क्रिप्ट करें — age टूल से कहीं भी पढ़ा जा सकता है",
+      "ja": "age 鍵に対して暗号化 — age ツールがあればどこでも読めます",
+      "ko": "age 키로 암호화 — age 도구가 있으면 어디서나 읽을 수 있음",
+      "pt": "Criptografa para uma chave age — legível em qualquer lugar com a ferramenta age",
+      "ru": "Шифрует для ключа age — можно прочитать где угодно с помощью инструмента age",
+      "zh": "加密到 age 密钥——任何装有 age 工具的地方都能读取"
+     }
     },
     {
      "name": "sftp_decrypt",
      "en": "Decrypt (age)",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فك التشفير (age)",
+      "bn": "ডিক্রিপ্ট (age)",
+      "de": "Entschlüsseln (age)",
+      "es": "Descifrar (age)",
+      "fr": "Déchiffrer (age)",
+      "hi": "डिक्रिप्ट करें (age)",
+      "ja": "復号 (age)",
+      "ko": "복호화 (age)",
+      "pt": "Descriptografar (age)",
+      "ru": "Расшифровать (age)",
+      "zh": "解密（age）"
+     }
     },
     {
      "name": "sftp_decrypt_sub",
      "en": "Decrypt with a stored age identity",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فك التشفير بهوية age مخزّنة",
+      "bn": "সংরক্ষিত age পরিচয় দিয়ে ডিক্রিপ্ট করুন",
+      "de": "Mit einer gespeicherten age-Identität entschlüsseln",
+      "es": "Descifrar con una identidad age guardada",
+      "fr": "Déchiffrer avec une identité age enregistrée",
+      "hi": "संग्रहीत age पहचान से डिक्रिप्ट करें",
+      "ja": "保存済みの age アイデンティティで復号",
+      "ko": "저장된 age ID로 복호화",
+      "pt": "Descriptografa com uma identidade age armazenada",
+      "ru": "Расшифровывает с помощью сохранённого идентификатора age",
+      "zh": "使用已存储的 age 身份解密"
+     }
     },
     {
      "name": "sftp_encrypt_title",
      "en": "Encrypt with age",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التشفير باستخدام age",
+      "bn": "age দিয়ে এনক্রিপ্ট করুন",
+      "de": "Mit age verschlüsseln",
+      "es": "Cifrar con age",
+      "fr": "Chiffrer avec age",
+      "hi": "age से एन्क्रिप्ट करें",
+      "ja": "age で暗号化",
+      "ko": "age로 암호화",
+      "pt": "Criptografar com age",
+      "ru": "Зашифровать с помощью age",
+      "zh": "使用 age 加密"
+     }
     },
     {
      "name": "sftp_encrypt_recipient_hint",
      "en": "Or paste a recipient (age1…)",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "أو الصق مستلمًا (age1…)",
+      "bn": "অথবা একজন প্রাপক পেস্ট করুন (age1…)",
+      "de": "Oder Empfänger einfügen (age1…)",
+      "es": "O pega un destinatario (age1…)",
+      "fr": "Ou collez un destinataire (age1…)",
+      "hi": "या कोई प्राप्तकर्ता पेस्ट करें (age1…)",
+      "ja": "または受信者を貼り付け (age1…)",
+      "ko": "또는 수신자 붙여넣기 (age1…)",
+      "pt": "Ou cole um destinatário (age1…)",
+      "ru": "Или вставьте получателя (age1…)",
+      "zh": "或粘贴接收者（age1…）"
+     }
     },
     {
      "name": "sftp_encrypt_action",
      "en": "Encrypt",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تشفير",
+      "bn": "এনক্রিপ্ট করুন",
+      "de": "Verschlüsseln",
+      "es": "Cifrar",
+      "fr": "Chiffrer",
+      "hi": "एन्क्रिप्ट करें",
+      "ja": "暗号化",
+      "ko": "암호화",
+      "pt": "Criptografar",
+      "ru": "Зашифровать",
+      "zh": "加密"
+     }
     },
     {
      "name": "sftp_age_no_identity",
      "en": "No age identity. Create one in the Keys tab, or paste a recipient.",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لا توجد هوية age. أنشئ واحدة في تبويب المفاتيح، أو الصق مستلمًا.",
+      "bn": "কোনো age পরিচয় নেই। কী ট্যাবে একটি তৈরি করুন, বা একজন প্রাপক পেস্ট করুন।",
+      "de": "Keine age-Identität. Erstelle eine im Tab „Schlüssel“ oder füge einen Empfänger ein.",
+      "es": "No hay identidad age. Crea una en la pestaña Claves o pega un destinatario.",
+      "fr": "Aucune identité age. Créez-en une dans l\\'onglet Clés, ou collez un destinataire.",
+      "hi": "कोई age पहचान नहीं। कुंजियाँ टैब में एक बनाएँ, या कोई प्राप्तकर्ता पेस्ट करें।",
+      "ja": "age アイデンティティがありません。「鍵」タブで作成するか、受信者を貼り付けてください。",
+      "ko": "age ID가 없습니다. 키 탭에서 만들거나 수신자를 붙여넣으세요.",
+      "pt": "Nenhuma identidade age. Crie uma na aba Chaves ou cole um destinatário.",
+      "ru": "Нет идентификатора age. Создайте его на вкладке «Ключи» или вставьте получателя.",
+      "zh": "没有 age 身份。请在“密钥”标签页创建一个，或粘贴接收者。"
+     }
     },
     {
      "name": "sftp_age_failed",
      "en": "age operation failed — wrong key or corrupt file",
      "comment": "FileListItem",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فشلت عملية age — مفتاح خاطئ أو ملف تالف",
+      "bn": "age অপারেশন ব্যর্থ — ভুল কী বা নষ্ট ফাইল",
+      "de": "age-Vorgang fehlgeschlagen — falscher Schlüssel oder beschädigte Datei",
+      "es": "La operación de age falló — clave incorrecta o archivo dañado",
+      "fr": "Échec de l\\'opération age — mauvaise clé ou fichier corrompu",
+      "hi": "age ऑपरेशन विफल — गलत कुंजी या खराब फ़ाइल",
+      "ja": "age の操作に失敗しました — 鍵が違うかファイルが破損しています",
+      "ko": "age 작업 실패 — 잘못된 키 또는 손상된 파일",
+      "pt": "Falha na operação age — chave errada ou arquivo corrompido",
+      "ru": "Операция age не удалась — неверный ключ или повреждённый файл",
+      "zh": "age 操作失败——密钥错误或文件损坏"
+     }
     },
     {
      "name": "sftp_stream",
@@ -30375,7 +31659,19 @@
      "en": "Open a USB drive…",
      "comment": "EmptyState",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فتح قرص USB…",
+      "bn": "একটি USB ড্রাইভ খুলুন…",
+      "de": "USB-Laufwerk öffnen…",
+      "es": "Abrir una unidad USB…",
+      "fr": "Ouvrir un lecteur USB…",
+      "hi": "USB ड्राइव खोलें…",
+      "ja": "USB ドライブを開く…",
+      "ko": "USB 드라이브 열기…",
+      "pt": "Abrir uma unidade USB…",
+      "ru": "Открыть USB-накопитель…",
+      "zh": "打开 USB 驱动器…"
+     }
     },
     {
      "name": "sftp_new_folder_title",
@@ -34832,14 +36128,38 @@
      "en": "Two-finger pans the view (tap to scroll the remote)",
      "comment": "",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إصبعان يحرّكان العرض (اضغط لتمرير الشاشة البعيدة)",
+      "bn": "দুই আঙুলে ভিউ প্যান হয় (রিমোট স্ক্রোল করতে ট্যাপ করুন)",
+      "de": "Zwei Finger verschieben die Ansicht (tippen, um den entfernten Bildschirm zu scrollen)",
+      "es": "Dos dedos mueven la vista (toca para desplazar la pantalla remota)",
+      "fr": "Deux doigts déplacent la vue (toucher pour faire défiler l\\'écran distant)",
+      "hi": "दो उँगलियाँ व्यू पैन करती हैं (रिमोट स्क्रॉल करने के लिए टैप करें)",
+      "ja": "2 本指でビューをパン（タップでリモート側のスクロールに切替）",
+      "ko": "두 손가락으로 화면 이동 (원격 스크롤로 전환하려면 탭)",
+      "pt": "Dois dedos deslocam a visualização (toque para rolar o remoto)",
+      "ru": "Два пальца перемещают вид (нажмите, чтобы прокручивать удалённый экран)",
+      "zh": "双指平移视图（点按切换为滚动远程端）"
+     }
     },
     {
      "name": "vnc_cd_two_finger_scroll_on",
      "en": "Two-finger scrolls the remote (tap to pan the view)",
      "comment": "",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "إصبعان يمرّران الشاشة البعيدة (اضغط لتحريك العرض)",
+      "bn": "দুই আঙুলে রিমোট স্ক্রোল হয় (ভিউ প্যান করতে ট্যাপ করুন)",
+      "de": "Zwei Finger scrollen den entfernten Bildschirm (tippen, um die Ansicht zu verschieben)",
+      "es": "Dos dedos desplazan la pantalla remota (toca para mover la vista)",
+      "fr": "Deux doigts font défiler l\\'écran distant (toucher pour déplacer la vue)",
+      "hi": "दो उँगलियाँ रिमोट स्क्रॉल करती हैं (व्यू पैन करने के लिए टैप करें)",
+      "ja": "2 本指でリモート側をスクロール（タップでビューのパンに切替）",
+      "ko": "두 손가락으로 원격 스크롤 (화면 이동으로 전환하려면 탭)",
+      "pt": "Dois dedos rolam o remoto (toque para deslocar a visualização)",
+      "ru": "Два пальца прокручивают удалённый экран (нажмите, чтобы перемещать вид)",
+      "zh": "双指滚动远程端（点按切换为平移视图）"
+     }
     },
     {
      "name": "vnc_orientation_landscape_desc",

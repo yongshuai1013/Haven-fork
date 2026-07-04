@@ -296,4 +296,17 @@
     <string name="sftp_conflict_size_summary">기존: %1$s  ·  새 파일: %2$s</string>
     <string name="sftp_conflict_resume_hint">기존 파일이 원본보다 작습니다 — 재개 시 현재 오프셋에서 계속됩니다.</string>
     <string name="sftp_conflict_apply_to_all">나머지 모든 파일에 적용</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">새 rclone 동기화</string>
+    <string name="sftp_encrypt">암호화 (age)</string>
+    <string name="sftp_encrypt_sub">age 키로 암호화 — age 도구가 있으면 어디서나 읽을 수 있음</string>
+    <string name="sftp_decrypt">복호화 (age)</string>
+    <string name="sftp_decrypt_sub">저장된 age ID로 복호화</string>
+    <string name="sftp_encrypt_title">age로 암호화</string>
+    <string name="sftp_encrypt_recipient_hint">또는 수신자 붙여넣기 (age1…)</string>
+    <string name="sftp_encrypt_action">암호화</string>
+    <string name="sftp_age_no_identity">age ID가 없습니다. 키 탭에서 만들거나 수신자를 붙여넣으세요.</string>
+    <string name="sftp_age_failed">age 작업 실패 — 잘못된 키 또는 손상된 파일</string>
+    <string name="sftp_open_usb_drive">USB 드라이브 열기…</string>
 </resources>

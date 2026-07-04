@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">উপরে সরান</string>
     <string name="keys_move_down">নিচে সরান</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">পাসফ্রেজ এই ডিভাইসে সংরক্ষণ করুন</string>
+    <string name="keys_store_passphrase_warning">এই কী-র পাসফ্রেজ এই ডিভাইসের হার্ডওয়্যার-সমর্থিত এনক্রিপ্টেড স্টোরেজে সংরক্ষণ করুন, যাতে এই কী ব্যবহারকারী সংযোগগুলি কখনো এটি জিজ্ঞাসা না করে। যে কেউ এই ডিভাইস আনলক করতে পারে, সে কী-টি ব্যবহার করতে পারবে। এই ঝুঁকি মেনে নিলে তবেই চালু করুন।</string>
+    <string name="keys_store_passphrase_confirm">সংরক্ষণ করুন</string>
+    <string name="keys_age_section_header">এনক্রিপশন পরিচয় (age) · %1$d</string>
+    <string name="keys_generate_age">age পরিচয় তৈরি করুন</string>
+    <string name="keys_generate_age_hint">ফাইল এনক্রিপ্ট করার জন্য একটি X25519 কী-জোড়া (age)</string>
+    <string name="keys_generate_age_title">নতুন age পরিচয়</string>
+    <string name="keys_age_label_hint">লেবেল</string>
+    <string name="keys_age_recipient_copied">প্রাপক কপি হয়েছে</string>
 </resources>

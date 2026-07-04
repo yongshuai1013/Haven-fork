@@ -26,4 +26,8 @@
     <string name="vnc_gesture_help_title">Сенсорные жесты</string>
     <string name="vnc_gesture_help_two_finger">Проведите двумя пальцами для прокрутки; сведите их для масштабирования. Один палец — мышь.</string>
     <string name="vnc_gesture_help_three_finger">Сведите три пальца, чтобы изменить размер приложения, не выходя из полноэкранного режима.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">Два пальца перемещают вид (нажмите, чтобы прокручивать удалённый экран)</string>
+    <string name="vnc_cd_two_finger_scroll_on">Два пальца прокручивают удалённый экран (нажмите, чтобы перемещать вид)</string>
 </resources>

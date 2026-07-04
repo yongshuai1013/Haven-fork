@@ -27,4 +27,8 @@
     <string name="vnc_gesture_help_title">Gestes tactiles</string>
     <string name="vnc_gesture_help_two_finger">Faites glisser deux doigts pour faire défiler ; pincez pour zoomer. Un doigt sert de souris.</string>
     <string name="vnc_gesture_help_three_finger">Pincez à trois doigts pour redimensionner l\'appli tout en restant en plein écran.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">Deux doigts déplacent la vue (toucher pour faire défiler l\'écran distant)</string>
+    <string name="vnc_cd_two_finger_scroll_on">Deux doigts font défiler l\'écran distant (toucher pour déplacer la vue)</string>
 </resources>

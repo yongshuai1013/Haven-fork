@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">يسار</string>
     <string name="settings_desktop_key_right">يمين</string>
     <string name="settings_desktop_key_hidden">مخفي</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">أحرف موجه shell</string>
+    <string name="settings_prompt_chars_subtitle">الافتراضي: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">أحرف إضافية ينتهي بها موجه shell لديك، بحيث يُرسل الأمر المُجدوَل بمجرد ظهور الموجه من جديد (مثلًا بعد إعادة الاتصال أو إعادة إرفاق tmux). أضف الحرف أو الأحرف الأخيرة لموجهك المخصص — الأحرف المدمجة $ # % &gt; ❯ يتم التعرف عليها دائمًا.</string>
+    <string name="settings_prompt_chars_label">أحرف موجه إضافية</string>
+    <string name="settings_terminal_locale_title">لغة الطرفية</string>
+    <string name="settings_terminal_locale_description">قيمة LANG المُصدَّرة إلى shell Linux المحلي. تعمل en_US.UTF-8 (الافتراضية) و C.UTF-8 دائمًا؛ أما اللغات الأخرى (مثل zh_CN.UTF-8) فقد تحتاج إلى توليدها داخل الضيف بالأمر locale-gen قبل أن تستخدمها البرامج.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">عتامة الخلفية</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">أقل من 100%% يصبح Haven شبه شفاف ويعرض خلفية جهازك خلف كل شاشة (الطرفية، القوائم، الإعدادات). التجاوز الخاص بكل اتصال ينطبق على طرفيته فقط.</string>
+    <string name="settings_section_mcp">وكيل الذكاء الاصطناعي (MCP)</string>
+    <string name="settings_audio_bridge_title">صوت proot (تجريبي)</string>
+    <string name="settings_audio_bridge_subtitle">تشغيل الصوت من تطبيقات Linux عبر مكبّر صوت الجهاز من خلال جسر PulseAudio داخل الضيف. إخراج فقط. يبث باستمرار أثناء تفعيله — أوقفه عند عدم الاستخدام.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): عبر %1$s — متصل</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): غير متصل — افتح %1$s للتفعيل</string>
 </resources>

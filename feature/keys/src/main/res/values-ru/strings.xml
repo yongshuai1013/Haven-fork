@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">Вверх</string>
     <string name="keys_move_down">Вниз</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">Хранить парольную фразу на этом устройстве</string>
+    <string name="keys_store_passphrase_warning">Сохраняет парольную фразу этого ключа в аппаратно защищённом зашифрованном хранилище устройства, чтобы подключения с этим ключом никогда её не запрашивали. Любой, кто может разблокировать это устройство, сможет использовать ключ. Включайте, только если принимаете этот риск.</string>
+    <string name="keys_store_passphrase_confirm">Сохранить</string>
+    <string name="keys_age_section_header">Идентификаторы шифрования (age) · %1$d</string>
+    <string name="keys_generate_age">Создать идентификатор age</string>
+    <string name="keys_generate_age_hint">Пара ключей X25519 для шифрования файлов (age)</string>
+    <string name="keys_generate_age_title">Новый идентификатор age</string>
+    <string name="keys_age_label_hint">Метка</string>
+    <string name="keys_age_recipient_copied">Получатель скопирован</string>
 </resources>

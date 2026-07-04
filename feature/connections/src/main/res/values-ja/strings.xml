@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">この接続では MCP が無効 — タップで有効化</string>
     <string name="connections_toggle_mcp_enabled">この接続で MCP エージェントを許可</string>
     <string name="connections_helper_mcp_enabled">オフの場合、この接続を対象とする AI エージェント（MCP）ツールは拒否されます。接続自体は通常どおり使用できます。</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">ネイティブ Android シェル</string>
+    <string name="connections_field_background_opacity">背景の不透明度を上書き</string>
+    <string name="connections_helper_background_opacity">100%% 未満にすると、このプロファイルのターミナルが半透明になり、文字の背後にデバイスの壁紙が表示されます。オフ = グローバル設定を使用。</string>
+    <string name="connections_background_opacity_value">不透明度: %1$d%%</string>
+    <string name="connections_reveal_password_title">保存済みパスワードを表示</string>
+    <string name="connections_reveal_password_subtitle">本人確認を行うと保存済みパスワードが表示されます</string>
+    <string name="rclone_import_title">rclone リモートをインポート</string>
+    <string name="rclone_import_intro">Linux の rclone.conf を貼り付けるか、ファイルを選択してください。リモート（OAuth トークンを含む）はそのままインポートされるため、再設定は不要です。</string>
+    <string name="rclone_import_pick_file">rclone.conf を選択…</string>
+    <string name="rclone_import_paste_label">rclone.conf の内容</string>
+    <string name="rclone_import_parse">リモートを検出</string>
+    <string name="rclone_import_encrypted">このファイルはパスワードで暗号化された rclone 設定です。デスクトップで「rclone config show」を実行し、復号された出力を貼り付けてください。</string>
+    <string name="rclone_import_already_added">追加済み</string>
+    <string name="rclone_import_no_type">タイプなし</string>
+    <string name="rclone_import_select_count">%1$d 件のリモートをインポート</string>
+    <string name="rclone_import_done">インポート %1$d 件、スキップ %2$d 件、失敗 %3$d 件。</string>
+    <string name="rclone_import_menu">rclone 設定をインポート…</string>
+    <string name="connections_section_spice">SPICE 設定</string>
+    <string name="connections_section_mcp">AI エージェント (MCP)</string>
+    <string name="connections_rclone_configure_first">接続を保存する前に、「設定して確認」をタップしてこのリモートを保存してください。</string>
+    <string name="connections_helper_spice_auth">SPICE は単一の任意のチケット／パスワードを使用します。チケットなしのサーバーの場合は空欄のままにしてください。</string>
+    <string name="connections_auth_any_hardware_key">任意のハードウェアキー (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">接続しますか？</string>
+    <string name="connections_deeplink_confirm_message">リンクが %1$s への接続を要求しています。</string>
+    <string name="connections_deeplink_confirm_session">リンクが %1$s に接続し、セッション「%2$s」にアタッチしようとしています。</string>
+    <string name="connections_deeplink_confirm_connect">接続</string>
 </resources>

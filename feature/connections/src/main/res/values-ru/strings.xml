@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">MCP отключён для этого подключения — нажмите, чтобы включить</string>
     <string name="connections_toggle_mcp_enabled">Разрешить агента MCP на этом подключении</string>
     <string name="connections_helper_mcp_enabled">Когда выключено, инструменты ИИ-агента (MCP), нацеленные на это подключение, отклоняются. Подключение продолжает работать для вас как обычно.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">Нативная оболочка Android</string>
+    <string name="connections_field_background_opacity">Переопределить непрозрачность фона</string>
+    <string name="connections_helper_background_opacity">Ниже 100%% терминал становится полупрозрачным и показывает обои устройства за текстом для этого профиля. Выключено = используется глобальная настройка.</string>
+    <string name="connections_background_opacity_value">Непрозрачность: %1$d%%</string>
+    <string name="connections_reveal_password_title">Показать сохранённый пароль</string>
+    <string name="connections_reveal_password_subtitle">Подтвердите, что это вы, чтобы показать сохранённый пароль</string>
+    <string name="rclone_import_title">Импорт удалённых хранилищ rclone</string>
+    <string name="rclone_import_intro">Вставьте ваш rclone.conf из Linux или выберите файл. Удалённые хранилища (включая токены OAuth) импортируются как есть, поэтому перенастраивать их не нужно.</string>
+    <string name="rclone_import_pick_file">Выбрать rclone.conf…</string>
+    <string name="rclone_import_paste_label">Содержимое rclone.conf</string>
+    <string name="rclone_import_parse">Найти удалённые хранилища</string>
+    <string name="rclone_import_encrypted">Этот файл — конфигурация rclone, зашифрованная паролем. Выполните \"rclone config show\" на компьютере и вставьте расшифрованный вывод.</string>
+    <string name="rclone_import_already_added">уже добавлен</string>
+    <string name="rclone_import_no_type">без типа</string>
+    <string name="rclone_import_select_count">Импортировать хранилища (%1$d)</string>
+    <string name="rclone_import_done">Импортировано: %1$d, пропущено: %2$d, с ошибкой: %3$d.</string>
+    <string name="rclone_import_menu">Импорт конфигурации rclone…</string>
+    <string name="connections_section_spice">Настройки SPICE</string>
+    <string name="connections_section_mcp">ИИ-агент (MCP)</string>
+    <string name="connections_rclone_configure_first">Нажмите «Настроить и проверить», чтобы сохранить это хранилище, прежде чем сохранять подключение.</string>
+    <string name="connections_helper_spice_auth">SPICE использует один необязательный тикет/пароль. Оставьте пустым для сервера без тикета.</string>
+    <string name="connections_auth_any_hardware_key">Любой аппаратный ключ (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">Подключиться?</string>
+    <string name="connections_deeplink_confirm_message">Ссылка запрашивает подключение к %1$s.</string>
+    <string name="connections_deeplink_confirm_session">Ссылка запрашивает подключение к %1$s и присоединение к сессии «%2$s».</string>
+    <string name="connections_deeplink_confirm_connect">Подключиться</string>
 </resources>

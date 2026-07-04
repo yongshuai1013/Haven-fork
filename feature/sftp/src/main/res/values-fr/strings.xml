@@ -283,4 +283,17 @@
     <string name="sftp_conflict_resume_hint">Le fichier existant est plus petit que la source — la reprise continue depuis le décalage actuel.</string>
     <string name="sftp_conflict_apply_to_all">Appliquer à tous les fichiers restants</string>
 
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">Nouvelle synchronisation rclone</string>
+    <string name="sftp_encrypt">Chiffrer (age)</string>
+    <string name="sftp_encrypt_sub">Chiffrer vers une clé age — lisible partout avec l\'outil age</string>
+    <string name="sftp_decrypt">Déchiffrer (age)</string>
+    <string name="sftp_decrypt_sub">Déchiffrer avec une identité age enregistrée</string>
+    <string name="sftp_encrypt_title">Chiffrer avec age</string>
+    <string name="sftp_encrypt_recipient_hint">Ou collez un destinataire (age1…)</string>
+    <string name="sftp_encrypt_action">Chiffrer</string>
+    <string name="sftp_age_no_identity">Aucune identité age. Créez-en une dans l\'onglet Clés, ou collez un destinataire.</string>
+    <string name="sftp_age_failed">Échec de l\'opération age — mauvaise clé ou fichier corrompu</string>
+    <string name="sftp_open_usb_drive">Ouvrir un lecteur USB…</string>
 </resources>

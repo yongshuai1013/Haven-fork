@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">MCP für diese Verbindung deaktiviert — tippen zum Aktivieren</string>
     <string name="connections_toggle_mcp_enabled">MCP-Agent auf dieser Verbindung erlauben</string>
     <string name="connections_helper_mcp_enabled">Wenn aus, werden KI-Agent-Werkzeuge (MCP), die auf diese Verbindung abzielen, abgelehnt. Die Verbindung funktioniert für dich weiterhin normal.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">Native Android-Shell</string>
+    <string name="connections_field_background_opacity">Hintergrund-Deckkraft überschreiben</string>
+    <string name="connections_helper_background_opacity">Unter 100%% wird das Terminal durchscheinend und zeigt für dieses Profil das Hintergrundbild des Geräts hinter dem Text. Aus = globale Einstellung verwenden.</string>
+    <string name="connections_background_opacity_value">Deckkraft: %1$d%%</string>
+    <string name="connections_reveal_password_title">Gespeichertes Passwort anzeigen</string>
+    <string name="connections_reveal_password_subtitle">Bestätige deine Identität, um das gespeicherte Passwort anzuzeigen</string>
+    <string name="rclone_import_title">rclone-Remotes importieren</string>
+    <string name="rclone_import_intro">Füge deine rclone.conf von Linux ein oder wähle die Datei aus. Remotes (einschließlich OAuth-Tokens) werden unverändert importiert, sodass du sie nicht neu konfigurieren musst.</string>
+    <string name="rclone_import_pick_file">rclone.conf auswählen…</string>
+    <string name="rclone_import_paste_label">Inhalt der rclone.conf</string>
+    <string name="rclone_import_parse">Remotes suchen</string>
+    <string name="rclone_import_encrypted">Diese Datei ist eine passwortverschlüsselte rclone-Konfiguration. Führe auf dem Desktop-Rechner \"rclone config show\" aus und füge stattdessen die entschlüsselte Ausgabe ein.</string>
+    <string name="rclone_import_already_added">bereits hinzugefügt</string>
+    <string name="rclone_import_no_type">kein Typ</string>
+    <string name="rclone_import_select_count">%1$d Remote(s) importieren</string>
+    <string name="rclone_import_done">%1$d importiert, %2$d übersprungen, %3$d fehlgeschlagen.</string>
+    <string name="rclone_import_menu">rclone-Konfiguration importieren…</string>
+    <string name="connections_section_spice">SPICE-Einstellungen</string>
+    <string name="connections_section_mcp">KI-Agent (MCP)</string>
+    <string name="connections_rclone_configure_first">Tippe auf „Konfigurieren &amp; prüfen“, um dieses Remote zu speichern, bevor du die Verbindung speichern kannst.</string>
+    <string name="connections_helper_spice_auth">SPICE verwendet ein einzelnes optionales Ticket/Passwort. Für einen Server ohne Ticket leer lassen.</string>
+    <string name="connections_auth_any_hardware_key">Beliebiger Hardware-Schlüssel (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">Verbinden?</string>
+    <string name="connections_deeplink_confirm_message">Ein Link möchte sich mit %1$s verbinden.</string>
+    <string name="connections_deeplink_confirm_session">Ein Link möchte sich mit %1$s verbinden und die Sitzung „%2$s“ anhängen.</string>
+    <string name="connections_deeplink_confirm_connect">Verbinden</string>
 </resources>

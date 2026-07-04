@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">Esquerda</string>
     <string name="settings_desktop_key_right">Direita</string>
     <string name="settings_desktop_key_hidden">Oculta</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Caracteres do prompt do shell</string>
+    <string name="settings_prompt_chars_subtitle">Padrão: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Caracteres extras que terminam seu prompt de shell, para que um comando enfileirado seja enviado quando o prompt reaparecer (ex.: após reconectar ou reanexar o tmux). Adicione o(s) caractere(s) final(is) do seu prompt personalizado — os padrões $ # % &gt; ❯ são sempre reconhecidos.</string>
+    <string name="settings_prompt_chars_label">Caracteres extras de prompt</string>
+    <string name="settings_terminal_locale_title">Localidade do terminal</string>
+    <string name="settings_terminal_locale_description">O valor de LANG exportado para o shell Linux local. en_US.UTF-8 (padrão) e C.UTF-8 sempre funcionam; outras localidades (ex.: zh_CN.UTF-8) podem precisar ser geradas no convidado com locale-gen antes que os programas as usem.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">Opacidade do fundo</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">Abaixo de 100%% o Haven fica translúcido e mostra o papel de parede do dispositivo atrás de todas as telas (terminal, listas, configurações). Uma substituição por conexão se aplica apenas àquele terminal.</string>
+    <string name="settings_section_mcp">Agente de IA (MCP)</string>
+    <string name="settings_audio_bridge_title">Áudio do proot (experimental)</string>
+    <string name="settings_audio_bridge_subtitle">Reproduz o som de apps Linux no alto-falante do dispositivo por uma ponte PulseAudio dentro do convidado. Apenas saída. Transmite continuamente enquanto ativado — desative quando não estiver em uso.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): usando %1$s — conectado</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): não conectado — abra %1$s para ativar</string>
 </resources>

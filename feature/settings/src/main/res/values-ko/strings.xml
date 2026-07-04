@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">왼쪽</string>
     <string name="settings_desktop_key_right">오른쪽</string>
     <string name="settings_desktop_key_hidden">숨김</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">셸 프롬프트 문자</string>
+    <string name="settings_prompt_chars_subtitle">기본값: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">셸 프롬프트 끝을 나타내는 추가 문자입니다. 프롬프트가 다시 나타나면(예: 재연결 또는 tmux 재연결 후) 대기 중인 명령이 전송됩니다. 사용자 지정 프롬프트의 끝 문자를 추가하세요 — 기본 제공되는 $ # % &gt; ❯는 항상 인식됩니다.</string>
+    <string name="settings_prompt_chars_label">추가 프롬프트 문자</string>
+    <string name="settings_terminal_locale_title">터미널 로캘</string>
+    <string name="settings_terminal_locale_description">로컬 Linux 셸로 내보내는 LANG 값입니다. en_US.UTF-8(기본값)과 C.UTF-8은 항상 작동합니다. 다른 로캘(예: zh_CN.UTF-8)은 프로그램이 사용하기 전에 게스트에서 locale-gen으로 생성해야 할 수 있습니다.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">배경 불투명도</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">100%% 미만이면 Haven이 반투명해지고 모든 화면(터미널, 목록, 설정) 뒤로 기기 배경화면이 표시됩니다. 연결별 재정의는 해당 터미널에만 적용됩니다.</string>
+    <string name="settings_section_mcp">AI 에이전트 (MCP)</string>
+    <string name="settings_audio_bridge_title">Proot 오디오 (실험적)</string>
+    <string name="settings_audio_bridge_subtitle">게스트 내 PulseAudio 브리지를 통해 Linux 앱의 소리를 기기 스피커로 재생합니다. 출력 전용. 켜져 있는 동안 계속 스트리밍되므로 사용하지 않을 때는 끄세요.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): %1$s 경유 — 연결됨</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): 연결 안 됨 — 사용하려면 %1$s을(를) 여세요</string>
 </resources>

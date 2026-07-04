@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">Mover para cima</string>
     <string name="keys_move_down">Mover para baixo</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">Armazenar frase secreta neste dispositivo</string>
+    <string name="keys_store_passphrase_warning">Salva a frase secreta desta chave no armazenamento criptografado com suporte de hardware deste dispositivo, para que conexões com esta chave nunca a solicitem. Qualquer pessoa que consiga desbloquear este dispositivo pode usar a chave. Ative apenas se aceitar esse risco.</string>
+    <string name="keys_store_passphrase_confirm">Armazenar</string>
+    <string name="keys_age_section_header">Identidades de criptografia (age) · %1$d</string>
+    <string name="keys_generate_age">Gerar identidade age</string>
+    <string name="keys_generate_age_hint">Um par de chaves X25519 para criptografar arquivos (age)</string>
+    <string name="keys_generate_age_title">Nova identidade age</string>
+    <string name="keys_age_label_hint">Rótulo</string>
+    <string name="keys_age_recipient_copied">Destinatário copiado</string>
 </resources>

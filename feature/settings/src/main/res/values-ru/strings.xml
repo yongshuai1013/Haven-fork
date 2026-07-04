@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">Слева</string>
     <string name="settings_desktop_key_right">Справа</string>
     <string name="settings_desktop_key_hidden">Скрыта</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Символы приглашения shell</string>
+    <string name="settings_prompt_chars_subtitle">По умолчанию: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Дополнительные символы, которыми заканчивается ваше приглашение shell, чтобы отложенная команда отправлялась, как только приглашение появится снова (напр. после переподключения или повторного подключения tmux). Добавьте завершающие символы вашего приглашения — встроенные $ # % &gt; ❯ распознаются всегда.</string>
+    <string name="settings_prompt_chars_label">Дополнительные символы приглашения</string>
+    <string name="settings_terminal_locale_title">Локаль терминала</string>
+    <string name="settings_terminal_locale_description">Значение LANG, экспортируемое в локальный shell Linux. en_US.UTF-8 (по умолчанию) и C.UTF-8 работают всегда; другие локали (напр. zh_CN.UTF-8) может потребоваться сгенерировать в гостевой системе командой locale-gen, прежде чем программы смогут их использовать.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">Непрозрачность фона</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">Ниже 100%% Haven становится полупрозрачным и показывает обои устройства за каждым экраном (терминал, списки, настройки). Переопределение для отдельного подключения действует только на его терминал.</string>
+    <string name="settings_section_mcp">ИИ-агент (MCP)</string>
+    <string name="settings_audio_bridge_title">Звук proot (экспериментально)</string>
+    <string name="settings_audio_bridge_subtitle">Воспроизводит звук из приложений Linux через динамик устройства с помощью моста PulseAudio в гостевой системе. Только вывод. Поток идёт непрерывно, пока включено — выключайте, когда не используется.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): через %1$s — подключено</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): не подключено — откройте %1$s, чтобы включить</string>
 </resources>

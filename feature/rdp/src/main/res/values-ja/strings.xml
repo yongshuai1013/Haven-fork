@@ -35,4 +35,8 @@
     <string name="rdp_hint_time_skew_body">デバイスの時計がサーバーから数分以上ずれていると、CredSSP はセッションを拒否します。設定 → 日付と時刻 → 自動設定 を確認して再接続してください。</string>
     <string name="rdp_hint_tls_ciphers_title">サーバーが Haven の非対応 TLS 暗号スイートを要求しています</string>
     <string name="rdp_hint_tls_ciphers_body">Haven は rustls/ring TLS スタックを使用しており、Microsoft の RDP クライアント（SChannel）や OpenSSL よりも対応する暗号スイートが狭い範囲です。最も互換性の高いサーバー側設定は、TLS 1.2 または 1.3 上の ECDHE-RSA + AES-GCM です。</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="rdp_cd_two_finger_viewport">2 本指でビューをパン（タップでリモート側のスクロールに切替）</string>
+    <string name="rdp_cd_two_finger_scroll_on">2 本指でリモート側をスクロール（タップでビューのパンに切替）</string>
 </resources>

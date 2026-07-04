@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">এই সংযোগের জন্য MCP নিষ্ক্রিয় — সক্রিয় করতে ট্যাপ করুন</string>
     <string name="connections_toggle_mcp_enabled">এই সংযোগে MCP এজেন্ট অনুমতি দিন</string>
     <string name="connections_helper_mcp_enabled">বন্ধ থাকলে, এই সংযোগকে লক্ষ্য করা AI এজেন্ট (MCP) টুল প্রত্যাখ্যান করা হয়। সংযোগটি আপনার জন্য স্বাভাবিকভাবে কাজ করতে থাকে।</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">নেটিভ Android শেল</string>
+    <string name="connections_field_background_opacity">ব্যাকগ্রাউন্ড অস্বচ্ছতা ওভাররাইড করুন</string>
+    <string name="connections_helper_background_opacity">100%%-এর নিচে টার্মিনাল স্বচ্ছপ্রায় হয়ে যায় এবং এই প্রোফাইলে টেক্সটের পিছনে ডিভাইসের ওয়ালপেপার দেখায়। বন্ধ = গ্লোবাল সেটিং ব্যবহার।</string>
+    <string name="connections_background_opacity_value">অস্বচ্ছতা: %1$d%%</string>
+    <string name="connections_reveal_password_title">সংরক্ষিত পাসওয়ার্ড দেখান</string>
+    <string name="connections_reveal_password_subtitle">সংরক্ষিত পাসওয়ার্ড দেখাতে নিশ্চিত করুন যে এটি আপনিই</string>
+    <string name="rclone_import_title">rclone রিমোট ইমপোর্ট করুন</string>
+    <string name="rclone_import_intro">আপনার Linux rclone.conf পেস্ট করুন, বা ফাইলটি বেছে নিন। রিমোটগুলি (OAuth টোকেন সহ) যেমন আছে তেমনই ইমপোর্ট হয়, তাই আবার কনফিগার করতে হয় না।</string>
+    <string name="rclone_import_pick_file">rclone.conf বেছে নিন…</string>
+    <string name="rclone_import_paste_label">rclone.conf-এর বিষয়বস্তু</string>
+    <string name="rclone_import_parse">রিমোট খুঁজুন</string>
+    <string name="rclone_import_encrypted">ফাইলটি পাসওয়ার্ড-এনক্রিপ্টেড rclone কনফিগ। ডেস্কটপে \"rclone config show\" চালান এবং ডিক্রিপ্ট করা আউটপুট পেস্ট করুন।</string>
+    <string name="rclone_import_already_added">আগেই যোগ করা</string>
+    <string name="rclone_import_no_type">কোনো টাইপ নেই</string>
+    <string name="rclone_import_select_count">%1$d রিমোট ইমপোর্ট করুন</string>
+    <string name="rclone_import_done">%1$d ইমপোর্ট হয়েছে, %2$d বাদ, %3$d ব্যর্থ।</string>
+    <string name="rclone_import_menu">rclone কনফিগ ইমপোর্ট করুন…</string>
+    <string name="connections_section_spice">SPICE সেটিংস</string>
+    <string name="connections_section_mcp">AI এজেন্ট (MCP)</string>
+    <string name="connections_rclone_configure_first">সংযোগ সংরক্ষণের আগে এই রিমোট সংরক্ষণ করতে “কনফিগার ও যাচাই”-এ ট্যাপ করুন।</string>
+    <string name="connections_helper_spice_auth">SPICE একটিমাত্র ঐচ্ছিক টিকিট/পাসওয়ার্ড ব্যবহার করে। টিকিটবিহীন সার্ভারের জন্য ফাঁকা রাখুন।</string>
+    <string name="connections_auth_any_hardware_key">যেকোনো হার্ডওয়্যার কী (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">সংযোগ করবেন?</string>
+    <string name="connections_deeplink_confirm_message">একটি লিংক %1$s-এ সংযোগ করতে চায়।</string>
+    <string name="connections_deeplink_confirm_session">একটি লিংক %1$s-এ সংযোগ করে সেশন “%2$s” সংযুক্ত করতে চায়।</string>
+    <string name="connections_deeplink_confirm_connect">সংযোগ</string>
 </resources>

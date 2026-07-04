@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">左</string>
     <string name="settings_desktop_key_right">右</string>
     <string name="settings_desktop_key_hidden">非表示</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">シェルプロンプト文字</string>
+    <string name="settings_prompt_chars_subtitle">デフォルト: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">シェルプロンプトの末尾に付く追加の文字です。プロンプトが再表示されたとき（再接続や tmux の再アタッチ後など）に、キューに入れたコマンドが送信されます。カスタムプロンプトの末尾文字を追加してください — 組み込みの $ # % &gt; ❯ は常に認識されます。</string>
+    <string name="settings_prompt_chars_label">追加のプロンプト文字</string>
+    <string name="settings_terminal_locale_title">ターミナルのロケール</string>
+    <string name="settings_terminal_locale_description">ローカル Linux シェルにエクスポートされる LANG の値です。en_US.UTF-8（デフォルト）と C.UTF-8 は常に機能します。その他のロケール（例: zh_CN.UTF-8）は、プログラムが使う前にゲスト内で locale-gen による生成が必要な場合があります。</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">背景の不透明度</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">100%% 未満にすると Haven が半透明になり、すべての画面（ターミナル、リスト、設定）の背後にデバイスの壁紙が表示されます。接続ごとの上書きはそのターミナルにのみ適用されます。</string>
+    <string name="settings_section_mcp">AI エージェント (MCP)</string>
+    <string name="settings_audio_bridge_title">Proot オーディオ（試験的）</string>
+    <string name="settings_audio_bridge_subtitle">ゲスト内の PulseAudio ブリッジ経由で、Linux アプリの音をデバイスのスピーカーから再生します。出力のみ。オンの間は常時ストリーミングされるため、使わないときはオフにしてください。</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): %1$s 経由 — 接続済み</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): 未接続 — 有効にするには %1$s を開いてください</string>
 </resources>

@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">Gauche</string>
     <string name="settings_desktop_key_right">Droite</string>
     <string name="settings_desktop_key_hidden">Masquée</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Caractères d\'invite du shell</string>
+    <string name="settings_prompt_chars_subtitle">Par défaut : $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Caractères supplémentaires qui terminent votre invite shell, afin qu\'une commande en file d\'attente soit envoyée dès que l\'invite réapparaît (ex. après une reconnexion ou un rattachement tmux). Ajoutez le ou les caractères finaux de votre invite personnalisée — les caractères intégrés $ # % &gt; ❯ sont toujours reconnus.</string>
+    <string name="settings_prompt_chars_label">Caractères d\'invite supplémentaires</string>
+    <string name="settings_terminal_locale_title">Locale du terminal</string>
+    <string name="settings_terminal_locale_description">La valeur LANG exportée dans le shell Linux local. en_US.UTF-8 (par défaut) et C.UTF-8 fonctionnent toujours ; d\'autres locales (ex. zh_CN.UTF-8) peuvent devoir être générées dans le guest avec locale-gen avant que les programmes puissent les utiliser.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">Opacité de l\'arrière-plan</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">En dessous de 100%%, Haven devient translucide et affiche votre fond d\'écran derrière chaque écran (terminal, listes, paramètres). Un remplacement par connexion ne s\'applique qu\'à ce terminal.</string>
+    <string name="settings_section_mcp">Agent IA (MCP)</string>
+    <string name="settings_audio_bridge_title">Audio proot (expérimental)</string>
+    <string name="settings_audio_bridge_subtitle">Diffuse le son des applis Linux sur le haut-parleur de l\'appareil via un pont PulseAudio dans le guest. Sortie uniquement. Diffuse en continu tant que c\'est activé — désactivez quand vous ne l\'utilisez pas.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH) : via %1$s — connecté</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH) : non connecté — ouvrez %1$s pour l\'activer</string>
 </resources>

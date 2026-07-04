@@ -282,5 +282,18 @@
     <string name="sftp_conflict_size_summary">বিদ্যমান: %1$s  ·  নতুন: %2$s</string>
     <string name="sftp_conflict_resume_hint">বিদ্যমান ফাইল উৎসের চেয়ে ছোট — resume বর্তমান offset থেকে চালিয়ে যায়।</string>
     <string name="sftp_conflict_apply_to_all">বাকি সব ফাইলে প্রয়োগ করুন</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">নতুন rclone সিঙ্ক</string>
+    <string name="sftp_encrypt">এনক্রিপ্ট (age)</string>
+    <string name="sftp_encrypt_sub">একটি age কী-তে এনক্রিপ্ট করুন — age টুল দিয়ে যেকোনো জায়গায় পড়া যায়</string>
+    <string name="sftp_decrypt">ডিক্রিপ্ট (age)</string>
+    <string name="sftp_decrypt_sub">সংরক্ষিত age পরিচয় দিয়ে ডিক্রিপ্ট করুন</string>
+    <string name="sftp_encrypt_title">age দিয়ে এনক্রিপ্ট করুন</string>
+    <string name="sftp_encrypt_recipient_hint">অথবা একজন প্রাপক পেস্ট করুন (age1…)</string>
+    <string name="sftp_encrypt_action">এনক্রিপ্ট করুন</string>
+    <string name="sftp_age_no_identity">কোনো age পরিচয় নেই। কী ট্যাবে একটি তৈরি করুন, বা একজন প্রাপক পেস্ট করুন।</string>
+    <string name="sftp_age_failed">age অপারেশন ব্যর্থ — ভুল কী বা নষ্ট ফাইল</string>
+    <string name="sftp_open_usb_drive">একটি USB ড্রাইভ খুলুন…</string>
 </resources>
 

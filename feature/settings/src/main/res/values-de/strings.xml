@@ -396,4 +396,21 @@
     <string name="settings_desktop_key_left">Links</string>
     <string name="settings_desktop_key_right">Rechts</string>
     <string name="settings_desktop_key_hidden">Ausgeblendet</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="settings_prompt_chars_title">Shell-Prompt-Zeichen</string>
+    <string name="settings_prompt_chars_subtitle">Standard: $ # % &gt; ❯</string>
+    <string name="settings_prompt_chars_description">Zusätzliche Zeichen, mit denen dein Shell-Prompt endet, damit ein wartender Befehl gesendet wird, sobald der Prompt wieder erscheint (z. B. nach dem Neuverbinden oder erneutem Anhängen von tmux). Füge die Endzeichen deines eigenen Prompts hinzu — die eingebauten $ # % &gt; ❯ werden immer erkannt.</string>
+    <string name="settings_prompt_chars_label">Zusätzliche Prompt-Zeichen</string>
+    <string name="settings_terminal_locale_title">Terminal-Locale</string>
+    <string name="settings_terminal_locale_description">Der LANG-Wert, der in die lokale Linux-Shell exportiert wird. en_US.UTF-8 (Standard) und C.UTF-8 funktionieren immer; andere Locales (z. B. zh_CN.UTF-8) müssen im Gast eventuell erst mit locale-gen erzeugt werden, bevor Programme sie verwenden.</string>
+    <string name="settings_terminal_locale_label">LANG</string>
+    <string name="settings_terminal_opacity_title">Hintergrund-Deckkraft</string>
+    <string name="settings_terminal_opacity_value">%1$d%%</string>
+    <string name="settings_terminal_opacity_hint">Unter 100%% wird Haven durchscheinend und zeigt dein Hintergrundbild hinter jedem Bildschirm (Terminal, Listen, Einstellungen). Eine Überschreibung pro Verbindung gilt nur für dieses Terminal.</string>
+    <string name="settings_section_mcp">KI-Agent (MCP)</string>
+    <string name="settings_audio_bridge_title">Proot-Audio (experimentell)</string>
+    <string name="settings_audio_bridge_subtitle">Gibt Ton aus Linux-Apps über den Gerätelautsprecher aus, per PulseAudio-Brücke im Gast. Nur Ausgabe. Streamt dauerhaft, solange aktiviert — bei Nichtgebrauch ausschalten.</string>
+    <string name="settings_reverse_tunnel_status_active">Near (SSH): läuft über %1$s — verbunden</string>
+    <string name="settings_reverse_tunnel_status_inactive">Near (SSH): nicht verbunden — öffne %1$s zum Aktivieren</string>
 </resources>

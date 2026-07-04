@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">ऊपर ले जाएँ</string>
     <string name="keys_move_down">नीचे ले जाएँ</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">पासफ़्रेज़ इस डिवाइस पर संग्रहीत करें</string>
+    <string name="keys_store_passphrase_warning">इस कुंजी का पासफ़्रेज़ इस डिवाइस के हार्डवेयर-समर्थित एन्क्रिप्टेड स्टोरेज में सहेजें, ताकि इस कुंजी वाले कनेक्शन इसे कभी न पूछें। जो कोई भी यह डिवाइस अनलॉक कर सकता है, वह कुंजी का उपयोग कर सकता है। केवल तभी चालू करें जब आपको यह जोखिम स्वीकार हो।</string>
+    <string name="keys_store_passphrase_confirm">संग्रहीत करें</string>
+    <string name="keys_age_section_header">एन्क्रिप्शन पहचानें (age) · %1$d</string>
+    <string name="keys_generate_age">age पहचान बनाएँ</string>
+    <string name="keys_generate_age_hint">फ़ाइलें एन्क्रिप्ट करने के लिए एक X25519 कुंजी-युग्म (age)</string>
+    <string name="keys_generate_age_title">नई age पहचान</string>
+    <string name="keys_age_label_hint">लेबल</string>
+    <string name="keys_age_recipient_copied">प्राप्तकर्ता कॉपी हो गया</string>
 </resources>

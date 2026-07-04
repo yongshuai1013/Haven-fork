@@ -34,4 +34,8 @@
     <string name="rdp_hint_time_skew_body">기기 시계가 서버와 몇 분 이상 차이 나면 CredSSP가 세션을 거부합니다. 설정 → 날짜 및 시간 → 자동 설정을 확인하고 다시 연결하세요.</string>
     <string name="rdp_hint_tls_ciphers_title">서버가 Haven이 지원하지 않는 TLS 암호를 요구합니다</string>
     <string name="rdp_hint_tls_ciphers_body">Haven은 rustls/ring TLS 스택을 사용하며, Microsoft의 RDP 클라이언트(SChannel)나 OpenSSL보다 지원하는 암호 범위가 좁습니다. 가장 호환성이 좋은 서버 측 설정은 TLS 1.2 또는 1.3에서의 ECDHE-RSA + AES-GCM입니다.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="rdp_cd_two_finger_viewport">두 손가락으로 화면 이동 (원격 스크롤로 전환하려면 탭)</string>
+    <string name="rdp_cd_two_finger_scroll_on">두 손가락으로 원격 스크롤 (화면 이동으로 전환하려면 탭)</string>
 </resources>

@@ -487,4 +487,32 @@
     <string name="connections_mcp_disabled">此连接已禁用 MCP——点击可启用</string>
     <string name="connections_toggle_mcp_enabled">允许 MCP 代理使用此连接</string>
     <string name="connections_helper_mcp_enabled">关闭时，针对此连接的 AI 代理（MCP）工具将被拒绝。该连接对您仍可正常使用。</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">原生 Android shell</string>
+    <string name="connections_field_background_opacity">覆盖背景不透明度</string>
+    <string name="connections_helper_background_opacity">低于 100%% 时，此配置的终端将变为半透明，在文字后面显示设备壁纸。关闭 = 使用全局设置。</string>
+    <string name="connections_background_opacity_value">不透明度：%1$d%%</string>
+    <string name="connections_reveal_password_title">显示已保存的密码</string>
+    <string name="connections_reveal_password_subtitle">验证身份后显示已保存的密码</string>
+    <string name="rclone_import_title">导入 rclone 远程</string>
+    <string name="rclone_import_intro">粘贴 Linux 上的 rclone.conf，或选择该文件。远程（包括 OAuth 令牌）将按原样导入，无需重新配置。</string>
+    <string name="rclone_import_pick_file">选择 rclone.conf…</string>
+    <string name="rclone_import_paste_label">rclone.conf 内容</string>
+    <string name="rclone_import_parse">查找远程</string>
+    <string name="rclone_import_encrypted">该文件是使用密码加密的 rclone 配置。请在桌面端运行 “rclone config show”，然后粘贴解密后的输出。</string>
+    <string name="rclone_import_already_added">已添加</string>
+    <string name="rclone_import_no_type">无类型</string>
+    <string name="rclone_import_select_count">导入 %1$d 个远程</string>
+    <string name="rclone_import_done">已导入 %1$d 个，跳过 %2$d 个，失败 %3$d 个。</string>
+    <string name="rclone_import_menu">导入 rclone 配置…</string>
+    <string name="connections_section_spice">SPICE 设置</string>
+    <string name="connections_section_mcp">AI 代理（MCP）</string>
+    <string name="connections_rclone_configure_first">请先点按“配置并验证”保存此远程，然后才能保存连接。</string>
+    <string name="connections_helper_spice_auth">SPICE 使用单个可选的票据/密码。服务器未启用票据时请留空。</string>
+    <string name="connections_auth_any_hardware_key">任意硬件密钥（FIDO）</string>
+    <string name="connections_deeplink_confirm_title">要连接吗？</string>
+    <string name="connections_deeplink_confirm_message">一个链接请求连接到 %1$s。</string>
+    <string name="connections_deeplink_confirm_session">一个链接请求连接到 %1$s 并附加会话“%2$s”。</string>
+    <string name="connections_deeplink_confirm_connect">连接</string>
 </resources>

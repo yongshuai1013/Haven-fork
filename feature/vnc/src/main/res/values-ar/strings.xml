@@ -27,4 +27,8 @@
     <string name="vnc_gesture_help_title">إيماءات اللمس</string>
     <string name="vnc_gesture_help_two_finger">اسحب بإصبعين للتمرير؛ واقرصهما للتكبير. إصبع واحد هو الفأرة.</string>
     <string name="vnc_gesture_help_three_finger">اقرص بثلاثة أصابع لتغيير حجم التطبيق مع البقاء في ملء الشاشة.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">إصبعان يحرّكان العرض (اضغط لتمرير الشاشة البعيدة)</string>
+    <string name="vnc_cd_two_finger_scroll_on">إصبعان يمرّران الشاشة البعيدة (اضغط لتحريك العرض)</string>
 </resources>

@@ -282,4 +282,17 @@
     <string name="sftp_conflict_size_summary">मौजूदा: %1$s  ·  नई: %2$s</string>
     <string name="sftp_conflict_resume_hint">मौजूदा फ़ाइल source से छोटी है — resume वर्तमान offset से जारी रहती है।</string>
     <string name="sftp_conflict_apply_to_all">शेष सभी फ़ाइलों पर लागू करें</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">नया rclone सिंक</string>
+    <string name="sftp_encrypt">एन्क्रिप्ट करें (age)</string>
+    <string name="sftp_encrypt_sub">किसी age कुंजी के लिए एन्क्रिप्ट करें — age टूल से कहीं भी पढ़ा जा सकता है</string>
+    <string name="sftp_decrypt">डिक्रिप्ट करें (age)</string>
+    <string name="sftp_decrypt_sub">संग्रहीत age पहचान से डिक्रिप्ट करें</string>
+    <string name="sftp_encrypt_title">age से एन्क्रिप्ट करें</string>
+    <string name="sftp_encrypt_recipient_hint">या कोई प्राप्तकर्ता पेस्ट करें (age1…)</string>
+    <string name="sftp_encrypt_action">एन्क्रिप्ट करें</string>
+    <string name="sftp_age_no_identity">कोई age पहचान नहीं। कुंजियाँ टैब में एक बनाएँ, या कोई प्राप्तकर्ता पेस्ट करें।</string>
+    <string name="sftp_age_failed">age ऑपरेशन विफल — गलत कुंजी या खराब फ़ाइल</string>
+    <string name="sftp_open_usb_drive">USB ड्राइव खोलें…</string>
 </resources>

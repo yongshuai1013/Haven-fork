@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">MCP désactivé pour cette connexion — appuyez pour activer</string>
     <string name="connections_toggle_mcp_enabled">Autoriser l\'agent MCP sur cette connexion</string>
     <string name="connections_helper_mcp_enabled">Lorsque c\'est désactivé, les outils de l\'agent IA (MCP) ciblant cette connexion sont refusés. La connexion continue de fonctionner normalement pour vous.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">Shell Android natif</string>
+    <string name="connections_field_background_opacity">Remplacer l\'opacité de l\'arrière-plan</string>
+    <string name="connections_helper_background_opacity">En dessous de 100%%, le terminal devient translucide et affiche le fond d\'écran de l\'appareil derrière le texte pour ce profil. Désactivé = utiliser le réglage global.</string>
+    <string name="connections_background_opacity_value">Opacité : %1$d%%</string>
+    <string name="connections_reveal_password_title">Afficher le mot de passe enregistré</string>
+    <string name="connections_reveal_password_subtitle">Confirmez votre identité pour afficher le mot de passe enregistré</string>
+    <string name="rclone_import_title">Importer des dépôts distants rclone</string>
+    <string name="rclone_import_intro">Collez votre rclone.conf Linux ou choisissez le fichier. Les dépôts distants (y compris les jetons OAuth) sont importés tels quels, sans reconfiguration.</string>
+    <string name="rclone_import_pick_file">Choisir rclone.conf…</string>
+    <string name="rclone_import_paste_label">Contenu de rclone.conf</string>
+    <string name="rclone_import_parse">Rechercher les dépôts distants</string>
+    <string name="rclone_import_encrypted">Ce fichier est une configuration rclone chiffrée par mot de passe. Exécutez \"rclone config show\" sur l\'ordinateur et collez plutôt la sortie déchiffrée.</string>
+    <string name="rclone_import_already_added">déjà ajouté</string>
+    <string name="rclone_import_no_type">aucun type</string>
+    <string name="rclone_import_select_count">Importer %1$d dépôt(s) distant(s)</string>
+    <string name="rclone_import_done">%1$d importé(s), %2$d ignoré(s), %3$d en échec.</string>
+    <string name="rclone_import_menu">Importer la configuration rclone…</string>
+    <string name="connections_section_spice">Paramètres SPICE</string>
+    <string name="connections_section_mcp">Agent IA (MCP)</string>
+    <string name="connections_rclone_configure_first">Touchez « Configurer et vérifier » pour enregistrer ce dépôt distant avant de pouvoir enregistrer la connexion.</string>
+    <string name="connections_helper_spice_auth">SPICE utilise un seul ticket/mot de passe facultatif. Laissez vide pour un serveur sans ticket.</string>
+    <string name="connections_auth_any_hardware_key">N\'importe quelle clé matérielle (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">Se connecter ?</string>
+    <string name="connections_deeplink_confirm_message">Un lien souhaite se connecter à %1$s.</string>
+    <string name="connections_deeplink_confirm_session">Un lien souhaite se connecter à %1$s et attacher la session « %2$s ».</string>
+    <string name="connections_deeplink_confirm_connect">Se connecter</string>
 </resources>

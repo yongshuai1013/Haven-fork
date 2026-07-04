@@ -282,4 +282,17 @@
     <string name="sftp_conflict_size_summary">الموجود: %1$s  ·  الجديد: %2$s</string>
     <string name="sftp_conflict_resume_hint">الملف الموجود أصغر من المصدر — الاستئناف يتابع من الإزاحة الحالية.</string>
     <string name="sftp_conflict_apply_to_all">تطبيق على جميع الملفات المتبقية</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">مزامنة rclone جديدة</string>
+    <string name="sftp_encrypt">تشفير (age)</string>
+    <string name="sftp_encrypt_sub">التشفير إلى مفتاح age — قابل للقراءة في أي مكان باستخدام أداة age</string>
+    <string name="sftp_decrypt">فك التشفير (age)</string>
+    <string name="sftp_decrypt_sub">فك التشفير بهوية age مخزّنة</string>
+    <string name="sftp_encrypt_title">التشفير باستخدام age</string>
+    <string name="sftp_encrypt_recipient_hint">أو الصق مستلمًا (age1…)</string>
+    <string name="sftp_encrypt_action">تشفير</string>
+    <string name="sftp_age_no_identity">لا توجد هوية age. أنشئ واحدة في تبويب المفاتيح، أو الصق مستلمًا.</string>
+    <string name="sftp_age_failed">فشلت عملية age — مفتاح خاطئ أو ملف تالف</string>
+    <string name="sftp_open_usb_drive">فتح قرص USB…</string>
 </resources>

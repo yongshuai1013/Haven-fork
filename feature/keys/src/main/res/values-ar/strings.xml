@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">نقل لأعلى</string>
     <string name="keys_move_down">نقل لأسفل</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">تخزين عبارة المرور على هذا الجهاز</string>
+    <string name="keys_store_passphrase_warning">يحفظ عبارة مرور هذا المفتاح في التخزين المشفّر المدعوم بالعتاد على هذا الجهاز، فلا تطلبها الاتصالات التي تستخدم هذا المفتاح أبدًا. يمكن لأي شخص يستطيع فتح قفل هذا الجهاز استخدام المفتاح. فعّله فقط إذا قبلت هذه المخاطرة.</string>
+    <string name="keys_store_passphrase_confirm">تخزين</string>
+    <string name="keys_age_section_header">هويات التشفير (age) · %1$d</string>
+    <string name="keys_generate_age">إنشاء هوية age</string>
+    <string name="keys_generate_age_hint">زوج مفاتيح X25519 لتشفير الملفات (age)</string>
+    <string name="keys_generate_age_title">هوية age جديدة</string>
+    <string name="keys_age_label_hint">التسمية</string>
+    <string name="keys_age_recipient_copied">تم نسخ المستلم</string>
 </resources>

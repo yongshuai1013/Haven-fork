@@ -27,4 +27,8 @@
     <string name="vnc_gesture_help_title">Gestos de toque</string>
     <string name="vnc_gesture_help_two_finger">Arraste dois dedos para rolar; junte-os para dar zoom. Um dedo é o mouse.</string>
     <string name="vnc_gesture_help_three_finger">Junte três dedos para redimensionar o app sem sair da tela cheia.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">Dois dedos deslocam a visualização (toque para rolar o remoto)</string>
+    <string name="vnc_cd_two_finger_scroll_on">Dois dedos rolam o remoto (toque para deslocar a visualização)</string>
 </resources>

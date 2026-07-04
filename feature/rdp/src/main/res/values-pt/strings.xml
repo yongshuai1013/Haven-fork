@@ -35,4 +35,8 @@
     <string name="rdp_hint_time_skew_body">O CredSSP rejeita a sessão quando o relógio do dispositivo está a mais de alguns minutos de diferença do servidor. Verifique Configurações → Data e hora → Definir automaticamente e reconecte.</string>
     <string name="rdp_hint_tls_ciphers_title">O servidor exige cifras TLS que o Haven não oferece suporte</string>
     <string name="rdp_hint_tls_ciphers_body">O Haven usa a pilha TLS rustls/ring, que cobre menos cifras do que o cliente RDP da Microsoft (SChannel) ou o OpenSSL. A configuração mais compatível no servidor é ECDHE-RSA + AES-GCM sobre TLS 1.2 ou 1.3.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="rdp_cd_two_finger_viewport">Dois dedos deslocam a visualização (toque para rolar o remoto)</string>
+    <string name="rdp_cd_two_finger_scroll_on">Dois dedos rolam o remoto (toque para deslocar a visualização)</string>
 </resources>

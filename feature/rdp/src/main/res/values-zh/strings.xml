@@ -35,4 +35,8 @@
     <string name="rdp_hint_time_skew_body">当设备时钟与服务器相差超过几分钟时，CredSSP 会拒绝会话。请检查设置 → 日期和时间 → 自动设置，然后重新连接。</string>
     <string name="rdp_hint_tls_ciphers_title">服务器要求 Haven 不支持的 TLS 加密套件</string>
     <string name="rdp_hint_tls_ciphers_body">Haven 使用 rustls/ring TLS 栈，其加密套件覆盖范围比 Microsoft 的 RDP 客户端（SChannel）或 OpenSSL 更窄。兼容性最好的服务器端设置是基于 TLS 1.2 或 1.3 的 ECDHE-RSA + AES-GCM。</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="rdp_cd_two_finger_viewport">双指平移视图（点按切换为滚动远程端）</string>
+    <string name="rdp_cd_two_finger_scroll_on">双指滚动远程端（点按切换为平移视图）</string>
 </resources>

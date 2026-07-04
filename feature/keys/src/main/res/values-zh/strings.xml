@@ -195,4 +195,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">上移</string>
     <string name="keys_move_down">下移</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">在此设备上存储密码短语</string>
+    <string name="keys_store_passphrase_warning">将此密钥的密码短语保存到本设备由硬件支持的加密存储中，使用此密钥的连接将不再提示输入。任何能解锁本设备的人都可以使用该密钥。仅在接受该风险时启用。</string>
+    <string name="keys_store_passphrase_confirm">存储</string>
+    <string name="keys_age_section_header">加密身份（age）· %1$d</string>
+    <string name="keys_generate_age">生成 age 身份</string>
+    <string name="keys_generate_age_hint">用于加密文件的 X25519 密钥对（age）</string>
+    <string name="keys_generate_age_title">新建 age 身份</string>
+    <string name="keys_age_label_hint">标签</string>
+    <string name="keys_age_recipient_copied">已复制接收者</string>
 </resources>

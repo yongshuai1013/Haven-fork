@@ -282,4 +282,17 @@
     <string name="sftp_conflict_size_summary">现有：%1$s  ·  新建：%2$s</string>
     <string name="sftp_conflict_resume_hint">现有文件小于源文件——继续将从当前偏移量恢复。</string>
     <string name="sftp_conflict_apply_to_all">应用到所有剩余文件</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">新建 rclone 同步</string>
+    <string name="sftp_encrypt">加密（age）</string>
+    <string name="sftp_encrypt_sub">加密到 age 密钥——任何装有 age 工具的地方都能读取</string>
+    <string name="sftp_decrypt">解密（age）</string>
+    <string name="sftp_decrypt_sub">使用已存储的 age 身份解密</string>
+    <string name="sftp_encrypt_title">使用 age 加密</string>
+    <string name="sftp_encrypt_recipient_hint">或粘贴接收者（age1…）</string>
+    <string name="sftp_encrypt_action">加密</string>
+    <string name="sftp_age_no_identity">没有 age 身份。请在“密钥”标签页创建一个，或粘贴接收者。</string>
+    <string name="sftp_age_failed">age 操作失败——密钥错误或文件损坏</string>
+    <string name="sftp_open_usb_drive">打开 USB 驱动器…</string>
 </resources>

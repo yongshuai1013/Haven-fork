@@ -195,4 +195,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">위로 이동</string>
     <string name="keys_move_down">아래로 이동</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">이 기기에 암호문 저장</string>
+    <string name="keys_store_passphrase_warning">이 키의 암호문을 이 기기의 하드웨어 기반 암호화 저장소에 저장하여, 이 키를 사용하는 연결에서 다시 묻지 않게 합니다. 이 기기를 잠금 해제할 수 있는 사람은 누구나 이 키를 사용할 수 있습니다. 이 위험을 감수할 수 있을 때만 켜세요.</string>
+    <string name="keys_store_passphrase_confirm">저장</string>
+    <string name="keys_age_section_header">암호화 ID (age) · %1$d</string>
+    <string name="keys_generate_age">age ID 생성</string>
+    <string name="keys_generate_age_hint">파일 암호화용 X25519 키 쌍 (age)</string>
+    <string name="keys_generate_age_title">새 age ID</string>
+    <string name="keys_age_label_hint">라벨</string>
+    <string name="keys_age_recipient_copied">수신자 복사됨</string>
 </resources>

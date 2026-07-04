@@ -282,4 +282,17 @@
     <string name="sftp_conflict_size_summary">既存: %1$s  ·  新規: %2$s</string>
     <string name="sftp_conflict_resume_hint">既存ファイルがソースより小さい — 再開すると現在のオフセットから続きます。</string>
     <string name="sftp_conflict_apply_to_all">残りのすべてのファイルに適用</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">新しい rclone 同期</string>
+    <string name="sftp_encrypt">暗号化 (age)</string>
+    <string name="sftp_encrypt_sub">age 鍵に対して暗号化 — age ツールがあればどこでも読めます</string>
+    <string name="sftp_decrypt">復号 (age)</string>
+    <string name="sftp_decrypt_sub">保存済みの age アイデンティティで復号</string>
+    <string name="sftp_encrypt_title">age で暗号化</string>
+    <string name="sftp_encrypt_recipient_hint">または受信者を貼り付け (age1…)</string>
+    <string name="sftp_encrypt_action">暗号化</string>
+    <string name="sftp_age_no_identity">age アイデンティティがありません。「鍵」タブで作成するか、受信者を貼り付けてください。</string>
+    <string name="sftp_age_failed">age の操作に失敗しました — 鍵が違うかファイルが破損しています</string>
+    <string name="sftp_open_usb_drive">USB ドライブを開く…</string>
 </resources>

@@ -489,4 +489,32 @@
     <string name="connections_mcp_disabled">MCP معطّل لهذا الاتصال — انقر للتفعيل</string>
     <string name="connections_toggle_mcp_enabled">السماح لوكيل MCP على هذا الاتصال</string>
     <string name="connections_helper_mcp_enabled">عند الإيقاف، تُرفض أدوات وكيل الذكاء الاصطناعي (MCP) الموجّهة إلى هذا الاتصال. يستمر الاتصال في العمل كالمعتاد بالنسبة لك.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="connections_android_shell_label">‏shell الأصلي لنظام Android</string>
+    <string name="connections_field_background_opacity">تجاوز عتامة الخلفية</string>
+    <string name="connections_helper_background_opacity">أقل من 100%% تصبح الطرفية شبه شفافة وتُظهر خلفية الجهاز خلف النص لهذا الملف الشخصي. معطّل = استخدام الإعداد العام.</string>
+    <string name="connections_background_opacity_value">العتامة: %1$d%%</string>
+    <string name="connections_reveal_password_title">إظهار كلمة المرور المحفوظة</string>
+    <string name="connections_reveal_password_subtitle">أكّد هويتك لعرض كلمة المرور المحفوظة</string>
+    <string name="rclone_import_title">استيراد سجلات rclone البعيدة</string>
+    <string name="rclone_import_intro">الصق ملف rclone.conf من Linux أو اختر الملف. تُستورد السجلات البعيدة (بما فيها رموز OAuth) كما هي، فلا تحتاج إلى إعادة تهيئتها.</string>
+    <string name="rclone_import_pick_file">اختيار rclone.conf…</string>
+    <string name="rclone_import_paste_label">محتوى rclone.conf</string>
+    <string name="rclone_import_parse">البحث عن السجلات البعيدة</string>
+    <string name="rclone_import_encrypted">هذا الملف هو تهيئة rclone مشفّرة بكلمة مرور. نفّذ \"rclone config show\" على الحاسوب والصق المخرجات المفكوكة التشفير بدلًا منه.</string>
+    <string name="rclone_import_already_added">أُضيف بالفعل</string>
+    <string name="rclone_import_no_type">بدون نوع</string>
+    <string name="rclone_import_select_count">استيراد %1$d من السجلات البعيدة</string>
+    <string name="rclone_import_done">تم استيراد %1$d، وتخطي %2$d، وفشل %3$d.</string>
+    <string name="rclone_import_menu">استيراد تهيئة rclone…</string>
+    <string name="connections_section_spice">إعدادات SPICE</string>
+    <string name="connections_section_mcp">وكيل الذكاء الاصطناعي (MCP)</string>
+    <string name="connections_rclone_configure_first">اضغط “تهيئة والتحقق” لحفظ هذا السجل البعيد قبل أن تتمكن من حفظ الاتصال.</string>
+    <string name="connections_helper_spice_auth">يستخدم SPICE تذكرة/كلمة مرور واحدة اختيارية. اتركها فارغة لخادم بدون تذكرة.</string>
+    <string name="connections_auth_any_hardware_key">أي مفتاح أمان (FIDO)</string>
+    <string name="connections_deeplink_confirm_title">هل تريد الاتصال؟</string>
+    <string name="connections_deeplink_confirm_message">يطلب رابط الاتصال بـ %1$s.</string>
+    <string name="connections_deeplink_confirm_session">يطلب رابط الاتصال بـ %1$s وإرفاق الجلسة “%2$s”.</string>
+    <string name="connections_deeplink_confirm_connect">اتصال</string>
 </resources>

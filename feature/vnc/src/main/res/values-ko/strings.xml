@@ -26,4 +26,8 @@
     <string name="vnc_gesture_help_title">터치 제스처</string>
     <string name="vnc_gesture_help_two_finger">두 손가락으로 드래그하면 스크롤, 오므리면 확대/축소됩니다. 한 손가락은 마우스입니다.</string>
     <string name="vnc_gesture_help_three_finger">세 손가락으로 오므리면 전체 화면을 유지하면서 앱 크기를 조절합니다.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">두 손가락으로 화면 이동 (원격 스크롤로 전환하려면 탭)</string>
+    <string name="vnc_cd_two_finger_scroll_on">두 손가락으로 원격 스크롤 (화면 이동으로 전환하려면 탭)</string>
 </resources>

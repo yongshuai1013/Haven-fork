@@ -193,4 +193,15 @@
     <!-- Key reordering (#238) -->
     <string name="keys_move_up">上へ移動</string>
     <string name="keys_move_down">下へ移動</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="keys_store_passphrase">パスフレーズをこのデバイスに保存</string>
+    <string name="keys_store_passphrase_warning">この鍵のパスフレーズをこのデバイスのハードウェア保護付き暗号化ストレージに保存し、この鍵を使う接続で入力を求められないようにします。このデバイスをロック解除できる人は誰でもこの鍵を使えます。そのリスクを許容できる場合のみ有効にしてください。</string>
+    <string name="keys_store_passphrase_confirm">保存</string>
+    <string name="keys_age_section_header">暗号化アイデンティティ (age) · %1$d</string>
+    <string name="keys_generate_age">age アイデンティティを生成</string>
+    <string name="keys_generate_age_hint">ファイル暗号化用の X25519 鍵ペア (age)</string>
+    <string name="keys_generate_age_title">新しい age アイデンティティ</string>
+    <string name="keys_age_label_hint">ラベル</string>
+    <string name="keys_age_recipient_copied">受信者をコピーしました</string>
 </resources>

@@ -283,4 +283,17 @@
     <string name="sftp_conflict_resume_hint">Существующий файл меньше источника — возобновление продолжится с текущего смещения.</string>
     <string name="sftp_conflict_apply_to_all">Применить ко всем оставшимся файлам</string>
 
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="sftp_new_sync">Новая синхронизация rclone</string>
+    <string name="sftp_encrypt">Зашифровать (age)</string>
+    <string name="sftp_encrypt_sub">Шифрует для ключа age — можно прочитать где угодно с помощью инструмента age</string>
+    <string name="sftp_decrypt">Расшифровать (age)</string>
+    <string name="sftp_decrypt_sub">Расшифровывает с помощью сохранённого идентификатора age</string>
+    <string name="sftp_encrypt_title">Зашифровать с помощью age</string>
+    <string name="sftp_encrypt_recipient_hint">Или вставьте получателя (age1…)</string>
+    <string name="sftp_encrypt_action">Зашифровать</string>
+    <string name="sftp_age_no_identity">Нет идентификатора age. Создайте его на вкладке «Ключи» или вставьте получателя.</string>
+    <string name="sftp_age_failed">Операция age не удалась — неверный ключ или повреждённый файл</string>
+    <string name="sftp_open_usb_drive">Открыть USB-накопитель…</string>
 </resources>

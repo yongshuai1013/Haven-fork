@@ -26,4 +26,8 @@
     <string name="vnc_gesture_help_title">Gestos táctiles</string>
     <string name="vnc_gesture_help_two_finger">Arrastra dos dedos para desplazar; pellízcalos para hacer zoom. Un dedo es el ratón.</string>
     <string name="vnc_gesture_help_three_finger">Pellizca con tres dedos para cambiar el tamaño de la app sin salir de pantalla completa.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">Dos dedos mueven la vista (toca para desplazar la pantalla remota)</string>
+    <string name="vnc_cd_two_finger_scroll_on">Dos dedos desplazan la pantalla remota (toca para mover la vista)</string>
 </resources>

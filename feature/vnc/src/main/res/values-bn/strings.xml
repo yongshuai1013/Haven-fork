@@ -27,4 +27,8 @@
     <string name="vnc_gesture_help_title">টাচ জেসচার</string>
     <string name="vnc_gesture_help_two_finger">স্ক্রোল করতে দুই আঙুল দিয়ে টানুন; জুম করতে চিমটি দিন। এক আঙুল হলো মাউস।</string>
     <string name="vnc_gesture_help_three_finger">ফুলস্ক্রিনে থেকেই অ্যাপের আকার পরিবর্তন করতে তিন আঙুল দিয়ে চিমটি দিন।</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="vnc_cd_two_finger_viewport">দুই আঙুলে ভিউ প্যান হয় (রিমোট স্ক্রোল করতে ট্যাপ করুন)</string>
+    <string name="vnc_cd_two_finger_scroll_on">দুই আঙুলে রিমোট স্ক্রোল হয় (ভিউ প্যান করতে ট্যাপ করুন)</string>
 </resources>

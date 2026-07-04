@@ -34,4 +34,8 @@
     <string name="rdp_hint_time_skew_body">CredSSP отклоняет сессию, когда часы устройства расходятся с часами сервера более чем на несколько минут. Проверьте Настройки → Дата и время → Устанавливать автоматически и переподключитесь.</string>
     <string name="rdp_hint_tls_ciphers_title">Сервер требует шифры TLS, которые Haven не поддерживает</string>
     <string name="rdp_hint_tls_ciphers_body">Haven использует TLS-стек rustls/ring, у которого охват шифров уже, чем у RDP-клиента Microsoft (SChannel) или OpenSSL. Наиболее совместимая настройка на стороне сервера — ECDHE-RSA + AES-GCM поверх TLS 1.2 или 1.3.</string>
+
+    <!-- Backfill 2026-07: strings added since the last i18n pass -->
+    <string name="rdp_cd_two_finger_viewport">Два пальца перемещают вид (нажмите, чтобы прокручивать удалённый экран)</string>
+    <string name="rdp_cd_two_finger_scroll_on">Два пальца прокручивают удалённый экран (нажмите, чтобы перемещать вид)</string>
 </resources>
