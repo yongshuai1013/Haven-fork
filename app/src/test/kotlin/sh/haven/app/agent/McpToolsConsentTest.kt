@@ -500,4 +500,41 @@ class McpToolsConsentTest {
         // Relaxed SshKeyRepository.getAll() returns an empty list.
         assertEquals(0, out.getInt("count"))
     }
+
+    // --- Rclone provider extraction (#mcp-backbone Stage 5, Layer E) ---
+
+    @Test
+    fun `rclone tools are aggregated with their consent levels intact`() {
+        val tools = newTools()
+        val names = tools.definitions().map { it.getString("name") }.toSet()
+        // A representative slice across the domain's three impl clusters:
+        // remote-config CRUD, sync jobs/stats, and saved sync profiles.
+        val readOnly = listOf(
+            "list_rclone_remotes", "list_rclone_directory", "list_rclone_provider_options",
+            "get_rclone_sync_status", "get_rclone_stats", "list_saved_sync_profiles",
+        )
+        val everyCall = listOf(
+            "start_rclone_sync", "save_sync_profile",
+            // Destructive → EVERY_CALL (the saved config / remote is gone after).
+            "delete_sync_profile", "delete_rclone_remote",
+        )
+        for (name in readOnly) {
+            assertTrue("$name missing from definitions()", name in names)
+            assertEquals("$name must be NEVER", ConsentLevel.NEVER, tools.consentFor(name)!!.level)
+        }
+        for (name in everyCall) {
+            assertTrue("$name missing from definitions()", name in names)
+            assertEquals("$name must be EVERY_CALL", ConsentLevel.EVERY_CALL, tools.consentFor(name)!!.level)
+        }
+        // All 15 rclone tools present.
+        assertTrue("expected all 15 rclone tools", names.count { it.contains("rclone") || it.endsWith("sync_profile") || it.endsWith("sync_profiles") } >= 15)
+    }
+
+    @Test
+    fun `list_rclone_remotes dispatches through the aggregated call path`() {
+        val tools = newTools(mockk(relaxed = true))
+        val out = runBlocking { tools.call("list_rclone_remotes", JSONObject()) }
+        // Relaxed RcloneClient.listRemotes() returns an empty list → count 0.
+        assertEquals(0, out.getInt("count"))
+    }
 }
