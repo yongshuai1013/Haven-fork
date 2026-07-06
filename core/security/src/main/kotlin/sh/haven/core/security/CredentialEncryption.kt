@@ -74,7 +74,10 @@ object CredentialEncryption {
     fun isEncrypted(stored: String): Boolean {
         if (!stored.startsWith(ENCRYPTED_PREFIX)) return false
         return try {
-            val body = Base64.decode(stored.removePrefix(ENCRYPTED_PREFIX), Base64.NO_WRAP)
+            // java.util.Base64 (not android.util.Base64) so this stays a pure
+            // predicate callable from plain JVM unit tests; the standard-alphabet
+            // decoder round-trips the NO_WRAP output that encrypt() writes.
+            val body = java.util.Base64.getDecoder().decode(stored.removePrefix(ENCRYPTED_PREFIX))
             body.size >= TINK_MIN_CIPHERTEXT_LEN && body[0] == TINK_PREFIX_VERSION
         } catch (_: Exception) {
             false

@@ -96,9 +96,16 @@ class ProfileCredentialSectionTest {
         assertTrue(section.enumerate().isEmpty())
     }
 
+    // A well-formed Tink-shaped ciphertext: "ENC:" + base64 of ≥33 bytes whose
+    // first byte is the TINK output-prefix version 0x01 — what CredentialEncryption
+    // .isEncrypted() now requires (security-review #18). "ENC:x" and other short
+    // stubs are (correctly) treated as plaintext.
+    private val encSample =
+        "ENC:" + java.util.Base64.getEncoder().encodeToString(ByteArray(40).also { it[0] = 1 })
+
     @Test
     fun `encrypted password carries HARDWARE_BACKED flag and AES algorithm`() = runTest {
-        val p = profile(sshPassword = "ENC:secret-cipher-text")
+        val p = profile(sshPassword = encSample)
         val (section, _) = newSection(listOf(p))
         val e = section.enumerate().single()
         assertEquals(KeyKind.PROFILE_PASSWORD, e.keyKind)
