@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -535,6 +536,37 @@ class McpToolsConsentTest {
         val tools = newTools(mockk(relaxed = true))
         val out = runBlocking { tools.call("list_rclone_remotes", JSONObject()) }
         // Relaxed RcloneClient.listRemotes() returns an empty list → count 0.
+        assertEquals(0, out.getInt("count"))
+    }
+
+    // --- USB provider extraction (#mcp-backbone Stage 5, Layer E) ---
+
+    @Test
+    fun `usb tools are aggregated with their consent levels intact`() {
+        val tools = newTools()
+        val names = tools.definitions().map { it.getString("name") }.toSet()
+        // list_usb_devices is read-only; the transfer/attach/export/drive verbs
+        // gate. A representative slice across the broker / usbip / drive-VM
+        // clusters.
+        assertTrue("list_usb_devices missing", "list_usb_devices" in names)
+        assertEquals("list_usb_devices must be NEVER", ConsentLevel.NEVER, tools.consentFor("list_usb_devices")!!.level)
+        for (name in listOf(
+            "request_usb_permission", "usb_control_transfer", "usb_bulk_transfer",
+            "usb_attach_to_guest", "start_usbip_export", "open_usb_drive",
+            "unlock_usb_drive_partition", "delete_usb_appliance",
+        )) {
+            assertTrue("$name missing from definitions()", name in names)
+            assertNotEquals("$name should gate (not NEVER)", ConsentLevel.NEVER, tools.consentFor(name)!!.level)
+        }
+        // list_bridges (the Bridges registry) stays in McpTools, not the USB provider.
+        assertTrue("list_bridges must remain registered", "list_bridges" in names)
+    }
+
+    @Test
+    fun `list_usb_devices dispatches through the aggregated call path`() {
+        val tools = newTools(mockk(relaxed = true))
+        val out = runBlocking { tools.call("list_usb_devices", JSONObject()) }
+        // Relaxed UsbBroker.listDevices() returns an empty list → count 0.
         assertEquals(0, out.getInt("count"))
     }
 }
