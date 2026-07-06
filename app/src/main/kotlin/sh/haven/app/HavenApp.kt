@@ -390,7 +390,7 @@ class HavenApp : Application(), Configuration.Provider {
         val isPairing = req.toolName == AgentConsentManager.PAIRING_TOOL_NAME
         // Per-(client,tool) id so distinct blocked actions get distinct
         // actionable notifications and each Allow/Deny resolves the right one.
-        val notifId = ("${req.clientHint ?: ""}::${req.toolName}").hashCode()
+        val notifId = consentNotifId(req.clientHint, req.toolName)
 
         val title = if (isPairing) "Haven: a client wants to pair" else "Haven: agent needs approval"
         val line = if (isPairing) {
@@ -511,6 +511,14 @@ class HavenApp : Application(), Configuration.Provider {
 
     companion object {
         private const val CONSENT_CHANNEL_ID = "haven-agent-consent"
+
+        /**
+         * Per-(client, tool) id for the blocked-consent notification. Shared
+         * with MainActivity so the pairing re-prompt on foreground can clear
+         * the matching notification once the user has answered the sheet.
+         */
+        fun consentNotifId(clientHint: String?, toolName: String): Int =
+            "${clientHint ?: ""}::$toolName".hashCode()
         private const val USB_DRIVE_CHANNEL_ID = "haven-usb-drive-detected"
         private const val USB_DRIVE_NOTIF_ID = 287_287
         private const val USB_CLASS_MASS_STORAGE = 8

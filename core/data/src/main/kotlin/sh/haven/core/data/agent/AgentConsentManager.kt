@@ -155,6 +155,20 @@ class AgentConsentManager @Inject constructor() {
     @Volatile
     private var foregroundActive: Boolean = false
 
+    /**
+     * The most recent pairing attempt that failed closed because Haven was
+     * backgrounded. The pairing notification tells the user to open Haven —
+     * but the original attempt already resolved DENY, so without remembering
+     * it here nothing would re-prompt unless the client happened to retry
+     * while the user was looking (the "tapped the notification and nothing
+     * displayed" dead end). [repromptBlockedPairing] re-raises it on the next
+     * foreground. Single-slot: a newer blocked attempt replaces an older one.
+     */
+    private data class BlockedPairing(val clientName: String, val clientVersion: String?, val atMs: Long)
+
+    @Volatile
+    private var blockedPairing: BlockedPairing? = null
+
     private val _pending = MutableStateFlow<List<ConsentRequest>>(emptyList())
     /** All currently-waiting requests, oldest first. Drives the bottom sheet. */
     val pending: StateFlow<List<ConsentRequest>> = _pending.asStateFlow()
@@ -338,8 +352,25 @@ class AgentConsentManager @Inject constructor() {
         clientVersion: String?,
         timeoutMs: Long = 60_000,
     ): ConsentDecision {
+        // A pairing approval granted from the foreground re-prompt
+        // ([repromptBlockedPairing]): the client wasn't connected when the
+        // user tapped Pair, so the grant waits in [windowedAllows] until the
+        // client's next initialize lands here. Window-scoped and name-keyed —
+        // same trust caliber as [armRetryWindow].
+        mutex.withLock {
+            val key = memoKey(clientName, PAIRING_TOOL_NAME)
+            val expiry = windowedAllows[key]
+            if (expiry != null) {
+                if (expiry > System.currentTimeMillis()) {
+                    Log.i(LOG_TAG, "requestClientPairing('$clientName'): armed pairing window — ALLOW without prompt")
+                    return ConsentDecision.ALLOW
+                }
+                windowedAllows.remove(key)
+            }
+        }
         if (!foregroundActive) {
             Log.w(LOG_TAG, "requestClientPairing('$clientName'): foreground=false — failing closed + notifying")
+            blockedPairing = BlockedPairing(clientName, clientVersion, System.currentTimeMillis())
             _blockedWhileBackground.tryEmit(
                 ConsentRequest(
                     id = nextId.getAndIncrement(),
@@ -443,6 +474,36 @@ class AgentConsentManager @Inject constructor() {
     }
 
     /**
+     * Re-raise the pairing sheet for a pairing attempt that was blocked while
+     * Haven was backgrounded — called by the activity layer on foreground
+     * (right after [setForegroundActive]). This is what makes tapping the
+     * pairing notification actually display the request instead of opening
+     * Haven onto nothing.
+     *
+     * On Pair, arms a [NOTIFICATION_ALLOW_WINDOW_MS] auto-allow window for
+     * the client name: the client isn't connected to receive its token right
+     * now, so its next `initialize` consumes the window (see
+     * [requestClientPairing]) and the token is minted then. Returns the
+     * client name when a remembered attempt was re-prompted (so the caller
+     * can clear its notification), or null when there was nothing to do.
+     * Stale attempts (older than [BLOCKED_PAIRING_TTL_MS]) are dropped.
+     */
+    suspend fun repromptBlockedPairing(): String? {
+        val blocked = blockedPairing ?: return null
+        blockedPairing = null
+        if (System.currentTimeMillis() - blocked.atMs > BLOCKED_PAIRING_TTL_MS) return null
+        val decision = requestClientPairing(blocked.clientName, blocked.clientVersion)
+        if (decision == ConsentDecision.ALLOW) {
+            mutex.withLock {
+                windowedAllows[memoKey(blocked.clientName, PAIRING_TOOL_NAME)] =
+                    System.currentTimeMillis() + NOTIFICATION_ALLOW_WINDOW_MS
+            }
+            Log.i(LOG_TAG, "repromptBlockedPairing('${blocked.clientName}'): paired — window armed for the client's next initialize")
+        }
+        return blocked.clientName
+    }
+
+    /**
      * Used by Settings → "Forget remembered allows". Clears the session
      * caches here; the *persistent* bypass set lives in DataStore, so the
      * caller (`SettingsViewModel`) also wipes
@@ -490,5 +551,13 @@ class AgentConsentManager @Inject constructor() {
          * standing bypass.
          */
         const val NOTIFICATION_ALLOW_WINDOW_MS = 120_000L
+
+        /**
+         * How long a background-blocked pairing attempt stays re-promptable
+         * ([repromptBlockedPairing]). Long enough to see the notification and
+         * open the app; short enough that a forgotten attempt doesn't ambush
+         * the user hours later.
+         */
+        const val BLOCKED_PAIRING_TTL_MS = 10 * 60_000L
     }
 }

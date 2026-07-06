@@ -386,6 +386,67 @@ class AgentConsentManagerTest {
     }
 
     @Test
+    fun `blocked pairing re-prompts on foreground and Pair arms the client's next initialize`() = runTest(UnconfinedTestDispatcher()) {
+        val mgr = AgentConsentManager()
+        // Client tries to pair while Haven is backgrounded → fail-closed.
+        assertEquals(ConsentDecision.DENY, mgr.requestClientPairing("laptop", "1.0"))
+
+        // User opens Haven (taps the notification) → the attempt re-prompts.
+        mgr.setForegroundActive(true)
+        val reprompt = async { mgr.repromptBlockedPairing() }
+        val req = mgr.pending.value.single()
+        assertEquals(AgentConsentManager.PAIRING_TOOL_NAME, req.toolName)
+        assertEquals("laptop", req.clientHint)
+        mgr.respond(req.id, ConsentDecision.ALLOW)
+        assertEquals("laptop", reprompt.await())
+
+        // The client's next initialize is covered by the armed window — even
+        // if Haven has been backgrounded again by then — and prompts nothing.
+        mgr.setForegroundActive(false)
+        assertEquals(ConsentDecision.ALLOW, mgr.requestClientPairing("laptop", "1.0"))
+        assertTrue(mgr.pending.value.isEmpty())
+    }
+
+    @Test
+    fun `repromptBlockedPairing is a no-op when nothing was blocked`() = runTest(UnconfinedTestDispatcher()) {
+        val mgr = AgentConsentManager()
+        mgr.setForegroundActive(true)
+        assertEquals(null, mgr.repromptBlockedPairing())
+        assertTrue(mgr.pending.value.isEmpty())
+    }
+
+    @Test
+    fun `denying the pairing re-prompt does not arm the window`() = runTest(UnconfinedTestDispatcher()) {
+        val mgr = AgentConsentManager()
+        assertEquals(ConsentDecision.DENY, mgr.requestClientPairing("laptop", null))
+
+        mgr.setForegroundActive(true)
+        val reprompt = async { mgr.repromptBlockedPairing() }
+        mgr.respond(mgr.pending.value.single().id, ConsentDecision.DENY)
+        assertEquals("laptop", reprompt.await())
+
+        // No window: a retry while backgrounded fails closed as before.
+        mgr.setForegroundActive(false)
+        assertEquals(ConsentDecision.DENY, mgr.requestClientPairing("laptop", null))
+    }
+
+    @Test
+    fun `blocked pairing is single-slot - newest wins and it re-prompts once`() = runTest(UnconfinedTestDispatcher()) {
+        val mgr = AgentConsentManager()
+        mgr.requestClientPairing("first", null)
+        mgr.requestClientPairing("second", null)
+
+        mgr.setForegroundActive(true)
+        val reprompt = async { mgr.repromptBlockedPairing() }
+        assertEquals("second", mgr.pending.value.single().clientHint)
+        mgr.respond(mgr.pending.value.single().id, ConsentDecision.DENY)
+        assertEquals("second", reprompt.await())
+
+        // Consumed: a second foreground pass has nothing to show.
+        assertEquals(null, mgr.repromptBlockedPairing())
+    }
+
+    @Test
     fun `memo is keyed on clientHint plus toolName`() = runTest(UnconfinedTestDispatcher()) {
         val mgr = AgentConsentManager()
         mgr.setForegroundActive(true)

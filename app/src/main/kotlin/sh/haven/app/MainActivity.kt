@@ -42,6 +42,7 @@ import sh.haven.app.agent.AppWindowVncController
 import sh.haven.app.agent.PipController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.MainScope
@@ -124,6 +125,16 @@ class MainActivity : AppCompatActivity() {
         agentConsentManager.setForegroundActive(true)
         biometricGate.setForegroundActive(true)
         havenUiBridge.attach(this)
+        // A pairing attempt blocked while backgrounded is re-prompted now that
+        // a foreground activity can render the sheet — this is what the
+        // pairing notification's tap-to-open promises. No-op when nothing is
+        // remembered.
+        lifecycleScope.launch {
+            agentConsentManager.repromptBlockedPairing()?.let { client ->
+                androidx.core.app.NotificationManagerCompat.from(this@MainActivity)
+                    .cancel(HavenApp.consentNotifId(client, sh.haven.core.data.agent.AgentConsentManager.PAIRING_TOOL_NAME))
+            }
+        }
     }
 
     override fun onPause() {
