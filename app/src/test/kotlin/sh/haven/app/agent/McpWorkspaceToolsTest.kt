@@ -43,17 +43,27 @@ import sh.haven.feature.sftp.SftpStreamServer
 class McpWorkspaceToolsTest {
 
     private val testClientName = "test-host"
+    private val testToken = "test-pairing-token"
+
+    /** Session id minted by newServer()'s initialize; echoed by [call]. */
+    private var sid: String? = null
+
+    /** Dispatch [body] carrying the session id like a real paired client. */
+    private fun McpServer.call(body: String): String = handleJsonRpc(body, sid).body
 
     private fun newServer(
         workspaceRepository: WorkspaceRepository = mockk(relaxed = true),
         workspaceLauncher: WorkspaceLauncher = mockk(relaxed = true),
         consentManager: AgentConsentManager = AgentConsentManager(),
     ): McpServer {
-        // Pre-seed the prefs allowlist with the test client so the
-        // initialize call in pair() short-circuits the pairing gate
-        // and dispatch-time checks pass.
+        // Pre-seed the prefs with the test client's pairing-token hash so
+        // the bearer-authenticated initialize below short-circuits the
+        // pairing prompt and dispatch-time checks pass (#mcp-backbone
+        // Stage 3).
         val prefs = mockk<UserPreferencesRepository>(relaxed = true)
         every { prefs.mcpAllowedClients } returns flowOf(setOf(testClientName))
+        every { prefs.mcpClientTokenHashes } returns
+            flowOf(mapOf(testClientName to sha256HexOf(testToken)))
         coEvery { prefs.addMcpAllowedClient(any()) } returns Unit
 
         val server = McpServer(
@@ -106,9 +116,10 @@ class McpWorkspaceToolsTest {
             agentActivityHolder = mockk(relaxed = true),
         )
         // All workspace verbs go through tools/call which is gated by
-        // the dispatch-time pairing check. Initialize first so the
-        // test client is recognised as paired.
-        server.handleJsonRpc(
+        // the dispatch-time pairing check. Initialize first (with the
+        // pairing token) so the test client is recognised as paired, and
+        // keep the minted session id for the calls that follow.
+        val outcome = server.handleJsonRpc(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 0)
@@ -119,7 +130,10 @@ class McpWorkspaceToolsTest {
                         .put("name", testClientName)
                         .put("version", "1.0")))
                 .toString(),
+            requestSessionId = null,
+            bearerToken = testToken,
         )
+        sid = outcome.responseSessionId
         return server
     }
 
@@ -152,7 +166,7 @@ class McpWorkspaceToolsTest {
         }
         val server = newServer(workspaceRepository = repo)
 
-        val response = server.handleJsonRpc(toolsCallBody("list_workspaces"))
+        val response = server.call(toolsCallBody("list_workspaces"))
         val result = JSONObject(response).optJSONObject("result")
             ?: error("expected result, got: $response")
 
@@ -204,7 +218,7 @@ class McpWorkspaceToolsTest {
         // compose_workspace is ONCE_PER_SESSION-gated. Race the request
         // against the user "tap Allow" on the consent prompt.
         val responseFuture = java.util.concurrent.CompletableFuture.supplyAsync {
-            server.handleJsonRpc(
+            server.call(
                 toolsCallBody(
                     "compose_workspace",
                     JSONObject().put("workspaceId", "ws-work"),
@@ -250,7 +264,7 @@ class McpWorkspaceToolsTest {
         // Default consent manager: foregroundActive = false → DENY.
         val server = newServer(repo, launcher)
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             toolsCallBody("compose_workspace", JSONObject().put("workspaceId", "ws")),
         )
 
@@ -272,7 +286,7 @@ class McpWorkspaceToolsTest {
 
         // Even an unknown id has to clear the consent gate first; allow it.
         val responseFuture = java.util.concurrent.CompletableFuture.supplyAsync {
-            server.handleJsonRpc(
+            server.call(
                 toolsCallBody(
                     "compose_workspace",
                     JSONObject().put("workspaceId", "missing"),

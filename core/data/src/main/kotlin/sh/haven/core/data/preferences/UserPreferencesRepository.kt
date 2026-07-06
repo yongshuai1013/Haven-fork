@@ -128,6 +128,12 @@ class UserPreferencesRepository @Inject constructor(
     // via the pairing prompt on first connect. Empty by default; the
     // McpServer rejects any initialize from a name not in this set.
     private val mcpAllowedClientsKey = stringSetPreferencesKey("mcp_allowed_clients")
+    // SHA-256 hashes of the per-client pairing tokens minted at pairing
+    // approval (#mcp-backbone Stage 3). Entry format "<hex-hash>:<name>"
+    // (the hash is fixed-length hex, so the first ':' is unambiguous).
+    // Possession of the token — not the self-asserted clientInfo.name — is
+    // what authenticates a client from then on.
+    private val mcpClientTokenHashesKey = stringSetPreferencesKey("mcp_client_token_hashes")
     // MCP clients the user has opted into auto-approval for — per-call
     // consent prompts are skipped for any name in this set. A persistent,
     // Settings-managed counterpart to the session-only "Allow all from X
@@ -827,6 +833,10 @@ class UserPreferencesRepository @Inject constructor(
             // Un-pairing revokes any standing auto-approval too — a client
             // that has to re-pair must re-earn the bypass.
             prefs[mcpBypassConsentClientsKey] = (prefs[mcpBypassConsentClientsKey] ?: emptySet()) - name
+            // ...and its pairing token: a removed client must re-pair, not
+            // walk back in with the old credential (#mcp-backbone Stage 3).
+            prefs[mcpClientTokenHashesKey] = (prefs[mcpClientTokenHashesKey] ?: emptySet())
+                .filterNot { it.substringAfter(':') == name }.toSet()
         }
     }
 
@@ -834,6 +844,30 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(mcpAllowedClientsKey)
             prefs.remove(mcpBypassConsentClientsKey)
+            prefs.remove(mcpClientTokenHashesKey)
+        }
+    }
+
+    /**
+     * SHA-256 hex hashes of the per-client pairing tokens, keyed by client
+     * name (#mcp-backbone Stage 3). Minted by the MCP server when the user
+     * approves a pairing; a client proves its identity on later requests by
+     * presenting the raw token (`Authorization: Bearer …`), which the server
+     * hashes and matches against this map. Only the hash is ever persisted.
+     */
+    val mcpClientTokenHashes: Flow<Map<String, String>> = dataStore.data.map { prefs ->
+        (prefs[mcpClientTokenHashesKey] ?: emptySet()).associate { entry ->
+            entry.substringAfter(':') to entry.substringBefore(':')
+        }
+    }
+
+    /** Store (or rotate) the pairing-token hash for [name]. Blank name is ignored. */
+    suspend fun setMcpClientTokenHash(name: String, hash: String) {
+        if (name.isBlank()) return
+        dataStore.edit { prefs ->
+            val kept = (prefs[mcpClientTokenHashesKey] ?: emptySet())
+                .filterNot { it.substringAfter(':') == name }
+            prefs[mcpClientTokenHashesKey] = (kept + "$hash:$name").toSet()
         }
     }
 

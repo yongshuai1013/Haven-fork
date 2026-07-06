@@ -49,10 +49,18 @@ class McpServerConsentTest {
 
     /**
      * The client name every test in this suite uses for its `initialize`
-     * step. Pre-populated in the prefs mock so the pairing gate
-     * short-circuits and tests can focus on the per-tool consent flow.
+     * step. Its pairing-token hash is pre-populated in the prefs mock so
+     * a bearer-authenticated `initialize` short-circuits the pairing
+     * prompt and tests can focus on the per-tool consent flow
+     * (#mcp-backbone Stage 3).
      */
     private val testClientName = "test-host"
+    private val testToken = "test-pairing-token"
+    private val testTokenHash = sha256HexOf(testToken)
+
+    /** Session id minted by [pair]; carried on subsequent requests the way
+     *  a real streamable-HTTP client echoes `Mcp-Session-Id`. */
+    private var sid: String? = null
 
     private fun newServer(
         consentManager: AgentConsentManager = AgentConsentManager(),
@@ -61,9 +69,12 @@ class McpServerConsentTest {
         standingPolicyRepository: sh.haven.core.data.repository.StandingPolicyRepository = mockk(relaxed = true),
     ): Pair<McpServer, AgentAuditRecorder> {
         val prefs = mockk<UserPreferencesRepository>(relaxed = true)
-        // McpServer.handleInitialize reads this as the authoritative
-        // allowlist; a paired-on-disk client skips the pairing prompt.
+        // The allowlist mirror seeded into the server, plus the pairing-token
+        // hashes that actually authenticate a client (#mcp-backbone Stage 3):
+        // every name in [pairedClients] is given the shared test token.
         every { prefs.mcpAllowedClients } returns flowOf(pairedClients)
+        every { prefs.mcpClientTokenHashes } returns
+            flowOf(pairedClients.associateWith { testTokenHash })
         coEvery { prefs.addMcpAllowedClient(any()) } returns Unit
 
         val server = McpServer(
@@ -137,8 +148,16 @@ class McpServerConsentTest {
             .toString()
 
     private fun McpServer.pair(clientName: String = testClientName) {
-        handleJsonRpc(initBody(clientName))
+        // A real client authenticates its initialize with the pairing token
+        // minted at first pairing; the minted session id is echoed on every
+        // later request (#mcp-backbone Stage 3).
+        val outcome = handleJsonRpc(initBody(clientName), requestSessionId = null, bearerToken = testToken)
+        sid = outcome.responseSessionId
     }
+
+    /** Dispatch [body] the way a paired client would: carrying the session
+     *  id [pair] minted (null before pairing — the unauthenticated path). */
+    private fun McpServer.call(body: String): String = handleJsonRpc(body, sid).body
 
     private fun toolsCallBody(name: String, args: JSONObject): String {
         return JSONObject()
@@ -167,7 +186,7 @@ class McpServerConsentTest {
         server.pair()
         clearMocks(auditRecorder, recordedCalls = true, answers = false)
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             toolsCallBody(
                 "disconnect_profile",
                 JSONObject().put("profileId", "p1"),
@@ -214,7 +233,7 @@ class McpServerConsentTest {
         // "user taps Deny" response against the dispatcher's blocking
         // wait inside requestConsent.
         val responseFuture = java.util.concurrent.CompletableFuture.supplyAsync {
-            server.handleJsonRpc(
+            server.call(
                 toolsCallBody(
                     "delete_sftp_file",
                     JSONObject()
@@ -265,7 +284,7 @@ class McpServerConsentTest {
     fun `unknown method returns -32601`() {
         val (server, _) = newServer()
         server.pair()
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 7)
@@ -280,7 +299,7 @@ class McpServerConsentTest {
     @Test
     fun `empty body returns -32700 parse error`() {
         val (server, _) = newServer()
-        val response = server.handleJsonRpc("")
+        val response = server.call("")
         val error = JSONObject(response).optJSONObject("error")
             ?: error("expected error, got: $response")
         assertEquals(-32700, error.optInt("code"))
@@ -294,7 +313,7 @@ class McpServerConsentTest {
         // notifications/initialized has no id and is acked silently —
         // recording it would just clutter the dashboard with bookkeeping
         // events the user never initiated.
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("method", "notifications/initialized")
@@ -324,7 +343,7 @@ class McpServerConsentTest {
         // the listing — once paired, tools/list itself never prompts.
         server.pair()
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 2)
@@ -343,20 +362,46 @@ class McpServerConsentTest {
     // --- Pairing gate ---
 
     @Test
-    fun `initialize from a paired client returns success without prompting`() {
+    fun `initialize with a valid pairing token returns success without prompting`() {
         val consentManager = AgentConsentManager() // foreground=false — would deny pairing if it ran
         val (server, _) = newServer(consentManager = consentManager)
 
-        val response = server.handleJsonRpc(initBody())
-        val obj = JSONObject(response)
+        val outcome = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = testToken)
+        val obj = JSONObject(outcome.body)
         assertNull(
-            "paired client should initialize cleanly, got error: ${obj.optJSONObject("error")}",
+            "token-paired client should initialize cleanly, got error: ${obj.optJSONObject("error")}",
             obj.optJSONObject("error"),
         )
         val result = obj.getJSONObject("result")
         assertEquals("haven-agent", result.getJSONObject("serverInfo").getString("name"))
         // No prompt should have queued on the consent manager.
         assertTrue(consentManager.pending.value.isEmpty())
+    }
+
+    @Test
+    fun `legacy name-only allowlist membership no longer skips the pairing prompt`() {
+        // #mcp-backbone Stage 3 (one-time re-pair migration): a client name
+        // in the pre-token allowlist arriving WITHOUT its bearer token gets
+        // the pairing prompt — foreground=false fails it closed. A bare
+        // clientInfo.name is spoofable, so it is not a credential.
+        val consentManager = AgentConsentManager()
+        val (server, _) = newServer(consentManager = consentManager)
+
+        val outcome = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = null)
+        val error = JSONObject(outcome.body).optJSONObject("error")
+            ?: error("expected re-pair prompt failure, got: ${outcome.body}")
+        assertEquals(-32001, error.optInt("code"))
+    }
+
+    @Test
+    fun `a wrong bearer token does not authenticate a paired name`() {
+        val consentManager = AgentConsentManager()
+        val (server, _) = newServer(consentManager = consentManager)
+
+        val outcome = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = "not-the-token")
+        val error = JSONObject(outcome.body).optJSONObject("error")
+            ?: error("expected pairing failure for a bad token, got: ${outcome.body}")
+        assertEquals(-32001, error.optInt("code"))
     }
 
     @Test
@@ -367,7 +412,7 @@ class McpServerConsentTest {
             pairedClients = emptySet(),
         )
 
-        val response = server.handleJsonRpc(initBody("rogue-client"))
+        val response = server.call(initBody("rogue-client"))
         val obj = JSONObject(response)
         val error = obj.optJSONObject("error")
             ?: error("expected error response, got: $response")
@@ -382,7 +427,7 @@ class McpServerConsentTest {
     fun `initialize with missing clientInfo name returns -32002`() {
         val (server, _) = newServer()
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 0)
@@ -399,7 +444,7 @@ class McpServerConsentTest {
     fun `tools_list before initialize returns -32001`() {
         val (server, _) = newServer()
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 2)
@@ -415,7 +460,7 @@ class McpServerConsentTest {
     fun `tools_call before initialize returns -32001`() {
         val (server, _) = newServer()
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")),
         )
         val error = JSONObject(response).optJSONObject("error")
@@ -429,7 +474,7 @@ class McpServerConsentTest {
         // Stays cheap so it can't be used to enumerate state.
         val (server, _) = newServer()
 
-        val response = server.handleJsonRpc(
+        val response = server.call(
             JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", 9)
@@ -502,7 +547,7 @@ class McpServerConsentTest {
         )
 
         val responseFuture = java.util.concurrent.CompletableFuture.supplyAsync {
-            server.handleJsonRpc(initBody("fresh-client"))
+            server.call(initBody("fresh-client"))
         }
 
         // Wait for the pairing prompt to queue, then ALLOW it.
@@ -529,6 +574,14 @@ class McpServerConsentTest {
         kotlinx.coroutines.runBlocking {
             io.mockk.coVerify { prefs.addMcpAllowedClient("fresh-client") }
         }
+        // The approval minted a pairing token: returned ONCE in _meta, and
+        // only its hash persisted (#mcp-backbone Stage 3).
+        val token = obj.getJSONObject("result").getJSONObject("_meta")
+            .getString("sh.haven/pairingToken")
+        assertTrue("pairing token should be non-trivial", token.length >= 32)
+        kotlinx.coroutines.runBlocking {
+            io.mockk.coVerify { prefs.setMcpClientTokenHash("fresh-client", sha256HexOf(token)) }
+        }
     }
 
     // --- Mcp-Session-Id streamable-HTTP session flow ---
@@ -549,13 +602,15 @@ class McpServerConsentTest {
     //    session map (not from the global lastClientHint)
     //  - a request carrying an unknown UUID returns httpStatus=404
     //    so the client per spec re-initialises automatically
-    //  - a request without any Mcp-Session-Id header still works via
-    //    the legacy fallback (backwards compat with older clients)
+    //  - a request with neither a session id nor a bearer token is
+    //    rejected — the old lastClientHint fallback authenticated a
+    //    server-side sticky NAME, which any peer on the same carrier
+    //    could free-ride (#mcp-backbone Stage 3)
 
     @Test
     fun `initialize returns Mcp-Session-Id in JsonRpcOutcome`() {
         val (server, _) = newServer()
-        val outcome = server.handleJsonRpc(initBody(), requestSessionId = null)
+        val outcome = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = testToken)
         assertEquals(200, outcome.httpStatus)
         assertEquals(
             "initialize should mint a session id",
@@ -567,7 +622,7 @@ class McpServerConsentTest {
     @Test
     fun `request with valid session id resolves without falling back to lastClientHint`() {
         val (server, _) = newServer()
-        val initOutcome = server.handleJsonRpc(initBody(), requestSessionId = null)
+        val initOutcome = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = testToken)
         val sid = initOutcome.responseSessionId
             ?: error("initialize did not return a session id")
 
@@ -612,22 +667,40 @@ class McpServerConsentTest {
     }
 
     @Test
-    fun `request without session id falls back to legacy clientHint path`() {
+    fun `request with neither session id nor token is rejected even after another client paired`() {
+        // The old lastClientHint fallback: after ANY client initialized, a
+        // request with no credential at all inherited that client's identity.
+        // A rogue peer on the same multiplexed carrier (LAN, the -R tunnel
+        // endpoint) could free-ride it. Now it must fail closed
+        // (#mcp-backbone Stage 3).
         val (server, _) = newServer()
-        // Drive the legacy path: client never sends Mcp-Session-Id.
-        // `initialize` still sets lastClientHint; tools/list without
-        // a session id resolves via that fallback.
-        server.handleJsonRpc(initBody(), requestSessionId = null)
+        server.pair() // a legit client pairs with its token
         val toolsList = JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", 13)
             .put("method", "tools/list")
             .toString()
         val outcome = server.handleJsonRpc(toolsList, requestSessionId = null)
+        val error = JSONObject(outcome.body).optJSONObject("error")
+            ?: error("expected -32001 for a credential-less request, got: ${outcome.body}")
+        assertEquals(-32001, error.optInt("code"))
+    }
+
+    @Test
+    fun `a bearer token authenticates a request without any session id`() {
+        // Headless/stateless callers (curl, cron agents) can present the
+        // token alone — no initialize round-trip needed in this process.
+        val (server, _) = newServer()
+        val toolsList = JSONObject()
+            .put("jsonrpc", "2.0")
+            .put("id", 14)
+            .put("method", "tools/list")
+            .toString()
+        val outcome = server.handleJsonRpc(toolsList, requestSessionId = null, bearerToken = testToken)
         assertEquals(200, outcome.httpStatus)
         val obj = JSONObject(outcome.body)
         assertNull(
-            "legacy fallback path should still succeed, got error: ${obj.optJSONObject("error")}",
+            "token-bearing request should succeed without a session, got error: ${obj.optJSONObject("error")}",
             obj.optJSONObject("error"),
         )
     }
@@ -641,7 +714,7 @@ class McpServerConsentTest {
     @Test
     fun `initialize advertises the resources capability`() {
         val (server, _) = newServer()
-        val response = server.handleJsonRpc(initBody())
+        val response = server.handleJsonRpc(initBody(), requestSessionId = null, bearerToken = testToken).body
         val caps = JSONObject(response).getJSONObject("result").getJSONObject("capabilities")
         assertTrue("resources capability must be advertised", caps.has("resources"))
     }
@@ -650,7 +723,7 @@ class McpServerConsentTest {
     fun `resources_list returns the Haven UI screen resource`() {
         val (server, _) = newServer()
         server.pair()
-        val response = server.handleJsonRpc(rpc("resources/list"))
+        val response = server.call(rpc("resources/list"))
         val resources = JSONObject(response).getJSONObject("result").getJSONArray("resources")
         assertEquals(1, resources.length())
         assertEquals("ui://haven/screen", resources.getJSONObject(0).getString("uri"))
@@ -660,7 +733,7 @@ class McpServerConsentTest {
     fun `resources_read rejects an unknown uri`() {
         val (server, _) = newServer()
         server.pair()
-        val response = server.handleJsonRpc(
+        val response = server.call(
             rpc("resources/read", JSONObject().put("uri", "ui://haven/bogus")),
         )
         assertEquals(-32602, JSONObject(response).getJSONObject("error").getInt("code"))
@@ -673,7 +746,7 @@ class McpServerConsentTest {
         // closed (DENIED) before the bridge is ever touched.
         val (server, _) = newServer()
         server.pair()
-        val response = server.handleJsonRpc(
+        val response = server.call(
             rpc("resources/read", JSONObject().put("uri", "ui://haven/screen")),
         )
         assertEquals(-32000, JSONObject(response).getJSONObject("error").getInt("code"))
@@ -708,7 +781,7 @@ class McpServerConsentTest {
             standingPolicyRepository = policyRepo(testPolicy("disconnect_profile")),
         )
         server.pair()
-        val response = server.handleJsonRpc(
+        val response = server.call(
             toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")),
         )
         val error = JSONObject(response).optJSONObject("error")
@@ -728,9 +801,9 @@ class McpServerConsentTest {
         )
         server.pair()
         // First call consumes the window…
-        server.handleJsonRpc(toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")))
+        server.call(toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")))
         // …second call exceeds it → prompt path → backgrounded → DENY.
-        val second = server.handleJsonRpc(
+        val second = server.call(
             toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")),
         )
         assertEquals(-32000, JSONObject(second).getJSONObject("error").getInt("code"))
@@ -741,9 +814,15 @@ class McpServerConsentTest {
         val foreign = testPolicy("disconnect_profile").copy(clientHint = "someone-else")
         val (server, _) = newServer(standingPolicyRepository = policyRepo(foreign))
         server.pair()
-        val response = server.handleJsonRpc(
+        val response = server.call(
             toolsCallBody("disconnect_profile", JSONObject().put("profileId", "p1")),
         )
         assertEquals(-32000, JSONObject(response).getJSONObject("error").getInt("code"))
     }
 }
+
+/** Same digest the server stores for a pairing token — SHA-256 as lowercase hex. */
+internal fun sha256HexOf(s: String): String =
+    java.security.MessageDigest.getInstance("SHA-256")
+        .digest(s.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }

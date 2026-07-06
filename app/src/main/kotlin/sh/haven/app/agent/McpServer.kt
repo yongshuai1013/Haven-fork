@@ -239,11 +239,11 @@ private const val WG_RETRY_MS: Long = 5_000L
  * generic JSON-RPC -32001 and gets wedged until the user tears down
  * its session entirely.
  *
- * Clients that don't send `Mcp-Session-Id` still work via a legacy
- * fallback that consults the last-seen `clientInfo.name` from this
- * process's most recent `initialize`. That fallback is the source of
- * the "won't reconnect after app restart" symptom and exists only
- * for stragglers.
+ * Clients that don't send `Mcp-Session-Id` must present their pairing
+ * token (`Authorization: Bearer …`) instead. The old fallback — trusting
+ * the last-seen `clientInfo.name` from this process's most recent
+ * `initialize` — authenticated a server-side sticky NAME that any peer on
+ * the same carrier could free-ride, and is gone (#mcp-backbone Stage 3).
  *
  * Supported methods:
  * - `initialize` — protocol handshake, returns server info + tools capability
@@ -329,14 +329,25 @@ class McpServer @Inject constructor(
 ) : Closeable {
 
     /**
-     * Last `clientInfo.name` we saw on an `initialize` request. Used
-     * only as a legacy fallback when the client doesn't send
-     * `Mcp-Session-Id`. Preferred path is [sessions]: every
-     * non-initialize request that carries a recognised session id
-     * resolves to a clientName without consulting this field.
+     * Last authenticated (or, on `initialize`, self-asserted) client name.
+     * Used for AUDIT attribution and as the key for consent memos /
+     * standing policies — never as authentication (#mcp-backbone Stage 3):
+     * the dispatch gate accepts only a bearer pairing token or a session id
+     * minted by an authenticated `initialize` in this process. Set from the
+     * bearer/session resolution on every authenticated request, so grant
+     * keys are backed by a real credential.
      */
     @Volatile
     private var lastClientHint: String? = null
+
+    /**
+     * In-memory mirror of [UserPreferencesRepository.mcpClientTokenHashes]
+     * (clientName → SHA-256 hex of its pairing token). Seeded at [start],
+     * lazily on first use for the socket-less test paths, and updated when a
+     * pairing mints a token. Null = not yet loaded.
+     */
+    @Volatile
+    private var clientTokenHashes: Map<String, String>? = null
 
     /**
      * Session map for the streamable-HTTP transport. `initialize`
@@ -581,6 +592,7 @@ class McpServer @Inject constructor(
         // Seed the in-memory allowlist mirror from DataStore. Subsequent
         // pairing approvals append to this on the dispatch thread.
         allowedClients = runBlocking { preferencesRepository.mcpAllowedClients.first() }
+        clientTokenHashes = runBlocking { preferencesRepository.mcpClientTokenHashes.first() }
         trustLoopbackEnabled = runBlocking { preferencesRepository.trustLoopbackMcpClients.first() }
         Log.i(TAG, "MCP server listening on ${_endpointUrl.value} (paired clients: ${allowedClients.size}, trustLoopback=$trustLoopbackEnabled)")
 
@@ -1074,7 +1086,11 @@ class McpServer @Inject constructor(
                     return
                 }
                 val sessionId = req.headers["mcp-session-id"]?.takeIf { it.isNotEmpty() }
-                val outcome = handleJsonRpc(req.body, sessionId, origin)
+                // Pairing-token credential (#mcp-backbone Stage 3).
+                val bearer = req.headers["authorization"]
+                    ?.takeIf { it.startsWith("Bearer ", ignoreCase = true) }
+                    ?.substring("Bearer ".length)?.trim()?.takeIf { it.isNotEmpty() }
+                val outcome = handleJsonRpc(req.body, sessionId, origin, bearer)
                 if (outcome.httpStatus == 404) {
                     // Streamable-HTTP signal: presented session id is unknown.
                     // Empty body — the client re-initialises.
@@ -1116,10 +1132,9 @@ class McpServer @Inject constructor(
     }
 
     /**
-     * Test-friendly overload — drives the JSON-RPC layer without a
-     * session id, exercising the legacy fallback path. Existing tests
-     * call this signature. Production traffic goes through the
-     * (body, sessionId) overload via [handleClient].
+     * Test-friendly overload — drives the JSON-RPC layer with no session
+     * id and no bearer token, i.e. the fully unauthenticated path.
+     * Production traffic goes through the full overload via [handleClient].
      */
     internal fun handleJsonRpc(body: String): String =
         handleJsonRpc(body, requestSessionId = null).body
@@ -1150,10 +1165,41 @@ class McpServer @Inject constructor(
      * [requestSessionId] is the value of the inbound `Mcp-Session-Id`
      * header, or null when the client doesn't send one (legacy path).
      */
+    /** clientName → token-hash map, loading it from DataStore on first use. */
+    private fun tokenHashes(): Map<String, String> =
+        clientTokenHashes ?: runBlocking { preferencesRepository.mcpClientTokenHashes.first() }
+            .also { clientTokenHashes = it }
+
+    private fun sha256Hex(s: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(s.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
+    /** A fresh 256-bit pairing token, minted on pairing approval. */
+    private fun mintPairingToken(): String {
+        val bytes = ByteArray(32)
+        java.security.SecureRandom().nextBytes(bytes)
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    /**
+     * The client name [token] authenticates, or null. The credential — not
+     * the self-asserted `clientInfo.name` — is the identity (#mcp-backbone
+     * Stage 3). Hash-compare is constant-time so the lookup can't be used
+     * as a timing oracle.
+     */
+    private fun resolveBearer(token: String): String? {
+        val presented = sha256Hex(token).toByteArray(Charsets.US_ASCII)
+        return tokenHashes().entries.firstOrNull { (_, hash) ->
+            java.security.MessageDigest.isEqual(hash.toByteArray(Charsets.US_ASCII), presented)
+        }?.key
+    }
+
     internal fun handleJsonRpc(
         body: String,
         requestSessionId: String?,
         origin: McpOrigin = McpOrigin.LAN,
+        bearerToken: String? = null,
     ): JsonRpcOutcome {
         if (body.isBlank()) {
             return JsonRpcOutcome(200, jsonRpcError(null, -32700, "Parse error: empty body"), null)
@@ -1171,17 +1217,21 @@ class McpServer @Inject constructor(
         // need to return an empty 200 for the HTTP layer. Return "" for those.
         val isNotification = !req.has("id")
 
-        // Resolve effective clientName before dispatch. Prefer the
-        // session-id path (carries through app restarts as long as the
-        // process lives); fall back to the legacy `clientInfo.name`
-        // capture only when no session id was presented.
+        // Resolve the effective clientName before dispatch, strongest
+        // credential first: a bearer pairing token (survives app + phone
+        // restarts), then the session id (minted by an authenticated
+        // initialize in this process), then — for `initialize` only — the
+        // self-asserted clientInfo.name, which is attribution for the
+        // pairing prompt/audit, never authentication (#mcp-backbone Stage 3).
+        val authClient: String? = bearerToken?.let { resolveBearer(it) }
         val sessionClient: String? = requestSessionId?.let { sessions[it]?.clientName }
-        if (sessionClient != null) {
-            lastClientHint = sessionClient
-        } else if (method == "initialize") {
-            params.optJSONObject("clientInfo")?.optString("name")
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { lastClientHint = it }
+        when {
+            authClient != null -> lastClientHint = authClient
+            sessionClient != null -> lastClientHint = sessionClient
+            method == "initialize" ->
+                params.optJSONObject("clientInfo")?.optString("name")
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { lastClientHint = it }
         }
 
         val started = System.nanoTime()
@@ -1190,7 +1240,7 @@ class McpServer @Inject constructor(
         var resultJson: JSONObject? = null
         var newSessionId: String? = null
         val response = try {
-            val result = dispatch(method, params, requestSessionId, origin)
+            val result = dispatch(method, params, requestSessionId, origin, authClient)
             if (result is JSONObject) resultJson = result
             // A successful `initialize` mints a new session id we'll
             // hand back to the client in the response header. The
@@ -1288,7 +1338,13 @@ class McpServer @Inject constructor(
      * present but unrecognised we throw [SessionExpiredError] so the
      * HTTP layer returns 404 and the client per spec re-initialises.
      */
-    private fun dispatch(method: String, params: JSONObject, requestSessionId: String?, origin: McpOrigin): Any? {
+    private fun dispatch(
+        method: String,
+        params: JSONObject,
+        requestSessionId: String?,
+        origin: McpOrigin,
+        authClient: String? = null,
+    ): Any? {
         // Loopback auto-trust: only a DEVICE-origin client (the plain
         // loopback binder) can be treated as already-paired and
         // consent-bypassed, and only when the user opted in. TUNNELED
@@ -1296,16 +1352,21 @@ class McpServer @Inject constructor(
         // host — never trusted (#mcp-backbone Stage 2). LAN / WireGuard
         // always run the full gate. (#214)
         val trusted = origin == McpOrigin.DEVICE && trustLoopbackEnabled
-        // Pairing gate: every method except the pair-or-fail path itself
-        // requires the calling client to be in the allowlist. `ping` is
-        // intentionally allowed unauthenticated so a client can probe
-        // for the server's existence without committing to identifying
-        // itself. `notifications/initialized` is a spec-required ack
-        // sent right after `initialize` and is exempt so a paired client
-        // that just finished its handshake doesn't silently fail it.
+        // Authentication gate (#mcp-backbone Stage 3): every method except
+        // the pair-or-fail path itself requires a credential — the bearer
+        // pairing token ([authClient], verified upstream) or a session id
+        // minted by an authenticated `initialize` in this process. A bare
+        // clientInfo.name is NOT a credential and never passes this gate:
+        // that string is chosen by the client, so trusting it let any peer
+        // inherit another client's pairing and grants by using its name.
+        // `ping` is intentionally allowed unauthenticated so a client can
+        // probe for the server's existence without identifying itself.
+        // `notifications/initialized` is a spec-required ack sent right
+        // after `initialize` and is exempt so a paired client that just
+        // finished its handshake doesn't silently fail it.
         if (!trusted && method != "initialize" && method != "ping" && method != "notifications/initialized") {
             val sessionClient = requestSessionId?.let { sessions[it]?.clientName }
-            if (requestSessionId != null && sessionClient == null) {
+            if (authClient == null && requestSessionId != null && sessionClient == null) {
                 // The client sent a session id we don't recognise.
                 // Almost always means the server restarted while the
                 // client cached its id. Returning -32001 here would
@@ -1313,17 +1374,22 @@ class McpServer @Inject constructor(
                 // tells it to re-initialise.
                 throw SessionExpiredError()
             }
-            val client = sessionClient ?: lastClientHint
-            if (client.isNullOrBlank() || client !in allowedClients) {
+            // A token-verified identity IS paired (the hash lookup is the
+            // allowlist); a session-derived name additionally has to be in
+            // the allowlist so a session minted for a loopback-trusted name
+            // can't be replayed on a remote origin. (#214)
+            val client = authClient ?: sessionClient?.takeIf { it in allowedClients }
+            if (client.isNullOrBlank()) {
                 throw McpError(
                     -32001,
-                    "MCP client not paired with Haven. Send `initialize` first; " +
+                    "MCP client not paired with Haven. Send `initialize` first (with your " +
+                        "`Authorization: Bearer` pairing token if you have one); " +
                         "if the prompt was denied, open Haven and approve a fresh attempt.",
                 )
             }
         }
         return when (method) {
-            "initialize" -> handleInitialize(params, trusted)
+            "initialize" -> handleInitialize(params, trusted, authClient)
             "notifications/initialized" -> JSONObject() // ack
             "tools/list" -> handleToolsList()
             "tools/call" -> handleToolsCall(params, trusted)
@@ -1334,12 +1400,12 @@ class McpServer @Inject constructor(
         }
     }
 
-    private fun handleInitialize(params: JSONObject, trusted: Boolean): JSONObject {
+    private fun handleInitialize(params: JSONObject, trusted: Boolean, authClient: String?): JSONObject {
         val clientProtoVersion = params.optString("protocolVersion", "2025-06-18")
         val clientInfo = params.optJSONObject("clientInfo")
         val clientName = clientInfo?.optString("name")?.takeIf { it.isNotBlank() }
         val clientVersion = clientInfo?.optString("version")?.takeIf { it.isNotBlank() }
-        Log.i(TAG, "MCP initialize from name=${clientName ?: "<anonymous>"} v=${clientVersion ?: "?"} protocolVersion=$clientProtoVersion trusted=$trusted")
+        Log.i(TAG, "MCP initialize from name=${clientName ?: "<anonymous>"} v=${clientVersion ?: "?"} protocolVersion=$clientProtoVersion trusted=$trusted tokenAuth=${authClient != null}")
 
         // Pairing gate. An empty / unknown name has no way to pair (the
         // user would tap Allow on "MCP client '' wants to connect" with
@@ -1363,47 +1429,61 @@ class McpServer @Inject constructor(
             Log.i(TAG, "MCP initialize: '$clientName' on loopback — auto-trusted, no pairing prompt")
             return initializeResult()
         }
-        // Read the authoritative allowlist from DataStore on every
-        // initialize — the in-memory `allowedClients` mirror is only
-        // populated by pairings that happen during this server's
-        // lifetime, so a paired-on-disk client whose name predates this
-        // server instance would otherwise be re-prompted on every
-        // restart. Refresh the cache here so the dispatch hot path
-        // doesn't have to round-trip to DataStore.
-        val persistedAllowlist = runBlocking { preferencesRepository.mcpAllowedClients.first() }
-        if (clientName in persistedAllowlist) {
-            Log.i(TAG, "MCP initialize: '$clientName' in persisted allowlist (size=${persistedAllowlist.size}); skipping pairing prompt")
-            if (clientName !in allowedClients) {
+        // Token-authenticated re-initialize (#mcp-backbone Stage 3): the
+        // bearer credential IS the pairing — no prompt. The identity is the
+        // token's owner, not the self-asserted name.
+        if (authClient != null) {
+            if (clientName != authClient) {
+                Log.w(TAG, "MCP initialize: token for '$authClient' presented with clientInfo.name='$clientName' — proceeding as '$authClient'")
+            }
+            if (authClient !in allowedClients) allowedClients = allowedClients + authClient
+            Log.i(TAG, "MCP initialize: '$authClient' authenticated by pairing token; no prompt")
+            return initializeResult()
+        }
+        // No credential → the on-device pairing prompt, ALWAYS — including
+        // for names in the legacy (pre-token) allowlist, which is the
+        // one-time re-pair migration: name-only allowlist membership was
+        // spoofable, so it no longer skips the prompt (#mcp-backbone
+        // Stage 3). Approval mints the client's pairing token, returned
+        // once in the initialize result.
+        Log.i(TAG, "MCP initialize: '$clientName' has no pairing token — queueing pairing prompt")
+        val decision = runBlocking {
+            consentManager.requestClientPairing(clientName, clientVersion)
+        }
+        Log.i(TAG, "MCP initialize: pairing decision for '$clientName' = $decision")
+        return when (decision) {
+            ConsentDecision.ALLOW -> {
+                val token = mintPairingToken()
+                val hash = sha256Hex(token)
+                runBlocking {
+                    preferencesRepository.addMcpAllowedClient(clientName)
+                    preferencesRepository.setMcpClientTokenHash(clientName, hash)
+                }
                 allowedClients = allowedClients + clientName
+                clientTokenHashes = (clientTokenHashes ?: emptyMap()) + (clientName to hash)
+                Log.i(TAG, "MCP client '$clientName' paired with Haven; pairing token minted (allowlist size=${allowedClients.size})")
+                initializeResult(pairingToken = token)
             }
-        } else {
-            Log.i(TAG, "MCP initialize: '$clientName' is NEW — queueing pairing prompt (persisted allowlist size=${persistedAllowlist.size})")
-            val decision = runBlocking {
-                consentManager.requestClientPairing(clientName, clientVersion)
-            }
-            Log.i(TAG, "MCP initialize: pairing decision for '$clientName' = $decision")
-            when (decision) {
-                ConsentDecision.ALLOW -> {
-                    runBlocking { preferencesRepository.addMcpAllowedClient(clientName) }
-                    allowedClients = allowedClients + clientName
-                    Log.i(TAG, "MCP client '$clientName' paired with Haven (allowlist size=${allowedClients.size})")
-                }
-                ConsentDecision.DENY -> {
-                    throw McpError(
-                        -32001,
-                        "MCP client '$clientName' is not paired with Haven. " +
-                            "The pairing prompt was denied or no Haven activity was visible. " +
-                            "Open Haven and retry to surface a fresh pairing prompt.",
-                    )
-                }
+            ConsentDecision.DENY -> {
+                throw McpError(
+                    -32001,
+                    "MCP client '$clientName' is not paired with Haven. " +
+                        "The pairing prompt was denied or no Haven activity was visible. " +
+                        "Open Haven and retry to surface a fresh pairing prompt.",
+                )
             }
         }
-        return initializeResult()
     }
 
-    /** The `initialize` response body, shared by the paired path and the
-     *  loopback auto-trust path. */
-    private fun initializeResult(): JSONObject = JSONObject().apply {
+    /**
+     * The `initialize` response body, shared by the token/prompt-paired
+     * paths and the loopback auto-trust path. [pairingToken] is non-null
+     * only on the response to an approved pairing: the token is shown ONCE
+     * (only its hash is stored) in `_meta` and in the instructions text, so
+     * both the client program and the agent reading the handshake can
+     * capture it.
+     */
+    private fun initializeResult(pairingToken: String? = null): JSONObject = JSONObject().apply {
         put("protocolVersion", "2025-06-18")
         put("serverInfo", JSONObject().apply {
             put("name", "haven-agent")
@@ -1419,10 +1499,22 @@ class McpServer @Inject constructor(
                 put("listChanged", false)
             })
         })
-        put("instructions",
+        val instructions =
             "Haven is a mobile thin-client OS for distributed compute, storage, and presence. " +
                 "Use these tools to inspect the user's saved connections, active sessions, and " +
-                "cloud storage without disturbing the UI they're looking at.")
+                "cloud storage without disturbing the UI they're looking at."
+        if (pairingToken != null) {
+            put("_meta", JSONObject().put("sh.haven/pairingToken", pairingToken))
+            put(
+                "instructions",
+                instructions + "\n\nPairing approved. Your pairing token (shown once, never " +
+                    "again): $pairingToken\nSend it on every future request as an " +
+                    "'Authorization: Bearer' header to stay paired across reconnects and Haven " +
+                    "restarts; without it, reconnecting re-prompts the user on the device.",
+            )
+        } else {
+            put("instructions", instructions)
+        }
     }
 
     private fun handleToolsList(): JSONObject {
