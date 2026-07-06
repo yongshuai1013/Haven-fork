@@ -597,12 +597,16 @@ class ImapMailClient @Inject constructor() : MailClient {
                 this["mail.smtps.connectiontimeout"] = TIMEOUT_MS
             }
         } else {
-            // Plaintext / STARTTLS (587 submission, 25 relay, test sinks).
-            // Opportunistically upgrade to TLS when the server offers STARTTLS
-            // (protects creds on a TLS-capable server); not *required*, so a
-            // plaintext relay/test sink still works.
+            // STARTTLS submission (587) or plaintext relay/test (25).
             this["mail.transport.protocol"] = "smtp"
             this["mail.smtp.starttls.enable"] = "true"
+            // For a TLS account, REQUIRE STARTTLS: a MITM that strips the
+            // server's STARTTLS advertisement can otherwise downgrade the
+            // session to plaintext and harvest the SMTP credentials
+            // (STRIPTLS). Only an explicitly-plaintext account (tls = false,
+            // e.g. a local relay / test sink) stays opportunistic.
+            // (security-review #16)
+            this["mail.smtp.starttls.required"] = p.tls.toString()
             if (sf != null) {
                 this["mail.smtp.socketFactory"] = sf
                 this["mail.smtp.socketFactory.fallback"] = "false"
