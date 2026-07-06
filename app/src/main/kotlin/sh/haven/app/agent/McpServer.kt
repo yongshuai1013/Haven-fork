@@ -37,11 +37,9 @@ import sh.haven.core.rclone.RcloneClient
 import sh.haven.core.ssh.SessionManagerRegistry
 import sh.haven.core.ssh.SshSessionManager
 import sh.haven.feature.sftp.SftpStreamServer
-import java.io.BufferedReader
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
-import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -71,6 +69,115 @@ private const val CONSENT_WAIT_MS: Long = 55_000L
  * negative length is refused with 413 before any allocation.
  */
 private const val MAX_BODY_BYTES: Int = 8 * 1024 * 1024
+
+/**
+ * Hard cap on the HTTP header block (#mcp-backbone Stage 0). The header reader
+ * accumulates bytes until the CRLFCRLF terminator; without a bound a peer that
+ * never sends the blank line (Slowloris) grows the buffer until the socket
+ * timeout. 64 KiB is far above any real MCP request's headers.
+ */
+private const val MAX_HEADER_BYTES: Int = 64 * 1024
+
+/** Outcome of [parseHttpRequest]. */
+internal sealed interface HttpParseResult {
+    data class Ok(val request: ParsedHttpRequest) : HttpParseResult
+    /** Malformed or oversized — [status]/[reason] is the HTTP error to return. */
+    data class Fail(val status: Int, val reason: String) : HttpParseResult
+    /** Clean EOF before any bytes — the peer closed without sending a request. */
+    object Closed : HttpParseResult
+}
+
+/** One parsed HTTP request. [headers] keys are lowercased; [body] is UTF-8. */
+internal data class ParsedHttpRequest(
+    val method: String,
+    val path: String,
+    val headers: Map<String, String>,
+    val body: String,
+)
+
+/**
+ * Byte-accurate HTTP/1.1 request parser (#mcp-backbone Stage 0). Reads the
+ * header block up to the CRLFCRLF terminator (bounded by [MAX_HEADER_BYTES]),
+ * then reads exactly `Content-Length` BYTES (bounded by [MAX_BODY_BYTES]) and
+ * decodes them as UTF-8.
+ *
+ * Replaces a char-based read that (a) sized the body buffer from an unbounded
+ * `Content-Length` (a hostile length OOM'd the process) and (b) counted CHARS
+ * against a BYTE length, so any multibyte-UTF-8 body under-filled the loop and
+ * stalled the read until the 70 s socket timeout. Pure over an [InputStream] so
+ * it is unit-testable without a socket.
+ */
+internal fun parseHttpRequest(input: InputStream): HttpParseResult {
+    val head = java.io.ByteArrayOutputStream(512)
+    val cr = '\r'.code
+    val lf = '\n'.code
+    var state = 0 // progress through the CR LF CR LF terminator
+    while (true) {
+        if (head.size() >= MAX_HEADER_BYTES) {
+            return HttpParseResult.Fail(431, "Request Header Fields Too Large")
+        }
+        val b = input.read()
+        if (b < 0) {
+            return if (head.size() == 0) HttpParseResult.Closed
+            else HttpParseResult.Fail(400, "Bad Request")
+        }
+        head.write(b)
+        state = when {
+            state == 0 && b == cr -> 1
+            state == 1 && b == lf -> 2
+            state == 2 && b == cr -> 3
+            state == 3 && b == lf -> 4
+            b == cr -> 1
+            else -> 0
+        }
+        if (state == 4) break
+    }
+    // Headers are ASCII/latin1; decode the block that way for line splitting.
+    val lines = head.toString("ISO-8859-1").split("\r\n")
+    val parts = lines.firstOrNull().orEmpty().split(" ")
+    if (parts.size < 3) return HttpParseResult.Fail(400, "Bad Request")
+    val headers = HashMap<String, String>()
+    for (i in 1 until lines.size) {
+        val line = lines[i]
+        if (line.isEmpty()) break
+        val colon = line.indexOf(':')
+        if (colon > 0) {
+            headers[line.substring(0, colon).trim().lowercase()] = line.substring(colon + 1).trim()
+        }
+    }
+    val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
+    if (contentLength !in 0..MAX_BODY_BYTES) return HttpParseResult.Fail(413, "Payload Too Large")
+    val body = if (contentLength > 0) {
+        val buf = ByteArray(contentLength)
+        var read = 0
+        while (read < contentLength) {
+            val n = input.read(buf, read, contentLength - read)
+            if (n < 0) return HttpParseResult.Fail(400, "Bad Request") // body truncated by EOF
+            read += n
+        }
+        String(buf, Charsets.UTF_8)
+    } else ""
+    return HttpParseResult.Ok(ParsedHttpRequest(parts[0], parts[1], headers, body))
+}
+
+/**
+ * True iff [origin] (an HTTP `Origin` header, `scheme://host[:port]`) names a
+ * loopback host. The browser DNS-rebinding / CSRF guard rejects a POST carrying
+ * any other Origin — a page served from a real host sends its domain as the
+ * Origin host, never `127.0.0.1`. A `null`/opaque origin (sandboxed iframe,
+ * `file://`) is treated as non-loopback and denied. Non-browser MCP clients send
+ * no Origin at all and bypass the check entirely.
+ */
+internal fun isLoopbackOrigin(origin: String): Boolean {
+    val afterScheme = origin.substringAfter("://", "").substringBefore('/')
+    val host = if (afterScheme.startsWith("[")) {
+        val end = afterScheme.indexOf(']')
+        if (end > 0) afterScheme.substring(1, end) else afterScheme
+    } else {
+        afterScheme.substringBefore(':')
+    }
+    return host == "localhost" || host == "::1" || host.startsWith("127.")
+}
 
 /** The one MCP resources/read resource: a live snapshot of Haven's own rendered UI.
  *  The file-shaped sibling of the `capture_haven_ui` tool — an agent reads it to
@@ -885,82 +992,72 @@ class McpServer @Inject constructor(
      * identical request handling + pairing checks (#176).
      */
     private fun handleConnection(input: InputStream, output: OutputStream, isLoopback: Boolean) {
-        val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
-        val requestLine = reader.readLine() ?: return
-        val parts = requestLine.split(" ")
-        if (parts.size < 3) {
-            writeError(output, 400, "Bad Request")
-            return
+        // Byte-level read (buffered so per-byte header scanning isn't a syscall
+        // storm); body is read by byte length, not char count (#mcp-backbone
+        // Stage 0). Both the loopback and WireGuard accept paths share this.
+        val bin = if (input is java.io.BufferedInputStream) input else java.io.BufferedInputStream(input)
+        when (val res = parseHttpRequest(bin)) {
+            is HttpParseResult.Closed -> return
+            is HttpParseResult.Fail -> writeError(output, res.status, res.reason)
+            is HttpParseResult.Ok -> dispatchHttpRequest(res.request, output, isLoopback)
         }
-        val method = parts[0]
-        val path = parts[1]
+    }
 
-        // Parse headers
-        var contentLength = 0
-        var mcpSessionIdHeader: String? = null
-        while (true) {
-            val line = reader.readLine() ?: break
-            if (line.isEmpty()) break
-            val colon = line.indexOf(':')
-            if (colon > 0) {
-                val name = line.substring(0, colon).trim().lowercase()
-                val value = line.substring(colon + 1).trim()
-                when (name) {
-                    "content-length" -> contentLength = value.toIntOrNull() ?: 0
-                    "mcp-session-id" -> mcpSessionIdHeader = value.takeIf { it.isNotEmpty() }
-                }
-            }
-        }
-
+    /** Route one parsed request to the JSON-RPC layer / CORS / errors. */
+    private fun dispatchHttpRequest(req: ParsedHttpRequest, output: OutputStream, isLoopback: Boolean) {
+        val method = req.method
+        val path = req.path
         when {
             method == "POST" && (path == "/mcp" || path == "/") -> {
-                // Refuse an oversized/negative Content-Length before allocating
-                // the body buffer — a hostile length would otherwise OOM the
-                // process (#mcp-backbone Stage 0).
-                if (contentLength !in 0..MAX_BODY_BYTES) {
-                    writeError(output, 413, "Payload Too Large")
+                // DNS-rebinding / CSRF guard (#mcp-backbone Stage 0): a browser
+                // page on the device can reach the loopback endpoint. Reject a
+                // POST that carries a cross-origin `Origin`; non-browser MCP
+                // clients send no Origin and pass through.
+                val origin = req.headers["origin"]
+                if (origin != null && !isLoopbackOrigin(origin)) {
+                    writeError(output, 403, "Forbidden")
                     return
                 }
-                val body = if (contentLength > 0) {
-                    val buf = CharArray(contentLength)
-                    var read = 0
-                    while (read < contentLength) {
-                        val n = reader.read(buf, read, contentLength - read)
-                        if (n < 0) break
-                        read += n
-                    }
-                    String(buf, 0, read)
-                } else ""
-                val outcome = handleJsonRpc(body, mcpSessionIdHeader, isLoopback)
+                val sessionId = req.headers["mcp-session-id"]?.takeIf { it.isNotEmpty() }
+                val outcome = handleJsonRpc(req.body, sessionId, isLoopback)
                 if (outcome.httpStatus == 404) {
-                    // Streamable-HTTP signal: presented session id is
-                    // unknown. Empty body — the client treats this as
-                    // "session expired, re-initialize".
+                    // Streamable-HTTP signal: presented session id is unknown.
+                    // Empty body — the client re-initialises.
                     writeJson(output, 404, "", null)
                 } else {
                     writeJson(output, outcome.httpStatus, outcome.body, outcome.responseSessionId)
                 }
             }
             method == "GET" && (path == "/mcp" || path == "/") -> {
-                // SSE channel for server-initiated messages — not supported
-                // in v1. Spec allows 405.
+                // SSE channel for server-initiated messages — not supported in
+                // v1. Spec allows 405.
                 writeError(output, 405, "Method Not Allowed")
             }
-            method == "OPTIONS" -> {
-                // CORS preflight — respond permissive for local use
-                val headers = buildString {
-                    append("HTTP/1.1 204 No Content\r\n")
-                    append("Access-Control-Allow-Origin: *\r\n")
-                    append("Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n")
-                    append("Access-Control-Allow-Headers: Content-Type, Mcp-Session-Id, Mcp-Protocol-Version\r\n")
-                    append("Content-Length: 0\r\n")
-                    append("\r\n")
-                }
-                output.write(headers.toByteArray(Charsets.UTF_8))
-                output.flush()
-            }
+            method == "OPTIONS" -> writeOptionsResponse(output, req.headers["origin"])
             else -> writeError(output, 404, "Not Found")
         }
+    }
+
+    /**
+     * CORS preflight. Reflects the allow-origin ONLY for a loopback [origin]
+     * (never the old wildcard) so a cross-origin browser preflight fails and the
+     * real request is never sent — the belt to the Origin-reject suspenders on
+     * POST. A non-browser client never sends OPTIONS.
+     */
+    private fun writeOptionsResponse(output: OutputStream, origin: String?) {
+        val allowed = origin != null && isLoopbackOrigin(origin)
+        val headers = buildString {
+            append("HTTP/1.1 204 No Content\r\n")
+            if (allowed) {
+                append("Access-Control-Allow-Origin: $origin\r\n")
+                append("Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n")
+                append("Access-Control-Allow-Headers: Content-Type, Mcp-Session-Id, Mcp-Protocol-Version\r\n")
+            }
+            append("Content-Length: 0\r\n")
+            append("\r\n")
+        }
+        output.write(headers.toByteArray(Charsets.UTF_8))
+        output.flush()
     }
 
     /**
@@ -1531,10 +1628,10 @@ class McpServer @Inject constructor(
             append("HTTP/1.1 $statusLine\r\n")
             append("Content-Type: application/json; charset=utf-8\r\n")
             append("Content-Length: ${bytes.size}\r\n")
-            append("Access-Control-Allow-Origin: *\r\n")
-            // Expose Mcp-Session-Id so browser-based clients (none in
-            // v1, but cheap insurance) can read it from the response.
-            append("Access-Control-Expose-Headers: Mcp-Session-Id\r\n")
+            // No `Access-Control-Allow-Origin: *` (#mcp-backbone Stage 0): a
+            // wildcard let any web page read MCP responses off the loopback
+            // endpoint. There are no browser MCP clients in v1; a future one
+            // would get a reflected loopback-origin ACAO, not a wildcard.
             append("Cache-Control: no-store\r\n")
             if (sessionId != null) append("Mcp-Session-Id: $sessionId\r\n")
             append("\r\n")
