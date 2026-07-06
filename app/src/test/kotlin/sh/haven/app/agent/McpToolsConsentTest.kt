@@ -569,4 +569,42 @@ class McpToolsConsentTest {
         // Relaxed UsbBroker.listDevices() returns an empty list → count 0.
         assertEquals(0, out.getInt("count"))
     }
+
+    // --- Desktop provider extraction (#mcp-backbone Stage 5, Layer E) ---
+
+    @Test
+    fun `desktop tools are aggregated with their consent levels intact`() {
+        val tools = newTools()
+        val names = tools.definitions().map { it.getString("name") }.toSet()
+        // Read-only listings + tap-equivalent opens are NEVER
+        // (open_desktop_terminal just surfaces a terminal; the guest shell it
+        // attaches has its own gate).
+        for (name in listOf(
+            "list_desktop_sessions", "list_guest_apps", "list_desktop_environments",
+            "read_desktop_log", "open_desktop_terminal",
+        )) {
+            assertTrue("$name missing from definitions()", name in names)
+            assertEquals("$name must be NEVER", ConsentLevel.NEVER, tools.consentFor(name)!!.level)
+        }
+        // The lifecycle / capture / interaction verbs gate (not NEVER) —
+        // capture_* / list_desktop_windows are ONCE_PER_SESSION, tap is
+        // EVERY_CALL, etc.
+        for (name in listOf(
+            "list_desktop_windows",
+            "install_desktop", "uninstall_desktop", "start_desktop", "stop_desktop",
+            "capture_desktop", "capture_desktop_tab", "tap_desktop_tab", "scroll_desktop_tab",
+            "send_desktop_clipboard", "launch_app_in_desktop",
+        )) {
+            assertTrue("$name missing from definitions()", name in names)
+            assertNotEquals("$name should gate (not NEVER)", ConsentLevel.NEVER, tools.consentFor(name)!!.level)
+        }
+        // The distro / haven-ui / standing-policy tools interleaved among the
+        // desktop registrations stay in McpTools, not the desktop provider.
+        // (Dispatch via McpTools.call is proven by the five other provider
+        // dispatch tests; the desktop reads hit a StateFlow / prootManager a
+        // relaxed mock can't satisfy, so this asserts registration + consent.)
+        for (name in listOf("set_active_distro", "capture_haven_ui", "create_standing_policy")) {
+            assertTrue("$name must remain registered", name in names)
+        }
+    }
 }
