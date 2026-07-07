@@ -31,6 +31,7 @@ internal class DesktopToolProvider(
 ) : ToolProvider {
 
     private val prootManager get() = localSessionManager.prootManager
+    private val systemVmManager get() = localSessionManager.systemVmManager
 
     override fun tools(): Map<String, ToolHandler> = linkedMapOf(
         "list_desktop_sessions" to ToolHandler(
@@ -113,6 +114,51 @@ internal class DesktopToolProvider(
                 "Stop ${de?.label ?: deId}?"
             },
         ) { args -> stopDesktopTool(args) },
+
+        "list_system_vm_images" to ToolHandler(
+            description = "List the stored system-VM disk images (#326) and the current VM's state. A system VM is a full QEMU x86_64 Linux VM booted inside the active proot and viewed over VNC on loopback — distinct from a desktop environment (list_desktop_environments) and the USB-drive appliance (#287). Returns { vm: { status, vncPort }, count, images:[{ id, label, sizeBytes }] }. `status` is one of stopped/starting/running/error; when running, `vncPort` is the loopback port a VNC connection points at (create_connection type=VNC host=127.0.0.1 vncPort=<port>). Images are qcow2, normalised on import.",
+            inputSchema = emptyObjectSchema(),
+            consentLevel = ConsentLevel.NEVER,
+        ) { _ -> listSystemVmImages() },
+
+        "import_system_vm_image" to ToolHandler(
+            description = "Import a bootable disk image as a system VM (#326). `source` is an http(s) URL or an on-device file path; it is downloaded/copied then normalised to qcow2 via `qemu-img convert` (raw/qcow2/vdi/vmdk in, qcow2 out) under the app cache. Provide a `label`; `id` defaults to a slug of the label. Optional `sha256` is verified against the SOURCE bytes. Installs qemu in the active distro on first use (needs a VNC-capable qemu — Debian's has it, Alpine's does not). Synchronous: returns { id, label, sizeBytes } when the converted image is ready. Then boot it with start_system_vm.",
+            inputSchema = objectSchema {
+                string("label", "Human-readable name for the image (e.g. \"Debian 12\").", required = true)
+                string("source", "http(s) URL or on-device file path to a bootable disk image (.qcow2/.img/.iso/.vdi/.vmdk).", required = true)
+                string("id", "Image id slug (lowercase letters, digits, . _ -). Defaults to a slug of the label.")
+                string("sha256", "Optional SHA-256 of the source bytes to verify after download.")
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args -> "Import system-VM image \"${args.optString("label")}\" from ${args.optString("source")}?" },
+        ) { args -> importSystemVmImage(args) },
+
+        "start_system_vm" to ToolHandler(
+            description = "Boot a stored system-VM image (#326) as a QEMU x86_64 VM with a VNC display on a free loopback port, and wait for the VNC server to bind (up to ~20s; a timeout means this distro's qemu has no VNC — try a Debian image/distro). One VM at a time — call stop_system_vm first to replace a running one. Does NOT open a viewer (MCP has no UI) — returns { imageId, status, vncHost, vncPort, hint } so you connect it yourself: create_connection type=VNC host=127.0.0.1 vncPort=<vncPort>, then connect_profile. Under TCG (no KVM) the guest boots slowly (~2 min) but is usable.",
+            inputSchema = objectSchema {
+                string("imageId", "Image id from list_system_vm_images.", required = true)
+                integer("memMb", "Guest RAM in MiB. Default 2048.")
+                integer("cpus", "Guest vCPUs. Default 2.")
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args -> "Boot system VM '${args.optString("imageId")}'?" },
+        ) { args -> startSystemVm(args) },
+
+        "stop_system_vm" to ToolHandler(
+            description = "Power off / kill the running system VM (#326) and release its loopback VNC port. Idempotent — a no-op if none is running. Kills the whole qemu process tree inside the proot.",
+            inputSchema = emptyObjectSchema(),
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { _ -> "Stop the running system VM?" },
+        ) { _ -> stopSystemVm() },
+
+        "delete_system_vm_image" to ToolHandler(
+            description = "Delete a stored system-VM image (#326) — removes its qcow2 and label. Stops the VM first if it is the one currently running.",
+            inputSchema = objectSchema {
+                string("imageId", "Image id to delete (from list_system_vm_images).", required = true)
+            },
+            consentLevel = ConsentLevel.EVERY_CALL,
+            summarise = { args -> "Delete system-VM image '${args.optString("imageId")}'?" },
+        ) { args -> deleteSystemVmImage(args) },
 
         "read_desktop_log" to ToolHandler(
             description = "Read a running (or just-failed) desktop's RUNTIME logs — distinct from inspect_proot, which only covers install state. For nested-Wayland DEs (Sway / Hyprland / niri) returns the compositor's own stdout/stderr (compositor.log: the wlr/[ERROR] lines, output-enable, buffer-allocation failures) plus Haven's captured launch-process output (the `[haven]` progress markers + wayvnc lines). This is the diagnostic for grey-screen / no-frames / compositor-refuses-to-start issues — the data that otherwise requires opening a proot shell. Pass deId to target one DE; omit for all running desktops.",
@@ -435,6 +481,87 @@ internal class DesktopToolProvider(
             put("deId", de.spec.id)
             put("label", de.label)
             put("status", "stopped")
+        }
+    }
+
+    // --- System VM (#326) ---
+
+    private fun systemVmStateJson(): JSONObject {
+        val st = systemVmManager.state.value
+        return JSONObject().apply {
+            put("status", (st?.status?.name ?: "STOPPED").lowercase())
+            put("vncPort", st?.vncPort ?: JSONObject.NULL)
+        }
+    }
+
+    private fun listSystemVmImages(): JSONObject {
+        val arr = JSONArray()
+        systemVmManager.listImages().forEach { img ->
+            arr.put(JSONObject().apply {
+                put("id", img.id)
+                put("label", img.label)
+                put("sizeBytes", img.sizeBytes)
+            })
+        }
+        return JSONObject().apply {
+            put("vm", systemVmStateJson())
+            put("count", arr.length())
+            put("images", arr)
+        }
+    }
+
+    private suspend fun importSystemVmImage(args: JSONObject): JSONObject {
+        val label = args.optString("label").takeIf { it.isNotBlank() }
+            ?: throw McpError(-32602, "label is required")
+        val source = args.optString("source").takeIf { it.isNotBlank() }
+            ?: throw McpError(-32602, "source is required")
+        val id = args.optString("id").takeIf { it.isNotBlank() }
+            ?: label.lowercase().replace(Regex("[^a-z0-9._-]+"), "-").trim('-')
+        if (id.isEmpty()) throw McpError(-32602, "could not derive an image id from the label; pass an explicit id")
+        val sha = args.optString("sha256").takeIf { it.isNotBlank() }
+        val img = try {
+            systemVmManager.importImage(id, label, source, sha)
+        } catch (e: Exception) {
+            throw McpError(-32603, e.message ?: "import failed")
+        }
+        return JSONObject().apply {
+            put("id", img.id)
+            put("label", img.label)
+            put("sizeBytes", img.sizeBytes)
+        }
+    }
+
+    private suspend fun startSystemVm(args: JSONObject): JSONObject {
+        val imageId = args.optString("imageId").takeIf { it.isNotBlank() }
+            ?: throw McpError(-32602, "imageId is required")
+        val memMb = args.optInt("memMb", sh.haven.core.local.SystemVmManager.DEFAULT_MEM_MB)
+        val cpus = args.optInt("cpus", sh.haven.core.local.SystemVmManager.DEFAULT_CPUS)
+        val st = try {
+            systemVmManager.startImage(imageId, memMb, cpus)
+        } catch (e: Exception) {
+            throw McpError(-32603, e.message ?: "start failed")
+        }
+        return JSONObject().apply {
+            put("imageId", imageId)
+            put("status", st.status.name.lowercase())
+            put("vncHost", "127.0.0.1")
+            put("vncPort", st.vncPort ?: JSONObject.NULL)
+            put("hint", "create_connection type=VNC host=127.0.0.1 vncPort=${st.vncPort} then connect_profile")
+        }
+    }
+
+    private suspend fun stopSystemVm(): JSONObject {
+        systemVmManager.stop()
+        return JSONObject().apply { put("status", "stopped") }
+    }
+
+    private suspend fun deleteSystemVmImage(args: JSONObject): JSONObject {
+        val imageId = args.optString("imageId").takeIf { it.isNotBlank() }
+            ?: throw McpError(-32602, "imageId is required")
+        systemVmManager.deleteImage(imageId)
+        return JSONObject().apply {
+            put("imageId", imageId)
+            put("status", "deleted")
         }
     }
 

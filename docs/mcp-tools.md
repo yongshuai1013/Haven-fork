@@ -41,9 +41,9 @@ Tools are grouped into sections by what they touch, and each tool is collapsed �
 expand one for its description and arguments. The tag after each name is its
 consent level:
 
-- **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (59 tools).
+- **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (63 tools).
 - **asks once per session** — reversible actions and screen-reading; prompts the first time each session, then proceeds (47 tools).
-- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (76 tools).
+- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (77 tools).
 
 ## Sections
 
@@ -52,7 +52,7 @@ consent level:
 - [**Files, media & clipboard**](#sec-files) — 19 tools
 - [**Cloud storage (rclone)**](#sec-rclone) — 15 tools
 - [**Email**](#sec-email) — 15 tools
-- [**Linux guest (proot) & desktops**](#sec-linux) — 39 tools
+- [**Linux guest (proot) & desktops**](#sec-linux) — 44 tools
 - [**Networking — tunnels & port forwarding**](#sec-networking) — 11 tools
 - [**USB & host-device brokers**](#sec-usb) — 17 tools
 - [**Security — SSH keys, TOTP & age**](#sec-security) — 9 tools
@@ -985,7 +985,7 @@ Send a plain-text email from a connected EMAIL profile. Pass profileId (from lis
 
 <a id="sec-linux"></a>
 
-## Linux guest (proot) & desktops (39)
+## Linux guest (proot) & desktops (44)
 
 The on-device Linux distros, their desktop environments and windows, guest services, the audio bridge, and guest-file access.
 
@@ -1018,6 +1018,15 @@ Capture what a remote-desktop VIEWER tab (RDP, VNC, or SPICE) is actually render
 Wipe a distro's rootfs and remove all installed DEs on it. Stops any running DEs first. Destructive — frees the disk space and is also the recovery path when an install lands in a broken state.
 
 - `distroId` (string, required) — Distro id to delete.
+
+</details>
+
+<details markdown="1">
+<summary><code>delete_system_vm_image</code> · asks every call</summary>
+
+Delete a stored system-VM image (#326) — removes its qcow2 and label. Stops the VM first if it is the one currently running.
+
+- `imageId` (string, required) — Image id to delete (from list_system_vm_images).
 
 </details>
 
@@ -1082,6 +1091,18 @@ Import a custom rootfs tarball as a new distro (#284) — "bring your own rootfs
 - `label` (string) — Human label shown in the picker (e.g. "Ubuntu 26.04 (imported)").
 - `sha256` (string) — Optional SHA-256 to verify the download against. Skipped if omitted.
 - `stripComponents` (integer) — Optional leading path components to strip (proot-distro tarballs wrap in one dir → 1). Defaults to auto: tries 0, retries 1 if no bin/sh is found.
+
+</details>
+
+<details markdown="1">
+<summary><code>import_system_vm_image</code> · asks every call</summary>
+
+Import a bootable disk image as a system VM (#326). `source` is an http(s) URL or an on-device file path; it is downloaded/copied then normalised to qcow2 via `qemu-img convert` (raw/qcow2/vdi/vmdk in, qcow2 out) under the app cache. Provide a `label`; `id` defaults to a slug of the label. Optional `sha256` is verified against the SOURCE bytes. Installs qemu in the active distro on first use (needs a VNC-capable qemu — Debian's has it, Alpine's does not). Synchronous: returns { id, label, sizeBytes } when the converted image is ready. Then boot it with start_system_vm.
+
+- `label` (string, required) — Human-readable name for the image (e.g. "Debian 12").
+- `source` (string, required) — http(s) URL or on-device file path to a bootable disk image (.qcow2/.img/.iso/.vdi/.vmdk).
+- `id` (string) — Image id slug (lowercase letters, digits, . _ -). Defaults to a slug of the label.
+- `sha256` (string) — Optional SHA-256 of the source bytes to verify after download.
 
 </details>
 
@@ -1166,6 +1187,13 @@ List the GUI applications installed in the active proot guest, discovered from i
 <summary><code>list_guest_services</code> · no per-call prompt</summary>
 
 List guest services registered on the active distro with their live state (STOPPED/STARTING/RUNNING/ERROR), command, port, autostart flag, and last error/output tail. Read-only.
+
+</details>
+
+<details markdown="1">
+<summary><code>list_system_vm_images</code> · no per-call prompt</summary>
+
+List the stored system-VM disk images (#326) and the current VM's state. A system VM is a full QEMU x86_64 Linux VM booted inside the active proot and viewed over VNC on loopback — distinct from a desktop environment (list_desktop_environments) and the USB-drive appliance (#287). Returns { vm: { status, vncPort }, count, images:[{ id, label, sizeBytes }] }. `status` is one of stopped/starting/running/error; when running, `vncPort` is the loopback port a VNC connection points at (create_connection type=VNC host=127.0.0.1 vncPort=<port>). Images are qcow2, normalised on import.
 
 </details>
 
@@ -1301,6 +1329,17 @@ Start a registered guest service by id (no-op if already running). Returns its s
 </details>
 
 <details markdown="1">
+<summary><code>start_system_vm</code> · asks every call</summary>
+
+Boot a stored system-VM image (#326) as a QEMU x86_64 VM with a VNC display on a free loopback port, and wait for the VNC server to bind (up to ~20s; a timeout means this distro's qemu has no VNC — try a Debian image/distro). One VM at a time — call stop_system_vm first to replace a running one. Does NOT open a viewer (MCP has no UI) — returns { imageId, status, vncHost, vncPort, hint } so you connect it yourself: create_connection type=VNC host=127.0.0.1 vncPort=<vncPort>, then connect_profile. Under TCG (no KVM) the guest boots slowly (~2 min) but is usable.
+
+- `imageId` (string, required) — Image id from list_system_vm_images.
+- `cpus` (integer) — Guest vCPUs. Default 2.
+- `memMb` (integer) — Guest RAM in MiB. Default 2048.
+
+</details>
+
+<details markdown="1">
 <summary><code>stop_audio_bridge</code> · no per-call prompt</summary>
 
 Stop the proot audio bridge: kills the in-guest PulseAudio daemon and releases the Android AudioTrack.
@@ -1322,6 +1361,13 @@ Stop a running desktop environment. Tears down the compositor / Xvnc process tre
 Stop a running guest service by id (leaves it registered).
 
 - `id` (string, required) — Service id.
+
+</details>
+
+<details markdown="1">
+<summary><code>stop_system_vm</code> · asks every call</summary>
+
+Power off / kill the running system VM (#326) and release its loopback VNC port. Idempotent — a no-op if none is running. Kills the whole qemu process tree inside the proot.
 
 </details>
 

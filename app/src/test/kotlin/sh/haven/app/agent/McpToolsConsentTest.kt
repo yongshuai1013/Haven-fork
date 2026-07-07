@@ -502,7 +502,7 @@ class McpToolsConsentTest {
                 listOf("mail")),
             Section("linux", "Linux guest (proot) & desktops", 2,
                 "The on-device Linux distros, their desktop environments and windows, guest services, the audio bridge, and guest-file access.",
-                listOf("proot", "distro", "desktop", "guest", "audio_bridge", "gl_smoke", "custom_binds", "app_window", "launch_app_in_desktop", "inspect_proot")),
+                listOf("proot", "distro", "desktop", "guest", "system_vm", "audio_bridge", "gl_smoke", "custom_binds", "app_window", "launch_app_in_desktop", "inspect_proot")),
             Section("networking", "Networking — tunnels & port forwarding", 5,
                 "SSH tunnels, port forwards, and the port-knock / single-packet-auth gates.",
                 listOf("tunnel", "port_forward", "_forward", "port_knock", "knock", "_spa", "profile_routing")),

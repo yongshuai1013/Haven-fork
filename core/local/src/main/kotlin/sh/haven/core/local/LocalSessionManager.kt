@@ -49,6 +49,7 @@ class LocalSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val prootManager: ProotManager,
     val desktopManager: DesktopManager,
+    val systemVmManager: SystemVmManager,
     val guestServiceManager: GuestServiceManager,
     val audioBridge: AudioBridge,
     private val preferences: UserPreferencesRepository,
