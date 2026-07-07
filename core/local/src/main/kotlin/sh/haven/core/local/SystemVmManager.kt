@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import sh.haven.core.local.proot.PackageFamily
 import sh.haven.core.local.proot.PackageOps
+import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -76,6 +77,7 @@ class SystemVmManager @Inject constructor(
      */
     suspend fun start(
         diskGuestPath: String,
+        diskFormat: String = "qcow2",
         memMb: Int = DEFAULT_MEM_MB,
         cpus: Int = DEFAULT_CPUS,
     ): VmState = mutex.withLock {
@@ -92,7 +94,7 @@ class SystemVmManager @Inject constructor(
         val display = port - VNC_BASE_PORT
 
         _state.value = VmState(diskGuestPath, Status.STARTING, vncPort = port)
-        val command = qemuVncCommand(diskGuestPath, display, memMb, cpus)
+        val command = qemuVncCommand(diskGuestPath, display, memMb, cpus, diskFormat)
         Log.i(TAG, "starting system VM: $command")
 
         val proc = withContext(Dispatchers.IO) { prootManager.startCommandInProot(command) }
@@ -115,8 +117,122 @@ class SystemVmManager @Inject constructor(
         VmState(diskGuestPath, Status.RUNNING, vncPort = port).also { _state.value = it }
     }
 
+    /**
+     * Boot a stored image (from [importImage]) by id. Resolves it to its
+     * in-proot qcow2 path and delegates to [start].
+     */
+    suspend fun startImage(
+        imageId: String,
+        memMb: Int = DEFAULT_MEM_MB,
+        cpus: Int = DEFAULT_CPUS,
+    ): VmState {
+        if (!imageFile(imageId).exists()) throw SystemVmException("no such system-VM image: $imageId")
+        return start(imageGuestPath(imageId), diskFormat = "qcow2", memMb = memMb, cpus = cpus)
+    }
+
     /** Power off / kill the running VM (idempotent). */
     suspend fun stop() = mutex.withLock { stopLocked() }
+
+    // --- image store -------------------------------------------------------
+    //
+    // Bootable disk images live in cacheDir/system-vm (bound at /tmp/system-vm
+    // in the proot, so qemu can read them). Everything is normalised to qcow2
+    // on import so start() has one format and the base stays sparse. Same
+    // cache-persistence caveat as the #287 appliance: Android can reclaim
+    // cacheDir under storage pressure — re-import if that happens.
+
+    data class VmImage(val id: String, val label: String, val sizeBytes: Long)
+
+    private val imagesDir: File get() = File(context.cacheDir, "system-vm")
+    private fun imageFile(id: String): File = File(imagesDir, "$id.qcow2")
+    private fun imageGuestPath(id: String): String = "$IMAGE_GUEST_DIR/$id.qcow2"
+
+    /** Stored, ready-to-boot images. */
+    fun listImages(): List<VmImage> =
+        (imagesDir.listFiles { f -> f.isFile && f.extension == "qcow2" } ?: emptyArray())
+            .map { f ->
+                val id = f.nameWithoutExtension
+                val label = File(imagesDir, "$id.label").takeIf { it.exists() }?.readText()?.trim() ?: id
+                VmImage(id, label, f.length())
+            }
+            .sortedBy { it.id }
+
+    /**
+     * Import a bootable disk image from an http(s) URL or an on-device file
+     * path, normalising it to qcow2 via `qemu-img convert`. [id] is a slug;
+     * [expectedSha256] (of the SOURCE bytes) is verified when given. Returns
+     * the stored [VmImage].
+     */
+    suspend fun importImage(
+        id: String,
+        label: String,
+        source: String,
+        expectedSha256: String? = null,
+    ): VmImage = mutex.withLock {
+        require(id.matches(Regex("[a-z0-9][a-z0-9._-]*"))) {
+            "image id must be a slug (lowercase letters, digits, ., _, -): '$id'"
+        }
+        ensureQemuInstalled() // provides qemu-img
+        val dir = imagesDir.apply { mkdirs() }
+        val srcFile = File(dir, "$id.src")
+        val outFile = imageFile(id)
+        try {
+            withContext(Dispatchers.IO) { downloadOrCopy(source, srcFile, expectedSha256) }
+            // Convert (raw/qcow2/vdi/vmdk → qcow2). Both paths are under
+            // /tmp/system-vm inside the proot.
+            val (out, code) = prootManager.runCommandInProot(
+                "qemu-img convert -O qcow2 '$IMAGE_GUEST_DIR/$id.src' '$IMAGE_GUEST_DIR/$id.qcow2' 2>&1",
+            )
+            if (code != 0 || !outFile.exists()) {
+                outFile.delete()
+                throw SystemVmException("qemu-img convert failed (exit $code): ${out.takeLast(200)}")
+            }
+            File(dir, "$id.label").writeText(label)
+            VmImage(id, label, outFile.length())
+        } finally {
+            srcFile.delete()
+        }
+    }
+
+    /** Delete a stored image (stopping the VM first if it's the one running). */
+    suspend fun deleteImage(id: String) = mutex.withLock {
+        if (process?.isAlive == true && _state.value?.diskPath == imageGuestPath(id)) {
+            stopLocked()
+        }
+        imageFile(id).delete()
+        File(imagesDir, "$id.label").delete()
+    }
+
+    private fun downloadOrCopy(source: String, dest: File, expectedSha256: String?) {
+        if (source.startsWith("http://") || source.startsWith("https://")) {
+            java.net.URL(source).openConnection().getInputStream().use { input ->
+                dest.outputStream().use { input.copyTo(it) }
+            }
+        } else {
+            val src = File(source)
+            require(src.isFile) { "source file not found: $source" }
+            src.inputStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
+        }
+        if (expectedSha256 != null) {
+            val actual = sha256Hex(dest)
+            if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                dest.delete()
+                throw SystemVmException("sha256 mismatch: expected $expectedSha256, got $actual")
+            }
+        }
+    }
+
+    private fun sha256Hex(file: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(1 shl 16)
+            while (true) {
+                val n = input.read(buf); if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
 
     private fun stopLocked() {
         process?.let { killProotProcessTree(it, TAG) }
@@ -170,6 +286,8 @@ class SystemVmManager @Inject constructor(
     companion object {
         private const val TAG = "SystemVmManager"
         private const val QEMU_BIN = "qemu-system-x86_64"
+        /** cacheDir/system-vm is bound here in the proot (cacheDir → /tmp). */
+        private const val IMAGE_GUEST_DIR = "/tmp/system-vm"
         const val VNC_BASE_PORT = 5900
         const val DEFAULT_MEM_MB = 2048
         const val DEFAULT_CPUS = 2
@@ -187,9 +305,9 @@ class SystemVmException(message: String) : Exception(message)
  * the guest outbound networking. Extracted top-level so it unit-tests without
  * an Android Context.
  */
-internal fun qemuVncCommand(diskGuestPath: String, display: Int, memMb: Int, cpus: Int): String =
+internal fun qemuVncCommand(diskGuestPath: String, display: Int, memMb: Int, cpus: Int, diskFormat: String = "qcow2"): String =
     "exec qemu-system-x86_64 -M pc -m $memMb -smp $cpus -monitor none " +
-        "-drive file=$diskGuestPath,if=virtio,format=raw " +
+        "-drive file=$diskGuestPath,if=virtio,format=$diskFormat " +
         "-vga std -vnc 127.0.0.1:$display " +
         "-netdev user,id=n0 -device virtio-net-pci,netdev=n0 " +
         "-boot c -no-reboot"

@@ -16,15 +16,22 @@ class SystemVmManagerTest {
 
     @Test
     fun `vnc command binds VNC on the derived display and boots the disk`() {
-        val cmd = qemuVncCommand(diskGuestPath = "/tmp/haven-vm/sys.img", display = 7, memMb = 2048, cpus = 2)
+        val cmd = qemuVncCommand(diskGuestPath = "/tmp/system-vm/sys.qcow2", display = 7, memMb = 2048, cpus = 2)
         // Display 7 → qemu binds 127.0.0.1:5907. The VNC server is what Haven's
         // viewer connects to; std VGA is the surface it renders.
         assertTrue("must serve VNC on the derived display", cmd.contains("-vnc 127.0.0.1:7"))
         assertTrue("std VGA gives the client a surface to render", cmd.contains("-vga std"))
         assertTrue("boots the installed disk", cmd.contains("-boot c"))
-        assertTrue("virtio disk from the given path", cmd.contains("-drive file=/tmp/haven-vm/sys.img,if=virtio,format=raw"))
+        // Imported images are normalised to qcow2 (the default format).
+        assertTrue("virtio disk in the default qcow2 format", cmd.contains("-drive file=/tmp/system-vm/sys.qcow2,if=virtio,format=qcow2"))
         assertTrue("user-net for guest outbound", cmd.contains("-netdev user,id=n0"))
         assertTrue("exec so the launcher process IS qemu (clean to signal)", cmd.startsWith("exec qemu-system-x86_64"))
+    }
+
+    @Test
+    fun `disk format is honoured — raw for a hand-placed image, qcow2 by default`() {
+        assertTrue(qemuVncCommand("/d.img", 1, 2048, 2, diskFormat = "raw").contains("format=raw"))
+        assertTrue("default is qcow2 (imported images)", qemuVncCommand("/d.qcow2", 1, 2048, 2).contains("format=qcow2"))
     }
 
     @Test
