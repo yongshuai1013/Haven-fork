@@ -78,9 +78,9 @@ Initiate a connection for a saved profile via the same code path a UI tap uses (
 <details markdown="1">
 <summary><code>create_connection</code> · asks every call</summary>
 
-Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider ("imap" default, or "proton"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.
+Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider ("imap" default, or "proton"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.
 
-- `connectionType` (string, required) — SSH | SMB | VNC | RDP | EMAIL.
+- `connectionType` (string, required) — SSH | SMB | VNC | RDP | SPICE | EMAIL.
 - `host` (string, required) — Target hostname or IP. For EMAIL this is the optional tunnel ingress/bastion (SPA/knock target), NOT the mail server — leave blank for a direct IMAP connection.
 - `label` (string, required) — User-facing label.
 - `authMethods` (string[]) — SSH only (#166): ordered multi-factor auth methods attempted in one connect, for servers requiring a chain like publickey,password. Each element is a token: "PASSWORD", "KEY" (any saved key), "KEY:<keyId>", "KEYBOARD_INTERACTIVE", or "TOTP:<id>" (auto-fill an OATH-TOTP code from list_totp_secrets, #178). Omit for the single-method default derived from keyId/password.
@@ -94,15 +94,17 @@ Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, E
 - `ignoreSavedKeys` (boolean) — SSH-family only: when true, authenticate with password (and keyboard-interactive) only — saved keystore keys are never offered to the server. Lets a profile target a password-only server without the auto-key-offer suppressing the password prompt (#121). Default false.
 - `keyId` (string) — SSH only: id of a saved SSH key (from list_ssh_keys) to authenticate with. Mutually optional with password.
 - `password` (string) — Password (stored). Optional for SSH if a key is used; some VNC/SMB setups allow guest.
-- `port` (integer) — TCP port. Defaults: SSH 22, SMB 445, VNC 5900, RDP 3389.
+- `port` (integer) — TCP port. Defaults: SSH 22, SMB 445, VNC 5900, RDP 3389, SPICE 5900. Type-specific vncPort/rdpPort/spicePort override this.
 - `portKnockDelayMs` (integer) — Inter-knock delay in ms (default 100). Ignored when portKnockSequence is empty.
 - `portKnockSequence` (string) — Optional port-knock sequence fired before the real connect. Format: whitespace/comma-separated 'port[/proto]' tokens — e.g. '7000 8000 9000' (all TCP) or '7000/tcp 8000/udp 9000/tcp'. Empty = disabled.
 - `rdpDomain` (string) — AD domain (RDP). Optional.
 - `rdpPassword` (string) — Windows password (RDP).
+- `rdpPort` (integer) — RDP only: TCP port (default 3389). Overrides the generic `port`.
 - `rdpUsername` (string) — Windows username (RDP). Required when connectionType=RDP.
 - `smbDomain` (string) — AD/workgroup domain (SMB). Optional.
 - `smbShare` (string) — Share name (SMB). Required when connectionType=SMB.
 - `spicePassword` (string) — SPICE only: ticket/password (stored). Optional — omit for an unticketed server.
+- `spicePort` (integer) — SPICE only: TCP port (default 5900). Overrides the generic `port`.
 - `spiceSshForward` (boolean) — SPICE only: tunnel through a saved SSH profile (set spiceSshProfileId). The SPICE target is reached at 127.0.0.1:<port> from the SSH server. Default false.
 - `spiceSshProfileId` (string) — SPICE only: id of the SSH profile (from list_connections) to tunnel through when spiceSshForward is true.
 - `tunnelConfigId` (string) — Optional: route the new profile through this tunnel (from list_tunnels). Equivalent to follow-up set_profile_routing.
@@ -110,6 +112,7 @@ Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, E
 - `useMosh` (boolean) — SSH only: when true, the profile uses Mosh on top of the SSH bootstrap. SSH execs `mosh-server new -s`, parses MOSH CONNECT, then the UDP transport takes over. Default false.
 - `username` (string) — Username for SSH/SMB.
 - `vncPassword` (string) — VNC password.
+- `vncPort` (integer) — VNC only: TCP port (default 5900). Overrides the generic `port`.
 - `vncSshForward` (boolean) — VNC only: tunnel the VNC connection through a saved SSH profile (set vncSshProfileId). The VNC target is reached at 127.0.0.1:<port> from the SSH server. Default false.
 - `vncSshProfileId` (string) — VNC only: id of the SSH profile (from list_connections) to tunnel through when vncSshForward is true.
 - `vncUsername` (string) — Username for VeNCrypt VNC.

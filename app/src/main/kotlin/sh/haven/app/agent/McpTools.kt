@@ -1394,24 +1394,27 @@ internal class McpTools(
         ) { args -> setProfileRouting(args) },
 
         "create_connection" to ToolHandler(
-            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
+            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
             inputSchema = objectSchema {
                 string("label", "User-facing label.", required = true)
-                string("connectionType", "SSH | SMB | VNC | RDP | EMAIL.", required = true)
+                string("connectionType", "SSH | SMB | VNC | RDP | SPICE | EMAIL.", required = true)
                 string("host", "Target hostname or IP. For EMAIL this is the optional tunnel ingress/bastion (SPA/knock target), NOT the mail server — leave blank for a direct IMAP connection.", required = true)
-                integer("port", "TCP port. Defaults: SSH 22, SMB 445, VNC 5900, RDP 3389.")
+                integer("port", "TCP port. Defaults: SSH 22, SMB 445, VNC 5900, RDP 3389, SPICE 5900. Type-specific vncPort/rdpPort/spicePort override this.")
                 string("username", "Username for SSH/SMB.")
                 string("password", "Password (stored). Optional for SSH if a key is used; some VNC/SMB setups allow guest.")
                 string("smbShare", "Share name (SMB). Required when connectionType=SMB.")
                 string("smbDomain", "AD/workgroup domain (SMB). Optional.")
                 string("vncUsername", "Username for VeNCrypt VNC.")
                 string("vncPassword", "VNC password.")
+                integer("vncPort", "VNC only: TCP port (default 5900). Overrides the generic `port`.")
                 boolean("vncSshForward", "VNC only: tunnel the VNC connection through a saved SSH profile (set vncSshProfileId). The VNC target is reached at 127.0.0.1:<port> from the SSH server. Default false.")
                 string("vncSshProfileId", "VNC only: id of the SSH profile (from list_connections) to tunnel through when vncSshForward is true.")
                 string("rdpUsername", "Windows username (RDP). Required when connectionType=RDP.")
                 string("rdpPassword", "Windows password (RDP).")
                 string("rdpDomain", "AD domain (RDP). Optional.")
+                integer("rdpPort", "RDP only: TCP port (default 3389). Overrides the generic `port`.")
                 string("spicePassword", "SPICE only: ticket/password (stored). Optional — omit for an unticketed server.")
+                integer("spicePort", "SPICE only: TCP port (default 5900). Overrides the generic `port`.")
                 boolean("spiceSshForward", "SPICE only: tunnel through a saved SSH profile (set spiceSshProfileId). The SPICE target is reached at 127.0.0.1:<port> from the SSH server. Default false.")
                 string("spiceSshProfileId", "SPICE only: id of the SSH profile (from list_connections) to tunnel through when spiceSshForward is true.")
                 string("emailProvider", "EMAIL only: \"imap\" (generic IMAP/SMTP, default) or \"proton\".")
@@ -5517,7 +5520,21 @@ internal class McpTools(
             "EMAIL" -> 0
             else -> 22
         }
-        val port = if (args.has("port")) args.optInt("port", defaultPort) else defaultPort
+        // Honor the type-specific port field (vncPort/rdpPort/spicePort) the
+        // description advertises, preferring it over the generic `port`, then
+        // the per-type default. Previously only `port` was read, so a caller
+        // following the docs and passing spicePort silently got 5900 (#353).
+        val typePortArg = when (type) {
+            "VNC" -> "vncPort"
+            "RDP" -> "rdpPort"
+            "SPICE" -> "spicePort"
+            else -> null
+        }
+        val port = when {
+            typePortArg != null && args.has(typePortArg) -> args.optInt(typePortArg, defaultPort)
+            args.has("port") -> args.optInt("port", defaultPort)
+            else -> defaultPort
+        }
 
         val tunnelOnly = args.optBoolean("tunnelOnly", false)
         if (tunnelOnly && type != "SSH") {
