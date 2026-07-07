@@ -58,9 +58,11 @@ class AgentConsentManagerTest {
     }
 
     @Test
-    fun `non-NEVER without foreground returns DENY immediately`() = runTest {
+    fun `non-NEVER without foreground returns DENY when foreground never comes (timeout)`() = runTest {
         val mgr = AgentConsentManager()
-        // foregroundActive defaults to false — fail-closed, instant DENY.
+        // foreground defaults to false and never returns — the request holds
+        // for the timeout (virtual time here) and then fails closed (#337
+        // mechanism 3: DENY-only-on-timeout, never auto-ALLOW).
         val decision = mgr.requestConsent(
             toolName = "delete_sftp_file",
             clientHint = "test",
@@ -68,28 +70,61 @@ class AgentConsentManagerTest {
             level = ConsentLevel.EVERY_CALL,
         )
         assertEquals(ConsentDecision.DENY, decision)
+        assertTrue("no prompt is ever queued without a foreground", mgr.pending.value.isEmpty())
     }
 
     @Test
-    fun `backgrounded fail-closed still instant-DENYs but emits a blocked-notification event`() =
+    fun `backgrounded consent holds for foreground and prompts when it returns`() = runTest(UnconfinedTestDispatcher()) {
+        val mgr = AgentConsentManager()
+        // Request arrives while backgrounded — it must HOLD, not deny.
+        val call = async {
+            mgr.requestConsent(
+                toolName = "run_in_proot",
+                clientHint = "agent-A",
+                summary = "apt-get install foo",
+                level = ConsentLevel.EVERY_CALL,
+                timeoutMs = Long.MAX_VALUE,
+            )
+        }
+        assertTrue("no sheet while backgrounded", mgr.pending.value.isEmpty())
+        assertFalse("call must still be waiting, not denied", call.isCompleted)
+
+        // User opens Haven (e.g. taps the blocked-action notification):
+        // the held request renders its prompt now.
+        mgr.setForegroundActive(true)
+        val req = mgr.pending.value.single()
+        assertEquals("run_in_proot", req.toolName)
+        mgr.respond(req.id, ConsentDecision.ALLOW)
+        assertEquals(ConsentDecision.ALLOW, call.await())
+    }
+
+    @Test
+    fun `backgrounded consent emits a blocked-notification event while holding`() =
         runTest(UnconfinedTestDispatcher()) {
             val mgr = AgentConsentManager()
             val seen = mutableListOf<ConsentRequest>()
             val collector = launch { mgr.blockedWhileBackground.collect { seen.add(it) } }
 
-            // foregroundActive=false → instant fail-closed DENY, AND a
-            // notification event so the user knows what was blocked.
-            val decision = mgr.requestConsent(
-                toolName = "read_logcat",
-                clientHint = "agent-A",
-                summary = "read 400 logcat lines",
-                level = ConsentLevel.EVERY_CALL,
-            )
-
-            assertEquals("fail-closed must instant-DENY", ConsentDecision.DENY, decision)
+            // foreground=false → the request holds for foreground, and the
+            // notification event fires immediately so the user knows the
+            // agent is waiting on them.
+            val call = async {
+                mgr.requestConsent(
+                    toolName = "read_logcat",
+                    clientHint = "agent-A",
+                    summary = "read 400 logcat lines",
+                    level = ConsentLevel.EVERY_CALL,
+                    timeoutMs = Long.MAX_VALUE,
+                )
+            }
             assertEquals(1, seen.size)
             assertEquals("read_logcat", seen.single().toolName)
             assertEquals("agent-A", seen.single().clientHint)
+
+            // Resolve the held call so the test ends cleanly.
+            mgr.setForegroundActive(true)
+            mgr.respond(mgr.pending.value.single().id, ConsentDecision.DENY)
+            assertEquals(ConsentDecision.DENY, call.await())
             collector.cancel()
         }
 

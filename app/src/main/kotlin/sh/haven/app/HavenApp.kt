@@ -365,8 +365,9 @@ class HavenApp : Application(), Configuration.Provider {
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = "Heads-up when an MCP agent action needs your approval but " +
-                        "Haven is in the background. The action fails closed; tap Allow or Deny " +
-                        "on the notification (Allow needs the device unlocked)."
+                        "Haven is in the background. The action waits for you (denied on " +
+                        "timeout); open Haven to review it, or tap Allow or Deny here " +
+                        "(Allow needs the device unlocked)."
                 },
             )
         }
@@ -396,8 +397,8 @@ class HavenApp : Application(), Configuration.Provider {
         val line = if (isPairing) {
             "A client tried to connect while Haven was in the background. Open Haven so it can retry."
         } else {
-            "‘${req.toolName}’ needs your approval. Allow or deny below — the action stays " +
-                "blocked until you do."
+            "‘${req.toolName}’ needs your approval. It's waiting for you — open Haven to " +
+                "review, or use Allow/Deny below. Denied automatically if you don't answer."
         }
 
         val builder = NotificationCompat.Builder(this, CONSENT_CHANNEL_ID)
@@ -410,11 +411,14 @@ class HavenApp : Application(), Configuration.Provider {
             .setAutoCancel(true)
             .setContentIntent(contentIntent)
 
-        // Allow/Deny actions for tool calls. The original call already failed
-        // closed; tapping Allow arms a short retry window (ConsentActionReceiver
-        // → AgentConsentManager.armRetryWindow) so the agent's retry proceeds —
-        // the consent gate itself never waits. Pairing has no tool-window to
-        // arm, so it keeps the open-Haven-to-retry flow (no buttons).
+        // Allow/Deny actions for tool calls. Since #337 mechanism 3 the
+        // original call HOLDS for foreground (denied on timeout): opening
+        // Haven from the notification renders the sheet and resolves the live
+        // call. Tapping Allow here instead arms a short retry window
+        // (ConsentActionReceiver → armRetryWindow) — that covers the case
+        // where the hold has already timed out and the agent retries. Pairing
+        // has no tool-window to arm, so it keeps the open-Haven-to-retry flow
+        // (no buttons).
         if (!isPairing) {
             val allowPi = PendingIntent.getBroadcast(
                 this, notifId * 2,

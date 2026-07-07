@@ -231,6 +231,17 @@ class McpServer @Inject constructor(
 ) : Closeable {
 
     /**
+     * Transport-level budget for a consent prompt. The manager's own
+     * requestConsent timeout is derived from this (90%, so it always fires
+     * first): since #337 mechanism 3 a backgrounded call HOLDS inside
+     * requestConsent, and without the margin the outer wrapper would win
+     * every unanswered wait and report -32012 "timed out" where the contract
+     * is -32000 "denied" with a DENIED audit row. Internal var (not const) so
+     * unit tests can shrink the real-time wait.
+     */
+    internal var consentWaitMs: Long = CONSENT_WAIT_MS
+
+    /**
      * Last authenticated (or, on `initialize`, self-asserted) client name.
      * Used for AUDIT attribution and as the key for consent memos /
      * standing policies — never as authentication (#mcp-backbone Stage 3):
@@ -1512,12 +1523,13 @@ class McpServer @Inject constructor(
         }
         if (!trusted && !policyAllowed) {
             val decision = runBlocking {
-                withTimeoutOrNull(CONSENT_WAIT_MS) {
+                withTimeoutOrNull(consentWaitMs) {
                     consentManager.requestConsent(
                         toolName = "capture_haven_ui",
                         clientHint = lastClientHint,
                         summary = "Let the agent see Haven's own screen",
                         level = ConsentLevel.ONCE_PER_SESSION,
+                        timeoutMs = consentWaitMs * 9 / 10,
                     )
                 }
             }
@@ -1597,13 +1609,14 @@ class McpServer @Inject constructor(
                     .joinToString("") { k -> "$k=${arguments.opt(k)}" }
             }.getOrDefault(arguments.toString())
             val decision = runBlocking {
-                withTimeoutOrNull(CONSENT_WAIT_MS) {
+                withTimeoutOrNull(consentWaitMs) {
                     consentManager.requestConsent(
                         toolName = name,
                         clientHint = lastClientHint,
                         summary = summary,
                         level = consent.level,
                         operationKey = operationKey,
+                        timeoutMs = consentWaitMs * 9 / 10,
                     )
                 }
             }

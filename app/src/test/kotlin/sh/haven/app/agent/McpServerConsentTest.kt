@@ -126,6 +126,9 @@ class McpServerConsentTest {
             mailWatchManager = mockk(relaxed = true),
             agentActivityHolder = mockk(relaxed = true),
         )
+        // #337 mechanism 3: an unanswered consent HOLDS for the wait
+        // budget. Shrink it so no-foreground tests take ~2s, not ~55s.
+        server.consentWaitMs = 2_000
         return server to auditRecorder
     }
 
@@ -545,6 +548,9 @@ class McpServerConsentTest {
             mailWatchManager = mockk(relaxed = true),
             agentActivityHolder = mockk(relaxed = true),
         )
+        // #337 mechanism 3: an unanswered consent HOLDS for the wait
+        // budget. Shrink it so no-foreground tests take ~2s, not ~55s.
+        server.consentWaitMs = 2_000
 
         val responseFuture = java.util.concurrent.CompletableFuture.supplyAsync {
             server.call(initBody("fresh-client"))

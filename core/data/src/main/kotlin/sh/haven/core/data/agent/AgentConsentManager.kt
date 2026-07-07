@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
@@ -69,16 +70,16 @@ data class ConsentRequest(
  * ### Failure model
  *
  * The brand promise (VISION.md §85) is that the user always keeps the
- * wheel — *never* a silent automation channel. That has one unforgiving
- * consequence: if no Haven activity is in the foreground, we cannot ask
- * the user to consent, so the request **must fail closed**. This manager
- * tracks foreground state via [setForegroundActive] and refuses non-NEVER
- * requests when no activity is visible. It also emits [blockedWhileBackground]
- * so the app layer can raise a notification telling the user an action was
- * blocked (they bring Haven forward and the agent retries). Letting the
- * blocked call instead *wait* in-app for the user is a deliberate
- * consent-failure-model change (it shifts the deny semantics + adds latency)
- * and is intentionally NOT done here.
+ * wheel — *never* a silent automation channel. If no Haven activity is in
+ * the foreground, we cannot ask the user to consent, so the request can
+ * never auto-ALLOW. Since #337 (mechanism 3, maintainer-approved) a
+ * backgrounded non-NEVER request no longer fails *instantly*: it emits
+ * [blockedWhileBackground] (the app layer raises a tap-to-open
+ * notification) and then suspends — within the caller's timeout budget —
+ * waiting for foreground to return via [setForegroundActive]; the prompt
+ * renders then with the remaining budget. DENY happens only on timeout or
+ * an explicit deny tap. §85 holds: the only thing that changed is
+ * immediate-DENY → DENY-only-on-timeout.
  *
  * ### Memoisation
  *
@@ -152,8 +153,12 @@ class AgentConsentManager @Inject constructor() {
     @Volatile
     private var persistentBypassClients: Set<String> = emptySet()
 
-    @Volatile
-    private var foregroundActive: Boolean = false
+    /**
+     * Foreground visibility as a StateFlow rather than a plain volatile so a
+     * background-blocked consent can *suspend until foreground returns*
+     * (#337 mechanism 3) instead of only sampling the flag.
+     */
+    private val foregroundState = MutableStateFlow(false)
 
     /**
      * The most recent pairing attempt that failed closed because Haven was
@@ -219,14 +224,17 @@ class AgentConsentManager @Inject constructor() {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     /**
-     * Emits whenever a non-[NEVER] request had to fail closed purely because
-     * no Haven activity was foreground to render the prompt (see [requestConsent]
-     * / [requestClientPairing]). The app layer turns this into a heads-up,
+     * Emits whenever a non-[NEVER] request arrived while no Haven activity
+     * was foreground to render the prompt (see [requestConsent] /
+     * [requestClientPairing]). The app layer turns this into a heads-up,
      * tap-to-open notification so the user knows the agent is waiting on them —
      * the §85 design note's "notification explaining what was blocked".
      *
-     * Fail-closed is unchanged: the request still returns DENY. This is purely
-     * a "come back and you'll be asked" nudge, never a back-door approval.
+     * Since #337 mechanism 3, a consent request that triggers this is
+     * *holding* for foreground rather than already denied — tapping the
+     * notification opens Haven and the sheet renders. Pairing requests still
+     * deny immediately (their re-ask runs through [repromptBlockedPairing]).
+     * Either way this is a nudge, never a back-door approval.
      */
     val blockedWhileBackground: SharedFlow<ConsentRequest> = _blockedWhileBackground.asSharedFlow()
 
@@ -235,7 +243,7 @@ class AgentConsentManager @Inject constructor() {
      * fail-closed when no one can answer the prompt.
      */
     fun setForegroundActive(active: Boolean) {
-        foregroundActive = active
+        foregroundState.value = active
     }
 
     /**
@@ -314,11 +322,16 @@ class AgentConsentManager @Inject constructor() {
             }
         }
 
-        if (!foregroundActive) {
-            // Fail closed: nothing can render the prompt right now and §85
-            // forbids proceeding. Caller maps this to Outcome.DENIED. Nudge
-            // the user via a notification (app layer) so a blocked action is
-            // visible and they can bring Haven forward for the agent to retry.
+        val startedAt = System.currentTimeMillis()
+        if (!foregroundState.value) {
+            // §85 forbids proceeding without the user; it does not require
+            // failing instantly. Raise the blocked-action notification, then
+            // HOLD the call — within the caller's timeout budget — waiting
+            // for a foreground activity that can render the prompt. The
+            // prompt renders on return with the remaining budget; DENY only
+            // on timeout. (#337 mechanism 3, maintainer-approved: the deny
+            // semantics change from immediate-DENY to DENY-only-on-timeout.
+            // Never auto-ALLOW — the wheel stays with the user.)
             _blockedWhileBackground.tryEmit(
                 ConsentRequest(
                     id = nextId.getAndIncrement(),
@@ -327,8 +340,17 @@ class AgentConsentManager @Inject constructor() {
                     summary = summary,
                 ),
             )
-            return ConsentDecision.DENY
+            val cameForeground =
+                withTimeoutOrNull(timeoutMs) { foregroundState.first { it } } != null
+            if (!cameForeground) {
+                Log.w(LOG_TAG, "requestConsent('$toolName'): no foreground within ${timeoutMs}ms — DENY on timeout")
+                return ConsentDecision.DENY
+            }
         }
+        // Elapsed-based remainder (not deadline arithmetic) so the tests'
+        // Long.MAX_VALUE timeouts can't overflow into an instant DENY.
+        val remainingMs = timeoutMs - (System.currentTimeMillis() - startedAt)
+        if (remainingMs <= 0) return ConsentDecision.DENY
 
         val id = nextId.getAndIncrement()
         val deferred = CompletableDeferred<ConsentDecision>()
@@ -352,7 +374,7 @@ class AgentConsentManager @Inject constructor() {
         // buttons resolve a dead deferred (the "UI frozen after a consent
         // timeout" bug). Hence finally + NonCancellable.
         val decision = try {
-            withTimeoutOrNull(timeoutMs) { deferred.await() } ?: ConsentDecision.DENY
+            withTimeoutOrNull(remainingMs) { deferred.await() } ?: ConsentDecision.DENY
         } finally {
             withContext(NonCancellable) {
                 mutex.withLock {
@@ -446,7 +468,7 @@ class AgentConsentManager @Inject constructor() {
                 // reconnecting client retrying initialize) — share its
                 // outcome rather than queueing an identical second sheet.
                 existing != null -> joined = existing
-                !foregroundActive -> backgrounded = true
+                !foregroundState.value -> backgrounded = true
                 else -> {
                     // Rotating-name spam guard: a spammer that varies its
                     // clientInfo.name per call defeats the name-keyed
