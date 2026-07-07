@@ -1,0 +1,1 @@
+⌨️ Local shells now track bracketed-paste and mouse modes: agents can paste multi-line input to a REPL running in a local shell as one submitted unit, and an adopted local tab's paste-wrapping follows the live stream instead of never wrapping.

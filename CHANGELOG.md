@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.19
+
+⌨️ **Local shells now track bracketed-paste and mouse modes** (#336) — an agent-opened local shell had no DECSET scan at all, and a local shell adopted into the Terminal UI got dead stub flows installed over the working ones, so `bracketPasteMode` read false forever. Two consequences fixed: `send_to_agent` now bracket-pastes multi-line messages to a REPL running in a local shell (verified on-device against bash 5.2 in the Alpine proot — a two-line message lands as one submitted paste, and drops back to plain input when the REPL exits), and an adopted local tab's own paste-wrapping now follows the live stream instead of never wrapping.
+
 ## v5.68.18
 
 🔒 **Remote-desktop connections now pin the server's TLS certificate on first use** — a security review of every connection type found the VNC (VeNCrypt/X509) and RDP TLS paths accepted *any* certificate, leaving both open to man-in-the-middle interception. Both now record the certificate the first time you connect and refuse a changed one until you explicitly accept it — the same trust-on-first-use model as SSH host keys, sharing one trust store. From the same review: silent SSH connects (background and agent paths) fail closed on an unknown host key instead of proceeding; mail accounts configured for TLS now *require* STARTTLS rather than silently falling back when the server doesn't offer it; VNC remote→local clipboard sync is opt-in (default off), so a compromised server can't quietly read what lands on the phone's clipboard; backup encryption moved from 100k to 600k PBKDF2 iterations under a versioned envelope; rootfs archive extraction guards against zip-slip path traversal and deletes symlink-safely; and the terminal's native JNI layer got bounds/overflow hardening. The new host-key and clipboard strings are translated in all 11 languages.
