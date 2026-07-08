@@ -1555,8 +1555,7 @@ class SshSessionManager @Inject constructor(
         val commandTemplate = manager.command ?: return null
         val rawName = session?.chosenSessionName
             ?: session?.label ?: sessionId.take(8)
-        // Sanitize for use as tmux/screen/zellij session name (no spaces or shell metacharacters)
-        val sessionName = rawName.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        val sessionName = SessionManager.sanitizeSessionName(rawName)
         // User override replaces the built-in command template
         val override = session?.sessionCommandOverride
         if (!override.isNullOrBlank()) {

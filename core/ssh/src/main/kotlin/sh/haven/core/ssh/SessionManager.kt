@@ -42,6 +42,15 @@ enum class SessionManager(
     );
 
     companion object {
+        /**
+         * Sanitize a raw label for use as a tmux/screen/zellij session name.
+         * No '.' or ':' — tmux treats them as session:window.pane separators,
+         * so an auto-name derived from user@host with an IP host
+         * ("user-10.0.0.5") fails to attach and the exec'd shell closes (#358).
+         */
+        fun sanitizeSessionName(name: String): String =
+            name.replace(Regex("[^A-Za-z0-9_-]"), "-")
+
         /** Strip ANSI escape sequences (colors, bold, etc.) from a string. */
         private val ANSI_REGEX = Regex("\\x1B\\[[0-9;]*[a-zA-Z]")
         private fun stripAnsi(s: String): String = s.replace(ANSI_REGEX, "")

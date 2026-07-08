@@ -2304,7 +2304,7 @@ class TerminalViewModel @Inject constructor(
     }
 
     private fun generateUniqueSessionName(label: String, remoteNames: List<String>): String {
-        val base = label.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        val base = sanitizeSessionName(label)
         val existing = remoteNames.toSet()
         if (base !in existing) return base
         var i = 2
@@ -2459,7 +2459,7 @@ class TerminalViewModel @Inject constructor(
     }
 
     private fun sanitizeSessionName(name: String): String =
-        name.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        SessionManager.sanitizeSessionName(name)
 
     fun dismissNewTabSessionPicker() {
         val sel = _newTabSessionPicker.value ?: return

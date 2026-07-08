@@ -205,7 +205,8 @@ class LocalSessionManager @Inject constructor(
         if (template == null) {
             return arrayOf("/bin/sh", "-l")
         }
-        val sanitizedName = sessionName.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        // No '.' or ':' — tmux treats them as session:window.pane separators (#358).
+        val sanitizedName = sessionName.replace(Regex("[^A-Za-z0-9_-]"), "-")
         val cmd = template(sanitizedName)
         // First word of the command is the binary we test for. tmux,
         // zellij, screen, byobu — all single-word executables.

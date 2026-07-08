@@ -3439,14 +3439,14 @@ class ConnectionsViewModel @Inject constructor(
     }
 
     private fun sanitizeSessionName(name: String): String =
-        name.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        SessionManager.sanitizeSessionName(name)
 
     /**
      * Generate a session name that doesn't conflict with existing remote sessions.
      * Appends "-2", "-3", etc. if the base name is already taken.
      */
     private fun generateUniqueSessionName(label: String, remoteNames: List<String>): String {
-        val base = label.replace(Regex("[^A-Za-z0-9._-]"), "-")
+        val base = sanitizeSessionName(label)
         val existing = remoteNames.toSet()
         if (base !in existing) return base
         var i = 2
@@ -3646,11 +3646,11 @@ class ConnectionsViewModel @Inject constructor(
                 // Collect session names from all sessions for this profile
                 val allNames = sshSessionManager.sessions.value.values
                     .filter { it.profileId == profileId && it.chosenSessionName != null }
-                    .map { it.chosenSessionName!!.replace(Regex("[^A-Za-z0-9._-]"), "-") }
+                    .map { sanitizeSessionName(it.chosenSessionName!!) }
                     .toMutableList()
                 // Add the current session if not already included
-                val currentName = (session.chosenSessionName ?: session.label ?: sessionId.take(8))
-                    .replace(Regex("[^A-Za-z0-9._-]"), "-")
+                val currentName =
+                    sanitizeSessionName(session.chosenSessionName ?: session.label ?: sessionId.take(8))
                 if (currentName !in allNames) allNames.add(currentName)
                 repository.getById(profileId)?.let { profile ->
                     repository.save(profile.copy(lastSessionName = allNames.joinToString("|")))
@@ -3742,7 +3742,7 @@ class ConnectionsViewModel @Inject constructor(
             val rawName = chosenSessionName
                 ?: moshSessionManager.sessions.value[sessionId]?.label
                 ?: sessionId.take(8)
-            val sanitized = rawName.replace(Regex("[^A-Za-z0-9._-]"), "-")
+            val sanitized = sanitizeSessionName(rawName)
             effectiveSessionName = sanitized
             moshSessionManager.setInitialCommand(sessionId, smCmd(sanitized))
         }
@@ -3845,7 +3845,7 @@ class ConnectionsViewModel @Inject constructor(
             val rawName = chosenSessionName
                 ?: etSessionManager.sessions.value[sessionId]?.label
                 ?: sessionId.take(8)
-            val sanitized = rawName.replace(Regex("[^A-Za-z0-9._-]"), "-")
+            val sanitized = sanitizeSessionName(rawName)
             effectiveSessionName = sanitized
             etSessionManager.setInitialCommand(sessionId, smCmd(sanitized))
         }
