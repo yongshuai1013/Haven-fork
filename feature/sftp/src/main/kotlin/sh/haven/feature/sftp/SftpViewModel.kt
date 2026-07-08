@@ -3919,8 +3919,17 @@ class SftpViewModel @Inject constructor(
                     }
                 }
                 BackendType.SMB -> {
-                    activeSmbClient?.mkdir(parent)
+                    // smbj's DiskShare.mkdir creates ONE level and fails when the
+                    // parent is missing — the same trap as the SFTP branch above
+                    // (#273). Walk shallowest-first, ignoring "already exists".
+                    val client = activeSmbClient ?: return
+                    var acc = ""
+                    for (p in parent.split("/").filter { it.isNotEmpty() }) {
+                        acc = "$acc/$p"
+                        try { client.mkdir(acc) } catch (_: Exception) { /* exists or no permission */ }
+                    }
                 }
+                // rclone's operations/mkdir is mkdir-p for every backend, so one call is enough.
                 BackendType.RCLONE -> destRemote?.let { rcloneClient.mkdir(it, parent) }
             }
         } catch (e: Exception) {
