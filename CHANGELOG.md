@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.27
+
+🛟 **Fixed: restoring a backup could leave the app crashing on launch** — if your backup was taken after you'd changed the terminal background opacity, mail font size, or app-window scale, restoring it corrupted that setting and the app then crash-looped on every open, recoverable only by clearing all app data. Restore now keeps those settings the right type, **and this update self-heals an install already stuck this way** — just update and reopen; your connections and keys are intact. (Affected the existing Restore, not only the new remote sync below.)
+
+☁️ **New: sync your encrypted backup to a connection you already have** (#323) — Settings → Backup → "Sync to a remote": pick an existing SFTP/SMB/rclone connection and a file path, then Push (encrypt + upload) or Pull (download + restore). Same AES-256-GCM encryption as the file backup — the remote never sees your config in the clear. Manual push/pull for now; connect the destination first.
+
 ## v5.68.26
 
 🔧 **Build/CI reliability** — raised the Gradle build heap so the release build stops intermittently failing while packaging the 32-bit ARM app (a bundletool out-of-memory that wasted release runs on reruns) (#356). No app-facing change.

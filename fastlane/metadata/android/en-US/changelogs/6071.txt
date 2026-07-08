@@ -1,0 +1,3 @@
+🛟 Fixed: restoring a backup taken after you changed terminal opacity / mail font size / app-window scale corrupted that setting and crash-looped the app on launch (recoverable only by wiping data). Restore is fixed, and this update self-heals an install already stuck this way — just update and reopen (#357).
+
+☁️ New: sync your encrypted backup to an existing SFTP/SMB/rclone connection (#323). Settings → Backup → "Sync to a remote": Push (encrypt + upload) or Pull (download + restore). Same AES-256-GCM encryption as the file backup.
