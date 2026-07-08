@@ -175,3 +175,12 @@
 -keepclasseswithmembernames class com.googlecode.leptonica.android.** {
     native <methods>;
 }
+
+# dump_haven_ui reaches Compose's semantics tree by reflecting on the view's
+# class NAME and the `getSemanticsOwner` / `get*RootSemanticsNode` getters
+# (HavenUiBridge). R8 renames both, so the verb failed in EVERY release build
+# with "No Compose view in the foreground window" while debug worked — the
+# same shape as the IMAPSSLStore breakage this file's header warns about.
+# Found on-device while making overlay windows dumpable (#355).
+-keep class androidx.compose.ui.platform.AndroidComposeView { *; }
+-keep class androidx.compose.ui.semantics.SemanticsOwner { *; }
