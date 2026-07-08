@@ -55,6 +55,7 @@ import javax.inject.Inject
 @HiltViewModel
 internal class ConsentHostViewModel @Inject constructor(
     private val consentManager: AgentConsentManager,
+    val uiBridge: HavenUiBridge,
 ) : ViewModel() {
 
     val pending: StateFlow<List<ConsentRequest>> = consentManager.pending
@@ -151,6 +152,12 @@ internal fun ConsentHost(viewModel: ConsentHostViewModel = hiltViewModel()) {
         // to make an explicit choice.
         scrimColor = Color.Black.copy(alpha = 0.5f),
     ) {
+        // The sheet lives in its own window, invisible to dump_haven_ui's walk
+        // of the activity (#355). Register it so an agent can *observe* what
+        // it's being asked to approve. Observation only — dispatchTap still
+        // refuses outright while any consent request is pending, so this can
+        // never become a self-approval channel.
+        OverlayUiRegistration(viewModel.uiBridge, label = "consent-sheet")
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -306,5 +313,23 @@ internal fun ConsentHost(viewModel: ConsentHostViewModel = hiltViewModel()) {
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+/**
+ * Registers the enclosing Compose window (a dialog or bottom sheet — i.e. a
+ * window `dump_haven_ui`'s activity walk cannot see) with [HavenUiBridge] for
+ * the duration of its composition (#355). Call it inside the overlay's content.
+ *
+ * Observation only: it exposes semantics to `dump_haven_ui`; it grants no
+ * ability to tap. `HavenUiBridge.dispatchTap` independently refuses while any
+ * consent request is pending.
+ */
+@Composable
+internal fun OverlayUiRegistration(bridge: HavenUiBridge, label: String) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view, label) {
+        bridge.registerOverlay(label, view)
+        onDispose { bridge.unregisterOverlay(view) }
     }
 }

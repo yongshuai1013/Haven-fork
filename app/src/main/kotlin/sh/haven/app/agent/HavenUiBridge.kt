@@ -72,6 +72,32 @@ class HavenUiBridge @Inject constructor(
     @Volatile
     private var activityRef: WeakReference<Activity>? = null
 
+    /**
+     * Compose sheets/dialogs render in their own windows, which [dumpUi]'s walk
+     * of the activity's decorView never reached — so the consent sheet, the
+     * app's most safety-critical UI, was invisible to an agent (#355). Rather
+     * than reflect into `WindowManagerGlobal` (a non-SDK interface), each
+     * overlay opts in by registering its own Compose view via
+     * [OverlayUiRegistration]. Weak refs: a dismissed sheet's view must not be
+     * retained here.
+     */
+    private val overlays = mutableListOf<Pair<String, WeakReference<View>>>()
+
+    /** Register an overlay window's Compose view for [dumpUi]. See [OverlayUiRegistration]. */
+    fun registerOverlay(label: String, view: View) = synchronized(overlays) {
+        overlays.removeAll { it.second.get() == null || it.second.get() === view }
+        overlays.add(label to WeakReference(view))
+    }
+
+    fun unregisterOverlay(view: View) = synchronized(overlays) {
+        overlays.removeAll { it.second.get() == null || it.second.get() === view }
+        Unit
+    }
+
+    private fun overlaySnapshot(): List<Pair<String, View>> = synchronized(overlays) {
+        overlays.mapNotNull { (label, ref) -> ref.get()?.let { label to it } }
+    }
+
     /** Called from [MainActivity.onResume]: this activity is now foreground. */
     fun attach(activity: Activity) {
         activityRef = WeakReference(activity)
@@ -254,9 +280,22 @@ class HavenUiBridge @Inject constructor(
             ?: return@withContext DumpResult.Failed("Compose root semantics node not reachable.")
         val nodes = ArrayList<UiNode>()
         try {
-            walkSemantics(root, nodes)
+            walkSemantics(root, nodes, window = null)
         } catch (e: Throwable) {
             return@withContext DumpResult.Failed("Semantics walk failed: ${e.message}")
+        }
+        // Overlay windows (consent sheet, dialogs) — see [overlays] (#355). A
+        // failure to walk one must not lose the activity window's nodes, so
+        // each is best-effort.
+        for ((label, view) in overlaySnapshot()) {
+            runCatching {
+                val ov = findComposeView(view) ?: return@runCatching
+                val oOwner = reflectGetter(ov, "getSemanticsOwner") as? SemanticsOwner ?: return@runCatching
+                val oRoot = (reflectGetter(oOwner, "getUnmergedRootSemanticsNode") as? SemanticsNode)
+                    ?: (reflectGetter(oOwner, "getRootSemanticsNode") as? SemanticsNode)
+                    ?: return@runCatching
+                walkSemantics(oRoot, nodes, window = label)
+            }
         }
         DumpResult.Ok(nodes, decor.width, decor.height)
     }
@@ -278,7 +317,7 @@ class HavenUiBridge @Inject constructor(
         null
     }
 
-    private fun walkSemantics(node: SemanticsNode, out: MutableList<UiNode>) {
+    private fun walkSemantics(node: SemanticsNode, out: MutableList<UiNode>, window: String?) {
         val cfg = node.config
         val text = cfg.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text }?.takeIf { it.isNotEmpty() }
         val desc = cfg.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")?.takeIf { it.isNotEmpty() }
@@ -299,9 +338,10 @@ class HavenUiBridge @Inject constructor(
                 top = b.top.toInt(),
                 right = b.right.toInt(),
                 bottom = b.bottom.toInt(),
+                window = window,
             )
         }
-        for (child in node.children) walkSemantics(child, out)
+        for (child in node.children) walkSemantics(child, out, window)
     }
 
     /** One semantic element: its text/desc/role, whether it's clickable/editable, and window-pixel bounds. */
@@ -316,6 +356,13 @@ class HavenUiBridge @Inject constructor(
         val top: Int,
         val right: Int,
         val bottom: Int,
+        /**
+         * Which window the node lives in: null for the activity window,
+         * otherwise the overlay's label ("consent-sheet", "biometric-gate", …).
+         * Compose sheets and dialogs are separate windows; before #355 they
+         * were absent from the dump entirely.
+         */
+        val window: String? = null,
     )
 
     /** Outcome of [dumpUi]. */
