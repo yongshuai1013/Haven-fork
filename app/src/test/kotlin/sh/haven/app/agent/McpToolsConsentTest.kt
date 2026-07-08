@@ -138,6 +138,10 @@ class McpToolsConsentTest {
             // Enumerating installed guest apps reads .desktop files; no
             // secrets, no side effects — read-only, no prompt.
             "list_guest_apps",
+            // Observing the consent queue is read-only and prompting for
+            // permission to observe a prompt would deadlock (#355). It
+            // reveals only requests the agent itself caused.
+            "get_pending_consent",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")
@@ -519,7 +523,7 @@ class McpToolsConsentTest {
                 listOf("present_", "haven_ui", "raise_notification", "self_message", "send_to_agent", "await_turn", "read_last_turn")),
             Section("agent-endpoint", "Agent endpoint, device & diagnostics", 11,
                 "Pairing, standing policies, app info/update, preferences, and device diagnostics.",
-                listOf("standing_polic", "pair", "install_apk", "app_info", "preference", "developer_settings", "logcat", "notification")),
+                listOf("standing_polic", "pair", "consent", "install_apk", "app_info", "preference", "developer_settings", "logcat", "notification")),
         )
         val byPriority = sections.sortedBy { it.priority }
         fun sectionOf(name: String): Section? =

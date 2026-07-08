@@ -472,6 +472,7 @@ class McpServer @Inject constructor(
         mcpStatusHolder = mcpStatusHolder,
         pendingAuthPromptHolder = pendingAuthPromptHolder,
         sessionSelectionHolder = sessionSelectionHolder,
+        agentConsentManager = consentManager,
         mcpPortProvider = { port },
     )
 

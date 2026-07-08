@@ -43,7 +43,7 @@ consent level:
 
 - **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (63 tools).
 - **asks once per session** — reversible actions and screen-reading; prompts the first time each session, then proceeds (47 tools).
-- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (77 tools).
+- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (78 tools).
 
 ## Sections
 
@@ -57,7 +57,7 @@ consent level:
 - [**USB & host-device brokers**](#sec-usb) — 17 tools
 - [**Security — SSH keys, TOTP & age**](#sec-security) — 9 tools
 - [**Agent ↔ you (attention & self-drive)**](#sec-agent-you) — 12 tools
-- [**Agent endpoint, device & diagnostics**](#sec-agent-endpoint) — 12 tools
+- [**Agent endpoint, device & diagnostics**](#sec-agent-endpoint) — 13 tools
 
 <a id="sec-connections"></a>
 
@@ -1953,7 +1953,7 @@ Inject a tap (or, with holdMs > 0, a press-and-hold) into HAVEN'S OWN UI at wind
 
 <a id="sec-agent-endpoint"></a>
 
-## Agent endpoint, device & diagnostics (12)
+## Agent endpoint, device & diagnostics (13)
 
 Pairing, standing policies, app info/update, preferences, and device diagnostics.
 
@@ -1974,6 +1974,13 @@ Propose a Tier-3 STANDING POLICY: a scoped, rate-capped, expiring grant that let
 <summary><code>get_app_info</code> · no per-call prompt</summary>
 
 Return Haven version, which optional features are available in this build, and mcpCarriers — which MCP transports are actually open right now (a WireGuard-collision warning if the WG carrier is shadowed by a system VPN, and whether the near/SSH carrier is currently riding a connected interactive session — see McpNearCarrier).
+
+</details>
+
+<details markdown="1">
+<summary><code>get_pending_consent</code> · no per-call prompt</summary>
+
+Return the consent/pairing prompts Haven is currently showing or holding, oldest first, or { pending: false } when none. Each entry: { id, toolName, clientHint, summary, isPairing, offerTimedAllow, requestedAt }. The consent sheet renders in its own window that capture_haven_ui / dump_haven_ui cannot see (#355), so this is the only way an agent can tell "my call is waiting for the user" from "my call was denied" — a backgrounded call now HOLDS for foreground rather than failing instantly (#337). toolName '_pairing' marks a pairing request. Read-only: this cannot answer a prompt, and no tool can — only the user can, on the device.
 
 </details>
 

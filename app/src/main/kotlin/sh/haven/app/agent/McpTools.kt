@@ -123,6 +123,14 @@ internal class McpTools(
     // it without a human tap. Defaulted like the auth-prompt holder above.
     private val sessionSelectionHolder: sh.haven.core.data.agent.SessionSelectionHolder =
         sh.haven.core.data.agent.SessionSelectionHolder(),
+    // Read-only view of the consent queue for get_pending_consent (#355). The
+    // consent/pairing sheets render in their own Compose windows, invisible to
+    // dump_haven_ui / capture_haven_ui, so an agent otherwise cannot tell a
+    // held request from a denied one. Observation only — nothing here answers
+    // a prompt; that stays with the user (VISION §85). Defaulted like the
+    // holders above so tests construct McpTools without supplying it.
+    private val agentConsentManager: sh.haven.core.data.agent.AgentConsentManager =
+        sh.haven.core.data.agent.AgentConsentManager(),
     /**
      * The MCP HTTP server's live bound port. Evaluated lazily so the
      * reverse-tunnel auto-detect follows an 8731+ fallback instead of a
@@ -1589,6 +1597,12 @@ internal class McpTools(
             consentLevel = ConsentLevel.ONCE_PER_SESSION,
             summarise = { _ -> "Answer Haven's pending connection password prompt?" },
         ) { args -> answerAuthPrompt(args) },
+
+        "get_pending_consent" to ToolHandler(
+            description = "Return the consent/pairing prompts Haven is currently showing or holding, oldest first, or { pending: false } when none. Each entry: { id, toolName, clientHint, summary, isPairing, offerTimedAllow, requestedAt }. The consent sheet renders in its own window that capture_haven_ui / dump_haven_ui cannot see (#355), so this is the only way an agent can tell \"my call is waiting for the user\" from \"my call was denied\" — a backgrounded call now HOLDS for foreground rather than failing instantly (#337). toolName '_pairing' marks a pairing request. Read-only: this cannot answer a prompt, and no tool can — only the user can, on the device.",
+            inputSchema = emptyObjectSchema(),
+            consentLevel = ConsentLevel.NEVER,
+        ) { _ -> getPendingConsent() },
 
         "get_pending_session_picker" to ToolHandler(
             description = "Return the session-manager picker Haven is currently waiting on, or { pending: false } if none. A connect_profile to a tmux/zellij/screen profile that has existing remote sessions (and no sessionName preselected) surfaces this picker instead of attaching: { pending: true, profileId, sessionId, sessionManager, sessionNames: [...], previousSessionNames: [...], suggestedNewName }. Answer it with answer_session_picker. Read-only. (Previously this picker was human-only and stalled the agent.)",
@@ -5957,6 +5971,38 @@ internal class McpTools(
             throw IllegalArgumentException("sessionManager must be one of ${valid.joinToString(", ")} (or omit for none)")
         }
         return v
+    }
+
+    /**
+     * Read-only projection of [AgentConsentManager.pending] (#355). Deliberately
+     * has no counterpart that resolves a request: `tap_haven_ui` already refuses
+     * while a prompt is showing, and answering must stay with the user.
+     */
+    private fun getPendingConsent(): JSONObject {
+        val pending = agentConsentManager.pending.value
+        if (pending.isEmpty()) return JSONObject().put("pending", false)
+        return JSONObject().apply {
+            put("pending", true)
+            put("count", pending.size)
+            put(
+                "requests",
+                JSONArray().apply {
+                    pending.forEach { r ->
+                        put(
+                            JSONObject().apply {
+                                put("id", r.id)
+                                put("toolName", r.toolName)
+                                put("clientHint", r.clientHint ?: JSONObject.NULL)
+                                put("summary", r.summary)
+                                put("isPairing", r.toolName == sh.haven.core.data.agent.AgentConsentManager.PAIRING_TOOL_NAME)
+                                put("offerTimedAllow", r.offerTimedAllow)
+                                put("requestedAt", r.requestedAt)
+                            },
+                        )
+                    }
+                },
+            )
+        }
     }
 
     private fun getPendingSessionPicker(): JSONObject {
