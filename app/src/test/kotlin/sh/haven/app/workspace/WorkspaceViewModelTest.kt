@@ -176,7 +176,7 @@ class WorkspaceViewModelTest {
         assertEquals(5, drafts.size)
         assertEquals(
             listOf("p-ssh", "p-mosh", "p-local", "p-smb", "p-rdp"),
-            drafts.map { it.connectionProfileId },
+            drafts.map { it.item.connectionProfileId },
         )
         assertEquals(
             listOf(
@@ -186,10 +186,28 @@ class WorkspaceViewModelTest {
                 WorkspaceItem.Kind.FILE_BROWSER, // SMB
                 WorkspaceItem.Kind.DESKTOP,      // RDP
             ),
-            drafts.map { it.kind },
+            drafts.map { it.item.kind },
         )
-        assertTrue(drafts.all { it.workspaceId == "ws-new" })
-        assertEquals(listOf(0, 1, 2, 3, 4), drafts.map { it.sortOrder })
+        assertTrue(drafts.all { it.item.workspaceId == "ws-new" })
+        assertEquals(listOf(0, 1, 2, 3, 4), drafts.map { it.item.sortOrder })
+    }
+
+    @Test
+    fun captureLabelsTerminalWithHostManagerAndSessionName() = runTest(testDispatcher) {
+        coEvery { connRepo.getById("p-ssh") } returns
+            sh.haven.core.data.db.entities.ConnectionProfile(
+                id = "p-ssh", label = "msi", host = "msi-z790", username = "ian",
+            )
+        every { registry.allSessions } returns listOf(
+            session("ssh-id", "p-ssh", Transport.SSH, SessionStatus.CONNECTED,
+                sessionName = "haven", sessionManagerLabel = "tmux"),
+        )
+
+        val draft = vm.captureFromSingletons("ws-1").single()
+
+        assertEquals("msi-z790", draft.host)
+        assertEquals("tmux", draft.sessionType)
+        assertEquals("haven", draft.item.sessionName)
     }
 
     @Test
@@ -203,7 +221,7 @@ class WorkspaceViewModelTest {
         val drafts = vm.captureFromSingletons("ws-1")
 
         assertEquals(1, drafts.size)
-        assertEquals("p-ssh", drafts.single().connectionProfileId)
+        assertEquals("p-ssh", drafts.single().item.connectionProfileId)
     }
 
     private fun session(
@@ -212,6 +230,7 @@ class WorkspaceViewModelTest {
         transport: Transport,
         status: SessionStatus,
         sessionName: String? = null,
+        sessionManagerLabel: String? = null,
     ): Session = object : Session {
         override val sessionId = id
         override val profileId = profileId
@@ -219,6 +238,7 @@ class WorkspaceViewModelTest {
         override val status = status
         override val transport = transport
         override val sessionName = sessionName
+        override val sessionManagerLabel = sessionManagerLabel
     }
 
     private fun terminalItem(workspaceId: String, profileId: String) = WorkspaceItem(

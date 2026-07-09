@@ -116,35 +116,48 @@ class WorkspaceViewModel @Inject constructor(
     /**
      * Snapshot the live state visible to app singletons — every
      * connected transport session and the Wayland compositor running
-     * flag — into a draft list of [WorkspaceItem]s. The dialog renders
-     * each as a checkable row so the user picks which to keep, then
-     * calls [save] with the selected subset (plus any manual additions).
+     * flag — into a draft list. The dialog renders each as a checkable
+     * row (see [CapturedDraft.host]/[CapturedDraft.sessionType] for its
+     * "&lt;host&gt; tmux &lt;name&gt;" label), so the user picks which to
+     * keep, then calls [save] with the selected subset.
      */
-    suspend fun captureFromSingletons(workspaceId: String): List<WorkspaceItem> =
+    suspend fun captureFromSingletons(workspaceId: String): List<CapturedDraft> =
         withContext(Dispatchers.IO) {
             val sessions = sessionManagerRegistry.allSessions
                 .filter { it.status == SessionStatus.CONNECTED }
-            val drafts = mutableListOf<WorkspaceItem>()
+            val drafts = mutableListOf<CapturedDraft>()
 
             for ((index, session) in sessions.withIndex()) {
                 val kind = session.transport.toWorkspaceKind() ?: continue
-                drafts += WorkspaceItem(
-                    workspaceId = workspaceId,
-                    kind = kind,
-                    connectionProfileId = session.profileId,
-                    // Remember the tmux/zellij session (terminals only) so restore
-                    // reattaches to it by name rather than showing the picker.
-                    sessionName = if (kind == WorkspaceItem.Kind.TERMINAL) session.sessionName else null,
-                    sortOrder = index,
+                val isTerminal = kind == WorkspaceItem.Kind.TERMINAL
+                val host = connectionRepository.getById(session.profileId)?.host
+                    ?.takeIf { it.isNotBlank() }
+                    ?: session.label
+                drafts += CapturedDraft(
+                    item = WorkspaceItem(
+                        workspaceId = workspaceId,
+                        kind = kind,
+                        connectionProfileId = session.profileId,
+                        // Remember the tmux/zellij session (terminals only) so restore
+                        // reattaches to it by name rather than showing the picker.
+                        sessionName = if (isTerminal) session.sessionName else null,
+                        sortOrder = index,
+                    ),
+                    host = host,
+                    sessionType = if (isTerminal) session.sessionManagerLabel else null,
                 )
             }
 
             if (waylandIsRunning()) {
-                drafts += WorkspaceItem(
-                    workspaceId = workspaceId,
-                    kind = WorkspaceItem.Kind.WAYLAND,
-                    connectionProfileId = null,
-                    sortOrder = drafts.size,
+                drafts += CapturedDraft(
+                    item = WorkspaceItem(
+                        workspaceId = workspaceId,
+                        kind = WorkspaceItem.Kind.WAYLAND,
+                        connectionProfileId = null,
+                        sortOrder = drafts.size,
+                    ),
+                    host = null,
+                    sessionType = null,
                 )
             }
 
@@ -161,6 +174,19 @@ class WorkspaceViewModel @Inject constructor(
         false
     }
 }
+
+/**
+ * A capture-time draft: the [WorkspaceItem] to persist, plus the display
+ * bits the save dialog needs but the item doesn't store — the resolved
+ * [host] and the terminal's session-manager type ([sessionType], e.g.
+ * "tmux"). Together with [WorkspaceItem.sessionName] they render as
+ * "<host> tmux <name>".
+ */
+data class CapturedDraft(
+    val item: WorkspaceItem,
+    val host: String?,
+    val sessionType: String?,
+)
 
 /**
  * Map the unified [Transport] enum to its [WorkspaceItem.Kind]:

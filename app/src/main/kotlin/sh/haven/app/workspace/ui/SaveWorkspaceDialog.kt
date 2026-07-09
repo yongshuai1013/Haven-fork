@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -28,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import sh.haven.app.R
+import sh.haven.app.workspace.CapturedDraft
 import sh.haven.app.workspace.WorkspaceViewModel
 import sh.haven.core.data.db.entities.WorkspaceItem
 import sh.haven.core.data.db.entities.WorkspaceProfile
@@ -48,7 +48,7 @@ fun SaveWorkspaceDialog(
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    val drafts = remember { mutableStateOf<List<WorkspaceItem>>(emptyList()) }
+    val drafts = remember { mutableStateOf<List<CapturedDraft>>(emptyList()) }
     val included = remember { mutableStateMapOf<String, Boolean>() }
 
     // Capture once on first composition. The capture runs on
@@ -59,7 +59,7 @@ fun SaveWorkspaceDialog(
         val pendingId = WorkspaceProfile(name = "").id
         val captured = viewModel.captureFromSingletons(pendingId)
         drafts.value = captured
-        captured.forEach { included[it.id] = true }
+        captured.forEach { included[it.item.id] = true }
     }
 
     AlertDialog(
@@ -94,11 +94,11 @@ fun SaveWorkspaceDialog(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
-                        for (item in drafts.value) {
+                        for (draft in drafts.value) {
                             DraftItemRow(
-                                item = item,
-                                checked = included[item.id] ?: true,
-                                onCheckedChange = { included[item.id] = it },
+                                draft = draft,
+                                checked = included[draft.item.id] ?: true,
+                                onCheckedChange = { included[draft.item.id] = it },
                             )
                         }
                     }
@@ -108,9 +108,11 @@ fun SaveWorkspaceDialog(
         confirmButton = {
             TextButton(
                 enabled = name.isNotBlank() &&
-                    drafts.value.any { included[it.id] == true },
+                    drafts.value.any { included[it.item.id] == true },
                 onClick = {
-                    val selected = drafts.value.filter { included[it.id] == true }
+                    val selected = drafts.value
+                        .filter { included[it.item.id] == true }
+                        .map { it.item }
                     viewModel.save(name = name, items = selected)
                     onDismiss()
                 },
@@ -128,7 +130,7 @@ fun SaveWorkspaceDialog(
 
 @Composable
 private fun DraftItemRow(
-    item: WorkspaceItem,
+    draft: CapturedDraft,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -137,18 +139,24 @@ private fun DraftItemRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-        Text(
-            text = stringResource(item.kind.labelRes()),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        item.connectionProfileId?.let { id ->
-            Text(
-                text = id.take(8),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        val item = draft.item
+        // "<host> tmux haven" for a terminal on a multiplexer; "<host> haven"
+        // or just "<host>" for a plain shell; "<kind> <host>" for the other
+        // kinds; the kind label alone for Wayland. Manager labels (tmux/…) and
+        // hostnames are data / proper nouns, so no new translatable strings.
+        val detail = when (item.kind) {
+            WorkspaceItem.Kind.TERMINAL ->
+                listOfNotNull(draft.host, draft.sessionType, item.sessionName)
+                    .joinToString(" ")
+                    .ifBlank { stringResource(item.kind.labelRes()) }
+            WorkspaceItem.Kind.WAYLAND -> stringResource(item.kind.labelRes())
+            else -> listOfNotNull(stringResource(item.kind.labelRes()), draft.host)
+                .joinToString(" ")
         }
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

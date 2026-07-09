@@ -21,6 +21,14 @@ interface Session {
      * instead of prompting.
      */
     val sessionName: String?
+
+    /**
+     * Display label of the session manager wrapping this session
+     * ("tmux"/"zellij"/"screen"/"byobu"), or null for a plain shell / a
+     * transport without one. Shown in the save-workspace picker so a row
+     * reads "<host> tmux <name>" rather than an opaque id.
+     */
+    val sessionManagerLabel: String?
 }
 
 enum class SessionStatus { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, ERROR }
