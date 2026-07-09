@@ -5,9 +5,13 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
-## v5.68.33
+## v5.68.34
 
 🪪 **New: reusable SSH identities** (#360) — a named identity bundles a username, an optional password, and an optional SSH key, entered once and assignable anywhere. Manage identities on the Keys tab (**Add identity**); assign one per host from the new **Identity** picker in the connection editor's Authentication section, or per group via long-press → **Set identity** — hosts inherit the group's identity unless they override it, including an explicit "use this connection's own credentials" opt-out. The chosen identity's credentials are applied at connect time, so nothing about how you connect changes. Fully opt-in: existing per-host logins keep working untouched. Translated into all 12 UI languages.
+
+🔧 **Fixed: tapping an identity-only host now connects** (#360) — a connection whose username comes from an assigned identity (so its own username is blank) was diverted into the password prompt, whose Connect button stayed disabled until you typed a username — trapping the connection. Tapping such a host now connects straight away, applying the identity's username, key, and password. Verified on-device: an identity-only host authenticates with the identity's key.
+
+🔧 **Fixed: reopening a saved workspace now restores the connection** — launching a workspace from a cold start (nothing connected yet) silently failed to bring up its SSH terminals: each tab needs a live session to attach to, and none was dialled, so it no-opped. The launcher now dials a workspace's SSH hosts that aren't up, waits for the connection, then opens the terminals on it — so "one tap reopens them all" works from a fresh launch, not only when the host was already connected.
 
 ## v5.68.32
 

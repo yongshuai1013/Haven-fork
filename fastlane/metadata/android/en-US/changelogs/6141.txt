@@ -1,0 +1,3 @@
+🪪 New: reusable SSH identities (#360) — bundle a username, password, and SSH key as a named identity on the Keys tab; assign it per host or per group (long-press → Set identity), with per-host override.
+🔧 Fixed: tapping an identity-only host (blank username) now connects instead of getting stuck on the password prompt.
+🔧 Fixed: reopening a saved workspace from cold now dials its SSH hosts and restores the terminals.

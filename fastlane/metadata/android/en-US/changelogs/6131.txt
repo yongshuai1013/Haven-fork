@@ -1,1 +1,0 @@
-🪪 New: reusable SSH identities (#360) — bundle a username, password, and SSH key as a named identity on the Keys tab; assign it per host in the connection editor or per group (long-press → Set identity), with per-host override. Applied at connect time; existing per-host logins keep working unchanged.
