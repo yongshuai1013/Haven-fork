@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">Verbinde zuerst das Ziel (öffne es im Dateien-Tab), dann Push oder Pull.</string>
     <string name="settings_backup_sync_push_button">Push</string>
     <string name="settings_backup_sync_pull_button">Pull</string>
+    <string name="settings_backup_auto_sync_label">Automatisch pushen</string>
+    <string name="settings_backup_auto_sync_hint">Pusht die verschlüsselte Sicherung einige Minuten nach Einstellungsänderungen erneut, dazu täglich ein Auffang-Push. Erfordert, dass dein Backup-Passwort (verschlüsselt) auf diesem Gerät gespeichert wird, damit Pushes im Hintergrund laufen können. Pull bleibt immer manuell.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Automatischen Push aktivieren</string>
+    <string name="settings_backup_auto_sync_dialog_description">Lege das Passwort fest, mit dem jede automatische Sicherung verschlüsselt wird. Es wird verschlüsselt auf diesem Gerät gespeichert — beim Deaktivieren des Auto-Push wird es gelöscht.</string>
     <string name="settings_export_backup_title">Sicherung exportieren</string>
     <string name="settings_export_backup_subtitle">Schlüssel, Verbindungen und Einstellungen</string>
     <string name="settings_restore_backup_title">Sicherung wiederherstellen</string>

@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">Conecta primero el destino (ábrelo en la pestaña Archivos) y luego pulsa Enviar o Traer.</string>
     <string name="settings_backup_sync_push_button">Enviar</string>
     <string name="settings_backup_sync_pull_button">Traer</string>
+    <string name="settings_backup_auto_sync_label">Enviar automáticamente</string>
+    <string name="settings_backup_auto_sync_hint">Reenvía el respaldo cifrado unos minutos después de cambiar la configuración, más un envío diario de recuperación. Requiere guardar tu contraseña del respaldo (cifrada) en este dispositivo para que los envíos se ejecuten en segundo plano. Traer siempre es manual.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Activar el envío automático</string>
+    <string name="settings_backup_auto_sync_dialog_description">Define la contraseña que cifrará cada respaldo automático. Se guarda cifrada en este dispositivo — al desactivar el envío automático se elimina.</string>
     <string name="settings_export_backup_title">Exportar respaldo</string>
     <string name="settings_export_backup_subtitle">Claves, conexiones y ajustes</string>
     <string name="settings_restore_backup_title">Restaurar respaldo</string>

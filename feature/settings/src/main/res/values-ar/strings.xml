@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">اتصل بالوجهة أولًا (افتحها في تبويب الملفات)، ثم ادفع أو اسحب.</string>
     <string name="settings_backup_sync_push_button">دفع</string>
     <string name="settings_backup_sync_pull_button">سحب</string>
+    <string name="settings_backup_auto_sync_label">الدفع تلقائيًا</string>
+    <string name="settings_backup_auto_sync_hint">يعيد دفع النسخة الاحتياطية المشفّرة بعد دقائق من تغيير الإعدادات، مع دفعة تدارُك يومية. يتطلب حفظ كلمة مرور النسخ الاحتياطي (مشفّرة) على هذا الجهاز ليعمل الدفع في الخلفية. يبقى السحب يدويًا دائمًا.</string>
+    <string name="settings_backup_auto_sync_dialog_title">تفعيل الدفع التلقائي</string>
+    <string name="settings_backup_auto_sync_dialog_description">عيّن كلمة المرور التي ستُشفَّر بها كل نسخة احتياطية تلقائية. تُحفظ مشفّرة على هذا الجهاز — ويؤدي إيقاف الدفع التلقائي إلى حذفها.</string>
     <string name="settings_export_backup_title">تصدير نسخة احتياطية</string>
     <string name="settings_export_backup_subtitle">المفاتيح والاتصالات والإعدادات</string>
     <string name="settings_restore_backup_title">استعادة نسخة احتياطية</string>

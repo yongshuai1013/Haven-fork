@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">Connectez d’abord la destination (ouvrez-la dans l’onglet Fichiers), puis Envoyer ou Récupérer.</string>
     <string name="settings_backup_sync_push_button">Envoyer</string>
     <string name="settings_backup_sync_pull_button">Récupérer</string>
+    <string name="settings_backup_auto_sync_label">Envoi automatique</string>
+    <string name="settings_backup_auto_sync_hint">Renvoie la sauvegarde chiffrée quelques minutes après un changement de réglages, plus un rattrapage quotidien. Nécessite de conserver votre mot de passe de sauvegarde (chiffré) sur cet appareil pour que les envois s’exécutent en arrière-plan. La récupération reste toujours manuelle.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Activer l’envoi automatique</string>
+    <string name="settings_backup_auto_sync_dialog_description">Définissez le mot de passe qui chiffrera chaque sauvegarde automatique. Il est conservé chiffré sur cet appareil — désactiver l’envoi automatique le supprime.</string>
     <string name="settings_export_backup_title">Exporter la sauvegarde</string>
     <string name="settings_export_backup_subtitle">Clés, connexions et paramètres</string>
     <string name="settings_restore_backup_title">Restaurer la sauvegarde</string>

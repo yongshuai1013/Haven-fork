@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">Conecte o destino primeiro (abra-o na aba Arquivos) e então Enviar ou Obter.</string>
     <string name="settings_backup_sync_push_button">Enviar</string>
     <string name="settings_backup_sync_pull_button">Obter</string>
+    <string name="settings_backup_auto_sync_label">Enviar automaticamente</string>
+    <string name="settings_backup_auto_sync_hint">Reenvia o backup criptografado alguns minutos após mudanças nas configurações, além de um envio diário de recuperação. Exige guardar sua senha do backup (criptografada) neste dispositivo para que os envios rodem em segundo plano. Obter permanece sempre manual.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Ativar envio automático</string>
+    <string name="settings_backup_auto_sync_dialog_description">Defina a senha que criptografará cada backup automático. Ela fica guardada criptografada neste dispositivo — desativar o envio automático a exclui.</string>
     <string name="settings_export_backup_title">Exportar backup</string>
     <string name="settings_export_backup_subtitle">Chaves, conexões e configurações</string>
     <string name="settings_restore_backup_title">Restaurar backup</string>

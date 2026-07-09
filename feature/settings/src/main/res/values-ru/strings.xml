@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">Сначала подключите назначение (откройте его на вкладке «Файлы»), затем «Отправить» или «Загрузить».</string>
     <string name="settings_backup_sync_push_button">Отправить</string>
     <string name="settings_backup_sync_pull_button">Загрузить</string>
+    <string name="settings_backup_auto_sync_label">Отправлять автоматически</string>
+    <string name="settings_backup_auto_sync_hint">Повторно отправляет зашифрованную резервную копию через пару минут после изменения настроек, плюс ежедневная контрольная отправка. Для этого пароль резервной копии хранится (в зашифрованном виде) на этом устройстве, чтобы отправка работала в фоне. Загрузка всегда выполняется вручную.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Включить автоматическую отправку</string>
+    <string name="settings_backup_auto_sync_dialog_description">Задайте пароль, которым будет шифроваться каждая автоматическая резервная копия. Он хранится в зашифрованном виде на этом устройстве — при отключении автоотправки он удаляется.</string>
     <string name="settings_export_backup_title">Экспорт резервной копии</string>
     <string name="settings_export_backup_subtitle">Ключи, подключения и настройки</string>
     <string name="settings_restore_backup_title">Восстановление из копии</string>

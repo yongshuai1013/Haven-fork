@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">请先连接目标（在“文件”标签页中打开它），然后再推送或拉取。</string>
     <string name="settings_backup_sync_push_button">推送</string>
     <string name="settings_backup_sync_pull_button">拉取</string>
+    <string name="settings_backup_auto_sync_label">自动推送</string>
+    <string name="settings_backup_auto_sync_hint">设置更改约几分钟后自动重新推送加密备份，并每天补推一次。需要在本设备上（加密）保存备份密码，以便在后台执行推送。拉取始终为手动操作。</string>
+    <string name="settings_backup_auto_sync_dialog_title">启用自动推送</string>
+    <string name="settings_backup_auto_sync_dialog_description">设置用于加密每次自动备份的密码。它加密保存在本设备上——关闭自动推送即会删除。</string>
     <string name="settings_export_backup_title">导出备份</string>
     <string name="settings_export_backup_subtitle">密钥、连接和设置</string>
     <string name="settings_restore_backup_title">恢复备份</string>

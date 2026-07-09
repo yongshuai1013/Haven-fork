@@ -1724,7 +1724,13 @@ fun SettingsScreen(
 
     showBackupPasswordDialog?.let { action ->
         BackupPasswordDialog(
-            isExport = action is BackupAction.Export || action is BackupAction.PushRemote,
+            isExport = action !is BackupAction.Restore && action !is BackupAction.PullRemote,
+            titleOverride = if (action is BackupAction.EnableAutoSync) {
+                stringResource(R.string.settings_backup_auto_sync_dialog_title)
+            } else null,
+            descriptionOverride = if (action is BackupAction.EnableAutoSync) {
+                stringResource(R.string.settings_backup_auto_sync_dialog_description)
+            } else null,
             onDismiss = { showBackupPasswordDialog = null },
             onConfirm = { password ->
                 showBackupPasswordDialog = null
@@ -1742,6 +1748,9 @@ fun SettingsScreen(
                     is BackupAction.PullRemote -> {
                         viewModel.pullBackupFromRemote(password)
                     }
+                    is BackupAction.EnableAutoSync -> {
+                        viewModel.setBackupAutoSync(true, password)
+                    }
                 }
             },
         )
@@ -1751,11 +1760,21 @@ fun SettingsScreen(
         val syncCandidates by viewModel.backupSyncCandidates.collectAsState()
         val syncProfileId by viewModel.backupSyncProfileId.collectAsState()
         val syncPath by viewModel.backupSyncPath.collectAsState()
+        val autoSyncEnabled by viewModel.backupAutoSyncEnabled.collectAsState()
         BackupSyncDialog(
             candidates = syncCandidates,
             selectedProfileId = syncProfileId,
             path = syncPath,
+            autoSyncEnabled = autoSyncEnabled,
             onDestinationChange = { pid, p -> viewModel.setBackupSyncDestination(pid, p) },
+            onAutoSyncChange = { enable ->
+                if (enable) {
+                    showBackupSyncDialog = false
+                    showBackupPasswordDialog = BackupAction.EnableAutoSync
+                } else {
+                    viewModel.setBackupAutoSync(false, null)
+                }
+            },
             onPush = {
                 showBackupSyncDialog = false
                 showBackupPasswordDialog = BackupAction.PushRemote
@@ -1852,6 +1871,9 @@ private sealed interface BackupAction {
     /** Push/pull to the configured remote (#323). Push encrypts (confirm password); Pull decrypts. */
     data object PushRemote : BackupAction
     data object PullRemote : BackupAction
+
+    /** Turning on auto-push (#359): collects the passphrase the background job will encrypt with. */
+    data object EnableAutoSync : BackupAction
 }
 
 /**
@@ -1866,7 +1888,9 @@ private fun BackupSyncDialog(
     candidates: List<Pair<String, String>>,
     selectedProfileId: String?,
     path: String,
+    autoSyncEnabled: Boolean,
     onDestinationChange: (String?, String) -> Unit,
+    onAutoSyncChange: (Boolean) -> Unit,
     onPush: () -> Unit,
     onPull: () -> Unit,
     onDismiss: () -> Unit,
@@ -1932,6 +1956,24 @@ private fun BackupSyncDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(R.string.settings_backup_auto_sync_label),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = autoSyncEnabled,
+                            onCheckedChange = onAutoSyncChange,
+                            enabled = hasDestination || autoSyncEnabled,
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.settings_backup_auto_sync_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         },
@@ -1956,10 +1998,13 @@ private fun BackupPasswordDialog(
     isExport: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
+    titleOverride: String? = null,
+    descriptionOverride: String? = null,
 ) {
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    val title = stringResource(if (isExport) R.string.settings_backup_export_dialog_title else R.string.settings_backup_restore_dialog_title)
+    val title = titleOverride
+        ?: stringResource(if (isExport) R.string.settings_backup_export_dialog_title else R.string.settings_backup_restore_dialog_title)
     val passwordError = if (isExport && password.length in 1..5) stringResource(R.string.settings_backup_password_min_length) else null
     val confirmError = if (isExport && confirmPassword.isNotEmpty() && confirmPassword != password) {
         stringResource(R.string.settings_backup_passwords_mismatch)
@@ -1976,7 +2021,8 @@ private fun BackupPasswordDialog(
         text = {
             Column {
                 Text(
-                    text = stringResource(if (isExport) R.string.settings_backup_export_description else R.string.settings_backup_restore_description),
+                    text = descriptionOverride
+                        ?: stringResource(if (isExport) R.string.settings_backup_export_description else R.string.settings_backup_restore_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

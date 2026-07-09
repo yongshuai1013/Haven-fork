@@ -127,6 +127,10 @@
     <string name="settings_backup_sync_connect_hint">Connect the destination first (open it in the Files tab), then Push or Pull.</string>
     <string name="settings_backup_sync_push_button">Push</string>
     <string name="settings_backup_sync_pull_button">Pull</string>
+    <string name="settings_backup_auto_sync_label">Push automatically</string>
+    <string name="settings_backup_auto_sync_hint">Re-pushes the encrypted backup a couple of minutes after settings change, plus a daily catch-up. Requires storing your backup passphrase (encrypted) on this device so pushes can run in the background. Pull always stays manual.</string>
+    <string name="settings_backup_auto_sync_dialog_title">Enable automatic push</string>
+    <string name="settings_backup_auto_sync_dialog_description">Set the passphrase that will encrypt every automatic backup. It is kept encrypted on this device — turning auto-push off deletes it.</string>
     <string name="settings_export_backup_title">Export backup</string>
     <string name="settings_export_backup_subtitle">Keys, connections, and settings</string>
     <string name="settings_restore_backup_title">Restore backup</string>

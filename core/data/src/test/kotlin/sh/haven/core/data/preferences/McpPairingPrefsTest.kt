@@ -36,7 +36,7 @@ class McpPairingPrefsTest {
         val ds: DataStore<Preferences> = PreferenceDataStoreFactory.create {
             tempFolder.newFile("prefs_${System.nanoTime()}.preferences_pb")
         }
-        return UserPreferencesRepository(ds)
+        return UserPreferencesRepository(org.robolectric.RuntimeEnvironment.getApplication(), ds)
     }
 
     @Test

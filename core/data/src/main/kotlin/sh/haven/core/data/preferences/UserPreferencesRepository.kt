@@ -1,5 +1,6 @@
 package sh.haven.core.data.preferences
 
+import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -9,13 +10,17 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import sh.haven.core.security.CredentialEncryption
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class UserPreferencesRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val dataStore: DataStore<Preferences>,
 ) {
     private val biometricEnabledKey = booleanPreferencesKey("biometric_enabled")
@@ -64,6 +69,9 @@ class UserPreferencesRepository @Inject constructor(
     private val excludeFromRecentsKey = booleanPreferencesKey("exclude_from_recents")
     private val backupSyncProfileIdKey = stringPreferencesKey("backup_sync_profile_id")
     private val backupSyncPathKey = stringPreferencesKey("backup_sync_path")
+    private val backupAutoSyncEnabledKey = booleanPreferencesKey("backup_auto_sync_enabled")
+    // CredentialEncryption-wrapped backup passphrase for background pushes (#359).
+    private val backupSyncPassphraseKey = stringPreferencesKey("backup_sync_passphrase")
     private val mailAutomationEnabledKey = booleanPreferencesKey("mail_automation_enabled")
     private val mailDeleteToBinKey = booleanPreferencesKey("mail_delete_to_bin")
     private val alwaysShowAllTabsKey = booleanPreferencesKey("always_show_all_tabs")
@@ -272,6 +280,38 @@ class UserPreferencesRepository @Inject constructor(
             prefs[backupSyncPathKey] = path.ifBlank { "haven-backup.enc" }
         }
     }
+
+    /**
+     * Automatic backup push (#359): when on, a background job re-pushes the
+     * encrypted backup to the configured remote shortly after config changes
+     * (plus a daily catch-up). Requires keeping the backup passphrase on the
+     * device — stored [CredentialEncryption]-wrapped, same as connection
+     * passwords — because a background job can't prompt for it. Disabling
+     * deletes the stored passphrase.
+     */
+    val backupAutoSyncEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[backupAutoSyncEnabledKey] ?: false
+    }
+
+    suspend fun setBackupAutoSync(enabled: Boolean, passphrase: String?) {
+        val encrypted = if (enabled) passphrase?.let { CredentialEncryption.encrypt(context, it) } else null
+        dataStore.edit { prefs ->
+            prefs[backupAutoSyncEnabledKey] = enabled
+            if (encrypted == null) prefs.remove(backupSyncPassphraseKey)
+            else prefs[backupSyncPassphraseKey] = encrypted
+        }
+    }
+
+    /** The stored auto-sync passphrase, decrypted; null when auto-sync is off. */
+    suspend fun backupSyncPassphrase(): String? =
+        dataStore.data.first()[backupSyncPassphraseKey]?.let { CredentialEncryption.decrypt(context, it) }
+
+    /**
+     * Emits the current state on collect and again on every preferences write —
+     * the auto-push change signal (#359). Exposed as Flow<Unit> so callers
+     * outside core/data don't need the DataStore types on their classpath.
+     */
+    val preferenceChanges: Flow<Unit> = dataStore.data.map { }
 
     /**
      * Master switch for inbound-email automation (Mail Rules). Off by default. While on

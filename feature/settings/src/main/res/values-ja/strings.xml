@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">先に保存先を接続してください（「ファイル」タブで開く）。その後プッシュまたはプルします。</string>
     <string name="settings_backup_sync_push_button">プッシュ</string>
     <string name="settings_backup_sync_pull_button">プル</string>
+    <string name="settings_backup_auto_sync_label">自動プッシュ</string>
+    <string name="settings_backup_auto_sync_hint">設定変更の数分後に暗号化バックアップを自動で再プッシュし、さらに毎日1回まとめてプッシュします。バックグラウンドでプッシュを実行するため、バックアップのパスワードを（暗号化して）この端末に保存する必要があります。プルは常に手動です。</string>
+    <string name="settings_backup_auto_sync_dialog_title">自動プッシュを有効にする</string>
+    <string name="settings_backup_auto_sync_dialog_description">自動バックアップごとに暗号化に使うパスワードを設定します。パスワードは暗号化してこの端末に保存され、自動プッシュをオフにすると削除されます。</string>
     <string name="settings_export_backup_title">バックアップをエクスポート</string>
     <string name="settings_export_backup_subtitle">鍵、接続、設定</string>
     <string name="settings_restore_backup_title">バックアップを復元</string>

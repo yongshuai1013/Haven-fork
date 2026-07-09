@@ -92,6 +92,10 @@
     <string name="settings_backup_sync_connect_hint">पहले गंतव्य कनेक्ट करें (Files टैब में खोलें), फिर पुश या पुल करें।</string>
     <string name="settings_backup_sync_push_button">पुश</string>
     <string name="settings_backup_sync_pull_button">पुल</string>
+    <string name="settings_backup_auto_sync_label">अपने आप पुश करें</string>
+    <string name="settings_backup_auto_sync_hint">सेटिंग बदलने के कुछ मिनट बाद एन्क्रिप्टेड बैकअप फिर से पुश करता है, साथ ही रोज़ एक कैच-अप पुश। बैकग्राउंड में पुश चलाने के लिए आपका बैकअप पासवर्ड (एन्क्रिप्ट करके) इस डिवाइस पर रखना ज़रूरी है। पुल हमेशा मैनुअल रहता है।</string>
+    <string name="settings_backup_auto_sync_dialog_title">ऑटो पुश चालू करें</string>
+    <string name="settings_backup_auto_sync_dialog_description">वह पासवर्ड सेट करें जिससे हर ऑटो बैकअप एन्क्रिप्ट होगा। यह इस डिवाइस पर एन्क्रिप्ट करके रखा जाता है — ऑटो पुश बंद करने पर यह हट जाता है।</string>
     <string name="settings_export_backup_title">बैकअप निर्यात करें</string>
     <string name="settings_export_backup_subtitle">कुंजियाँ, कनेक्शन और सेटिंग्स</string>
     <string name="settings_restore_backup_title">बैकअप पुनर्स्थापित करें</string>

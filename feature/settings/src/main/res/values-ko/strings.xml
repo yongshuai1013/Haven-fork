@@ -104,6 +104,10 @@
     <string name="settings_backup_sync_connect_hint">먼저 대상을 연결하세요(파일 탭에서 열기). 그런 다음 푸시 또는 풀하세요.</string>
     <string name="settings_backup_sync_push_button">푸시</string>
     <string name="settings_backup_sync_pull_button">풀</string>
+    <string name="settings_backup_auto_sync_label">자동 푸시</string>
+    <string name="settings_backup_auto_sync_hint">설정이 변경되면 몇 분 후 암호화된 백업을 다시 푸시하고, 매일 한 번 보충 푸시를 실행합니다. 백그라운드에서 푸시하려면 백업 비밀번호를 (암호화하여) 이 기기에 저장해야 합니다. 풀은 항상 수동입니다.</string>
+    <string name="settings_backup_auto_sync_dialog_title">자동 푸시 사용</string>
+    <string name="settings_backup_auto_sync_dialog_description">모든 자동 백업을 암호화할 비밀번호를 설정하세요. 비밀번호는 이 기기에 암호화되어 저장되며, 자동 푸시를 끄면 삭제됩니다.</string>
     <string name="settings_export_backup_title">백업 내보내기</string>
     <string name="settings_export_backup_subtitle">키, 연결 및 설정</string>
     <string name="settings_restore_backup_title">백업 복원</string>

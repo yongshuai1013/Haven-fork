@@ -229,6 +229,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { preferencesRepository.setBackupSyncDestination(profileId, path) }
     }
 
+    val backupAutoSyncEnabled: StateFlow<Boolean> = preferencesRepository.backupAutoSyncEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /**
+     * Enable auto-push (#359), storing [passphrase] encrypted for the
+     * background job, or disable it (which deletes the stored passphrase).
+     * The scheduling itself reacts to the preference in the app layer.
+     */
+    fun setBackupAutoSync(enabled: Boolean, passphrase: String?) {
+        viewModelScope.launch { preferencesRepository.setBackupAutoSync(enabled, passphrase) }
+    }
+
     /** Encrypt the config and write it to the configured remote. */
     fun pushBackupToRemote(password: String) {
         val profileId = backupSyncProfileId.value
