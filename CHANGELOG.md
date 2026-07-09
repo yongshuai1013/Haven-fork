@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.37
+
+🗂️ **Reopening a workspace is reliable now** — restoring a saved workspace with several terminals no longer stalls behind the session picker or stacks duplicate tabs. Each host comes up once and its tmux/zellij/screen sessions attach over that single connection, with all hosts brought up in parallel — so one slow or password-prompting connection no longer holds up the rest of the workspace. Relaunching a workspace you've already opened reuses what's live instead of duplicating tabs, and a session that has since been closed on the host is reattached (and noted as recreated) rather than coming back empty. Workspaces saved before the session-name update heal themselves: the first successful restore pins each tab's session, so the next restore is exact.
+
+🏷️ **Save current** lists each open session as `‹host› tmux ‹name›` (host, session manager, session name) instead of an opaque id, so you can tell which session each row is before you save it.
+
 ## v5.68.36
 
 🗂️ **Workspaces reopen your tmux sessions automatically** — restoring a saved workspace now reattaches each terminal to the exact tmux/zellij/screen session it was on, instead of dropping you into the session picker for every tab. Haven records each tab's session when you **Save current** and, on restore, dials the connection and attaches straight to that session by name — so a workspace with four terminals comes back as your four sessions with no prompting. Re-save any workspace made before this update once, so its tabs pick up their session names.
