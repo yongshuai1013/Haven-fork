@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.38
+
+🧰 **Dependency and toolchain updates** — no user-facing changes, just keeping the build current and secure: Kotlin 2.4.0 (with its matching KSP), OkHttp 5.4.0, the RDP transport's uniffi bindings to 0.32, and sha2 0.11 in the RDP native library. The RDP native library (`librdp_transport.so`) was rebuilt for all three ABIs against the updated bindings, and the whole app was re-verified green (build, unit tests, lint). If your RDP connections behaved before, they behave the same now.
+
 ## v5.68.37
 
 🗂️ **Reopening a workspace is reliable now** — restoring a saved workspace with several terminals no longer stalls behind the session picker or stacks duplicate tabs. Each host comes up once and its tmux/zellij/screen sessions attach over that single connection, with all hosts brought up in parallel — so one slow or password-prompting connection no longer holds up the rest of the workspace. Relaunching a workspace you've already opened reuses what's live instead of duplicating tabs, and a session that has since been closed on the host is reattached (and noted as recreated) rather than coming back empty. Workspaces saved before the session-name update heal themselves: the first successful restore pins each tab's session, so the next restore is exact.

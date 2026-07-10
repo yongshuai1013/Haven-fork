@@ -1,0 +1,1 @@
+🧰 Dependency and toolchain updates, no user-facing changes: Kotlin 2.4.0 (+ matching KSP), OkHttp 5.4.0, the RDP transport's uniffi bindings to 0.32, and sha2 0.11 in the RDP native library. The RDP native library was rebuilt for all three ABIs against the updated bindings and the app re-verified green (build, tests, lint). RDP connections behave exactly as before.
