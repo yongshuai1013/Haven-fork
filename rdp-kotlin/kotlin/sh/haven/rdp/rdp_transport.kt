@@ -59,7 +59,7 @@ open class RustBuffer : Structure() {
     companion object {
         internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
             // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.INSTANCE.ffi_rdp_transport_rustbuffer_alloc(size.toLong(), status)
+            UniffiLib.ffi_rdp_transport_rustbuffer_alloc(size.toLong(), status)
         }.also {
             if(it.data == null) {
                throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
@@ -75,49 +75,15 @@ open class RustBuffer : Structure() {
         }
 
         internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.ffi_rdp_transport_rustbuffer_free(buf, status)
+            UniffiLib.ffi_rdp_transport_rustbuffer_free(buf, status)
         }
     }
 
     @Suppress("TooGenericExceptionThrown")
     fun asByteBuffer() =
-        this.data?.getByteBuffer(0, this.len.toLong())?.also {
+        this.data?.getByteBuffer(0, this.len)?.also {
             it.order(ByteOrder.BIG_ENDIAN)
         }
-}
-
-/**
- * The equivalent of the `*mut RustBuffer` type.
- * Required for callbacks taking in an out pointer.
- *
- * Size is the sum of all values in the struct.
- *
- * @suppress
- */
-class RustBufferByReference : ByReference(16) {
-    /**
-     * Set the pointed-to `RustBuffer` to the given value.
-     */
-    fun setValue(value: RustBuffer.ByValue) {
-        // NOTE: The offsets are as they are in the C-like struct.
-        val pointer = getPointer()
-        pointer.setLong(0, value.capacity)
-        pointer.setLong(8, value.len)
-        pointer.setPointer(16, value.data)
-    }
-
-    /**
-     * Get a `RustBuffer.ByValue` from this reference.
-     */
-    fun getValue(): RustBuffer.ByValue {
-        val pointer = getPointer()
-        val value = RustBuffer.ByValue()
-        value.writeField("capacity", pointer.getLong(0))
-        value.writeField("len", pointer.getLong(8))
-        value.writeField("data", pointer.getLong(16))
-
-        return value
-    }
 }
 
 // This is a helper for safely passing byte references into the rust code.
@@ -132,6 +98,43 @@ internal open class ForeignBytes : Structure() {
     @JvmField var data: Pointer? = null
 
     class ByValue : ForeignBytes(), Structure.ByValue
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Only `lower` is valid — zero-copy byte buffers only flow foreign -> Rust,
+// and only in argument position. `lift`, `read`, `write`, and
+// `allocationSize` have no sound implementation here and all panic at
+// runtime. The `FfiConverter` interface is implemented so that the
+// compiler enforces the full method set (rather than relying on eyeball).
+//
+// The provided `ByteBuffer` MUST be direct — only direct buffers have a
+// stable native address that JNA can expose via `getDirectBufferPointer`.
+// The returned `ForeignBytes.ByValue` is only valid for the duration of
+// the FFI call; the Rust side treats it as a borrow.
+internal object FfiConverterByRefBytes : FfiConverter<java.nio.ByteBuffer, ForeignBytes.ByValue> {
+    override fun lower(value: java.nio.ByteBuffer): ForeignBytes.ByValue {
+        require(value.isDirect) { "UniFFI zero-copy &[u8] requires a direct ByteBuffer. Use ByteBuffer.allocateDirect()." }
+        val remaining = value.remaining()
+        val fb = ForeignBytes.ByValue()
+        fb.len = remaining
+        // Zero-length direct buffers: skip getDirectBufferPointer (platform-variable behavior)
+        // and pass null. The Rust side treats (null, 0) as &[].
+        fb.data = if (remaining == 0) null else com.sun.jna.Native.getDirectBufferPointer(value)
+        return fb
+    }
+
+    override fun lift(value: ForeignBytes.ByValue): java.nio.ByteBuffer =
+        error("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+
+    override fun read(buf: java.nio.ByteBuffer): java.nio.ByteBuffer =
+        error("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+
+    override fun write(value: java.nio.ByteBuffer, buf: java.nio.ByteBuffer): Unit =
+        error("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+
+    override fun allocationSize(value: java.nio.ByteBuffer): ULong =
+        error("ByRef bytes have no RustBuffer allocation size: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
 }
 /**
  * The FfiConverter interface handles converter types to and from the FFI
@@ -316,8 +319,9 @@ internal inline fun<T> uniffiTraitInterfaceCall(
     try {
         writeReturn(makeCall())
     } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
         callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-        callStatus.error_buf = FfiConverterString.lower(e.toString())
+        callStatus.error_buf = FfiConverterString.lower(err)
     }
 }
 
@@ -334,26 +338,39 @@ internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
             callStatus.code = UNIFFI_CALL_ERROR
             callStatus.error_buf = lowerError(e)
         } else {
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
             callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-            callStatus.error_buf = FfiConverterString.lower(e.toString())
+            callStatus.error_buf = FfiConverterString.lower(err)
         }
     }
 }
+// Initial value and increment amount for handles. 
+// These ensure that Kotlin-generated handles always have the lowest bit set
+private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
+private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
+
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
 internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-    private val counter = java.util.concurrent.atomic.AtomicLong(0)
+    // Start 
+    private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
         get() = map.size
 
     // Insert a new object into the handle map and get a handle for it
     fun insert(obj: T): Long {
-        val handle = counter.getAndAdd(1)
+        val handle = counter.getAndAdd(UNIFFI_HANDLEMAP_DELTA)
         map.put(handle, obj)
         return handle
+    }
+
+    // Clone a handle, creating a new one
+    fun clone(handle: Long): Long {
+        val obj = map.get(handle) ?: throw InternalException("UniffiHandleMap.clone: Invalid handle")
+        return insert(obj)
     }
 
     // Get an object from the handle map
@@ -378,281 +395,260 @@ private fun findLibraryName(componentName: String): String {
     return "rdp_transport"
 }
 
-private inline fun <reified Lib : Library> loadIndirect(
-    componentName: String
-): Lib {
-    return Native.load<Lib>(findLibraryName(componentName), Lib::class.java)
-}
-
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
     fun callback(`data`: Long,`pollResult`: Byte,)
 }
-internal interface UniffiForeignFutureFree : com.sun.jna.Callback {
+internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
     fun callback(`handle`: Long,)
 }
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
     fun callback(`handle`: Long,)
 }
+internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
+    fun callback(`handle`: Long,)
+    : Long
+}
 @Structure.FieldOrder("handle", "free")
-internal open class UniffiForeignFuture(
+internal open class UniffiForeignFutureDroppedCallbackStruct(
     @JvmField internal var `handle`: Long = 0.toLong(),
-    @JvmField internal var `free`: UniffiForeignFutureFree? = null,
+    @JvmField internal var `free`: UniffiForeignFutureDroppedCallback? = null,
 ) : Structure() {
     class UniffiByValue(
         `handle`: Long = 0.toLong(),
-        `free`: UniffiForeignFutureFree? = null,
-    ): UniffiForeignFuture(`handle`,`free`,), Structure.ByValue
+        `free`: UniffiForeignFutureDroppedCallback? = null,
+    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFuture) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
         `handle` = other.`handle`
         `free` = other.`free`
     }
 
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU8(
+internal open class UniffiForeignFutureResultU8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU8(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU8.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI8(
+internal open class UniffiForeignFutureResultI8(
     @JvmField internal var `returnValue`: Byte = 0.toByte(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Byte = 0.toByte(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI8(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI8) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI8.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU16(
+internal open class UniffiForeignFutureResultU16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU16(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU16.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI16(
+internal open class UniffiForeignFutureResultI16(
     @JvmField internal var `returnValue`: Short = 0.toShort(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Short = 0.toShort(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI16(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI16) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI16.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU32(
+internal open class UniffiForeignFutureResultU32(
     @JvmField internal var `returnValue`: Int = 0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI32(
+internal open class UniffiForeignFutureResultI32(
     @JvmField internal var `returnValue`: Int = 0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Int = 0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructU64(
+internal open class UniffiForeignFutureResultU64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructU64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructU64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructU64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructI64(
+internal open class UniffiForeignFutureResultI64(
     @JvmField internal var `returnValue`: Long = 0.toLong(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Long = 0.toLong(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructI64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructI64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructI64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructF32(
+internal open class UniffiForeignFutureResultF32(
     @JvmField internal var `returnValue`: Float = 0.0f,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Float = 0.0f,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructF32(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructF32) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructF32.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructF64(
+internal open class UniffiForeignFutureResultF64(
     @JvmField internal var `returnValue`: Double = 0.0,
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: Double = 0.0,
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructF64(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructF64) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructF64.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
 }
 @Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructPointer(
-    @JvmField internal var `returnValue`: Pointer = Pointer.NULL,
-    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-) : Structure() {
-    class UniffiByValue(
-        `returnValue`: Pointer = Pointer.NULL,
-        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructPointer(`returnValue`,`callStatus`,), Structure.ByValue
-
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructPointer) {
-        `returnValue` = other.`returnValue`
-        `callStatus` = other.`callStatus`
-    }
-
-}
-internal interface UniffiForeignFutureCompletePointer : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructPointer.UniffiByValue,)
-}
-@Structure.FieldOrder("returnValue", "callStatus")
-internal open class UniffiForeignFutureStructRustBuffer(
+internal open class UniffiForeignFutureResultRustBuffer(
     @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructRustBuffer) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
         `returnValue` = other.`returnValue`
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructRustBuffer.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
 }
 @Structure.FieldOrder("callStatus")
-internal open class UniffiForeignFutureStructVoid(
+internal open class UniffiForeignFutureResultVoid(
     @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
     class UniffiByValue(
         `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-    ): UniffiForeignFutureStructVoid(`callStatus`,), Structure.ByValue
+    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
 
-   internal fun uniffiSetValue(other: UniffiForeignFutureStructVoid) {
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
         `callStatus` = other.`callStatus`
     }
 
 }
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructVoid.UniffiByValue,)
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
 }
 internal interface UniffiCallbackInterfaceClipboardCallbackMethod0 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`text`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
@@ -687,586 +683,494 @@ internal interface UniffiCallbackInterfaceSessionCallbackMethod2 : com.sun.jna.C
 internal interface UniffiCallbackInterfaceSessionCallbackMethod3 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`sha256`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
-@Structure.FieldOrder("onRemoteClipboard", "uniffiFree")
+@Structure.FieldOrder("uniffiFree", "uniffiClone", "onRemoteClipboard")
 internal open class UniffiVTableCallbackInterfaceClipboardCallback(
-    @JvmField internal var `onRemoteClipboard`: UniffiCallbackInterfaceClipboardCallbackMethod0? = null,
     @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    @JvmField internal var `uniffiClone`: UniffiCallbackInterfaceClone? = null,
+    @JvmField internal var `onRemoteClipboard`: UniffiCallbackInterfaceClipboardCallbackMethod0? = null,
 ) : Structure() {
     class UniffiByValue(
-        `onRemoteClipboard`: UniffiCallbackInterfaceClipboardCallbackMethod0? = null,
         `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceClipboardCallback(`onRemoteClipboard`,`uniffiFree`,), Structure.ByValue
+        `uniffiClone`: UniffiCallbackInterfaceClone? = null,
+        `onRemoteClipboard`: UniffiCallbackInterfaceClipboardCallbackMethod0? = null,
+    ): UniffiVTableCallbackInterfaceClipboardCallback(`uniffiFree`,`uniffiClone`,`onRemoteClipboard`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceClipboardCallback) {
-        `onRemoteClipboard` = other.`onRemoteClipboard`
         `uniffiFree` = other.`uniffiFree`
+        `uniffiClone` = other.`uniffiClone`
+        `onRemoteClipboard` = other.`onRemoteClipboard`
     }
 
 }
-@Structure.FieldOrder("onFrameUpdate", "onResize", "uniffiFree")
+@Structure.FieldOrder("uniffiFree", "uniffiClone", "onFrameUpdate", "onResize")
 internal open class UniffiVTableCallbackInterfaceFrameCallback(
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    @JvmField internal var `uniffiClone`: UniffiCallbackInterfaceClone? = null,
     @JvmField internal var `onFrameUpdate`: UniffiCallbackInterfaceFrameCallbackMethod0? = null,
     @JvmField internal var `onResize`: UniffiCallbackInterfaceFrameCallbackMethod1? = null,
-    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+        `uniffiClone`: UniffiCallbackInterfaceClone? = null,
         `onFrameUpdate`: UniffiCallbackInterfaceFrameCallbackMethod0? = null,
         `onResize`: UniffiCallbackInterfaceFrameCallbackMethod1? = null,
-        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceFrameCallback(`onFrameUpdate`,`onResize`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfaceFrameCallback(`uniffiFree`,`uniffiClone`,`onFrameUpdate`,`onResize`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceFrameCallback) {
+        `uniffiFree` = other.`uniffiFree`
+        `uniffiClone` = other.`uniffiClone`
         `onFrameUpdate` = other.`onFrameUpdate`
         `onResize` = other.`onResize`
-        `uniffiFree` = other.`uniffiFree`
     }
 
 }
-@Structure.FieldOrder("onPointerBitmap", "onPointerHidden", "onPointerDefault", "onPointerPosition", "uniffiFree")
+@Structure.FieldOrder("uniffiFree", "uniffiClone", "onPointerBitmap", "onPointerHidden", "onPointerDefault", "onPointerPosition")
 internal open class UniffiVTableCallbackInterfacePointerCallback(
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    @JvmField internal var `uniffiClone`: UniffiCallbackInterfaceClone? = null,
     @JvmField internal var `onPointerBitmap`: UniffiCallbackInterfacePointerCallbackMethod0? = null,
     @JvmField internal var `onPointerHidden`: UniffiCallbackInterfacePointerCallbackMethod1? = null,
     @JvmField internal var `onPointerDefault`: UniffiCallbackInterfacePointerCallbackMethod2? = null,
     @JvmField internal var `onPointerPosition`: UniffiCallbackInterfacePointerCallbackMethod3? = null,
-    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+        `uniffiClone`: UniffiCallbackInterfaceClone? = null,
         `onPointerBitmap`: UniffiCallbackInterfacePointerCallbackMethod0? = null,
         `onPointerHidden`: UniffiCallbackInterfacePointerCallbackMethod1? = null,
         `onPointerDefault`: UniffiCallbackInterfacePointerCallbackMethod2? = null,
         `onPointerPosition`: UniffiCallbackInterfacePointerCallbackMethod3? = null,
-        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfacePointerCallback(`onPointerBitmap`,`onPointerHidden`,`onPointerDefault`,`onPointerPosition`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfacePointerCallback(`uniffiFree`,`uniffiClone`,`onPointerBitmap`,`onPointerHidden`,`onPointerDefault`,`onPointerPosition`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfacePointerCallback) {
+        `uniffiFree` = other.`uniffiFree`
+        `uniffiClone` = other.`uniffiClone`
         `onPointerBitmap` = other.`onPointerBitmap`
         `onPointerHidden` = other.`onPointerHidden`
         `onPointerDefault` = other.`onPointerDefault`
         `onPointerPosition` = other.`onPointerPosition`
-        `uniffiFree` = other.`uniffiFree`
     }
 
 }
-@Structure.FieldOrder("onConnected", "onError", "onDisconnected", "onServerCert", "uniffiFree")
+@Structure.FieldOrder("uniffiFree", "uniffiClone", "onConnected", "onError", "onDisconnected", "onServerCert")
 internal open class UniffiVTableCallbackInterfaceSessionCallback(
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    @JvmField internal var `uniffiClone`: UniffiCallbackInterfaceClone? = null,
     @JvmField internal var `onConnected`: UniffiCallbackInterfaceSessionCallbackMethod0? = null,
     @JvmField internal var `onError`: UniffiCallbackInterfaceSessionCallbackMethod1? = null,
     @JvmField internal var `onDisconnected`: UniffiCallbackInterfaceSessionCallbackMethod2? = null,
     @JvmField internal var `onServerCert`: UniffiCallbackInterfaceSessionCallbackMethod3? = null,
-    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+        `uniffiClone`: UniffiCallbackInterfaceClone? = null,
         `onConnected`: UniffiCallbackInterfaceSessionCallbackMethod0? = null,
         `onError`: UniffiCallbackInterfaceSessionCallbackMethod1? = null,
         `onDisconnected`: UniffiCallbackInterfaceSessionCallbackMethod2? = null,
         `onServerCert`: UniffiCallbackInterfaceSessionCallbackMethod3? = null,
-        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceSessionCallback(`onConnected`,`onError`,`onDisconnected`,`onServerCert`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfaceSessionCallback(`uniffiFree`,`uniffiClone`,`onConnected`,`onError`,`onDisconnected`,`onServerCert`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceSessionCallback) {
+        `uniffiFree` = other.`uniffiFree`
+        `uniffiClone` = other.`uniffiClone`
         `onConnected` = other.`onConnected`
         `onError` = other.`onError`
         `onDisconnected` = other.`onDisconnected`
         `onServerCert` = other.`onServerCert`
-        `uniffiFree` = other.`uniffiFree`
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
-internal interface UniffiLib : Library {
-    companion object {
-        internal val INSTANCE: UniffiLib by lazy {
-            loadIndirect<UniffiLib>(componentName = "rdp_transport")
-            .also { lib: UniffiLib ->
-                uniffiCheckContractApiVersion(lib)
-                uniffiCheckApiChecksums(lib)
-                uniffiCallbackInterfaceClipboardCallback.register(lib)
-                uniffiCallbackInterfaceFrameCallback.register(lib)
-                uniffiCallbackInterfacePointerCallback.register(lib)
-                uniffiCallbackInterfaceSessionCallback.register(lib)
-                }
-        }
-        
-        // The Cleaner for the whole library
-        internal val CLEANER: UniffiCleaner by lazy {
-            UniffiCleaner.create()
-        }
+// For large crates we prevent `MethodTooLargeException` (see #2340)
+// N.B. the name of the extension is very misleading, since it is
+// rather `InterfaceTooLargeException`, caused by too many methods
+// in the interface for large crates.
+//
+// By splitting the otherwise huge interface into two parts
+// * UniffiLib (this)
+// * IntegrityCheckingUniffiLib
+// And all checksum methods are put into `IntegrityCheckingUniffiLib`
+// we allow for ~2x as many methods in the UniffiLib interface.
+//
+// Note: above all written when we used JNA's `loadIndirect` etc.
+// We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
+internal object IntegrityCheckingUniffiLib {
+    init {
+        Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "rdp_transport"))
+        uniffiCheckContractApiVersion(this)
+        uniffiCheckApiChecksums(this)
     }
+    external fun uniffi_rdp_transport_checksum_method_clipboardcallback_on_remote_clipboard(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_framecallback_on_frame_update(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_framecallback_on_resize(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_connect(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_disconnect(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_get_dirty_rects(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_get_framebuffer(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_is_connected(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_clipboard_text(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_key(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_button(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_move(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_wheel(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_send_unicode_key(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_set_clipboard_callback(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_sessioncallback_on_connected(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_sessioncallback_on_error(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_sessioncallback_on_disconnected(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_method_sessioncallback_on_server_cert(
+    ): Int
+    external fun uniffi_rdp_transport_checksum_constructor_rdpclient_new(
+    ): Int
+    external fun ffi_rdp_transport_uniffi_contract_version(
+    ): Int
 
-    fun uniffi_rdp_transport_fn_clone_clipboardcallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_free_clipboardcallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_init_callback_vtable_clipboardcallback(`vtable`: UniffiVTableCallbackInterfaceClipboardCallback,
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_clipboardcallback_on_remote_clipboard(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_clone_framecallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_free_framecallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_init_callback_vtable_framecallback(`vtable`: UniffiVTableCallbackInterfaceFrameCallback,
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_framecallback_on_frame_update(`ptr`: Pointer,`x`: Short,`y`: Short,`w`: Short,`h`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_framecallback_on_resize(`ptr`: Pointer,`width`: Short,`height`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_clone_pointercallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_free_pointercallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_init_callback_vtable_pointercallback(`vtable`: UniffiVTableCallbackInterfacePointerCallback,
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(`ptr`: Pointer,`width`: Short,`height`: Short,`hotspotX`: Short,`hotspotY`: Short,`rgba`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(`ptr`: Pointer,`x`: Short,`y`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_clone_rdpclient(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_free_rdpclient(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_constructor_rdpclient_new(`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_method_rdpclient_connect(`ptr`: Pointer,`host`: RustBuffer.ByValue,`port`: Short,`socksProxy`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_disconnect(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_get_dirty_rects(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_rdp_transport_fn_method_rdpclient_get_framebuffer(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_rdp_transport_fn_method_rdpclient_is_connected(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_clipboard_text(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_key(`ptr`: Pointer,`scancode`: Short,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_button(`ptr`: Pointer,`button`: RustBuffer.ByValue,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_move(`ptr`: Pointer,`x`: Short,`y`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_wheel(`ptr`: Pointer,`vertical`: Byte,`delta`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_send_unicode_key(`ptr`: Pointer,`ch`: Int,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_set_clipboard_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_rdpclient_set_session_callback(`ptr`: Pointer,`cb`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_clone_sessioncallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun uniffi_rdp_transport_fn_free_sessioncallback(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_init_callback_vtable_sessioncallback(`vtable`: UniffiVTableCallbackInterfaceSessionCallback,
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_sessioncallback_on_connected(`ptr`: Pointer,`width`: Short,`height`: Short,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_sessioncallback_on_error(`ptr`: Pointer,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_sessioncallback_on_disconnected(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_fn_method_sessioncallback_on_server_cert(`ptr`: Pointer,`sha256`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun ffi_rdp_transport_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_rdp_transport_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_rdp_transport_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun ffi_rdp_transport_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_rdp_transport_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_u8(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_u8(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_rdp_transport_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_i8(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_i8(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
-    fun ffi_rdp_transport_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_u16(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_u16(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_rdp_transport_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_i16(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_i16(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Short
-    fun ffi_rdp_transport_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_u32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_u32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_rdp_transport_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_i32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_i32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Int
-    fun ffi_rdp_transport_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_u64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_u64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_rdp_transport_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_i64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_i64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Long
-    fun ffi_rdp_transport_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_f32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_f32(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Float
-    fun ffi_rdp_transport_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_f64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_f64(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Double
-    fun ffi_rdp_transport_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_pointer(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Pointer
-    fun ffi_rdp_transport_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_rust_buffer(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun ffi_rdp_transport_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_cancel_void(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_free_void(`handle`: Long,
-    ): Unit
-    fun ffi_rdp_transport_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Unit
-    fun uniffi_rdp_transport_checksum_method_clipboardcallback_on_remote_clipboard(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_framecallback_on_frame_update(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_framecallback_on_resize(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_connect(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_disconnect(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_get_dirty_rects(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_get_framebuffer(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_is_connected(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_clipboard_text(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_key(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_button(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_move(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_wheel(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_send_unicode_key(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_set_clipboard_callback(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_sessioncallback_on_connected(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_sessioncallback_on_error(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_sessioncallback_on_disconnected(
-    ): Short
-    fun uniffi_rdp_transport_checksum_method_sessioncallback_on_server_cert(
-    ): Short
-    fun uniffi_rdp_transport_checksum_constructor_rdpclient_new(
-    ): Short
-    fun ffi_rdp_transport_uniffi_contract_version(
-    ): Int
-    
+        
 }
 
-private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
+internal object UniffiLib {
+    
+    // The Cleaner for the whole library
+    internal val CLEANER: UniffiCleaner by lazy {
+        UniffiCleaner.create()
+    }
+    
+
+    init {
+        Native.register(UniffiLib::class.java, findLibraryName(componentName = "rdp_transport"))
+        uniffiCallbackInterfaceClipboardCallback.register(this)
+        uniffiCallbackInterfaceFrameCallback.register(this)
+        uniffiCallbackInterfacePointerCallback.register(this)
+        uniffiCallbackInterfaceSessionCallback.register(this)
+        
+    }
+    external fun uniffi_rdp_transport_fn_clone_clipboardcallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_free_clipboardcallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_init_callback_vtable_clipboardcallback(`vtable`: UniffiVTableCallbackInterfaceClipboardCallback,
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_clipboardcallback_on_remote_clipboard(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_clone_framecallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_free_framecallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_init_callback_vtable_framecallback(`vtable`: UniffiVTableCallbackInterfaceFrameCallback,
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_framecallback_on_frame_update(`ptr`: Long,`x`: Short,`y`: Short,`w`: Short,`h`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_framecallback_on_resize(`ptr`: Long,`width`: Short,`height`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_clone_pointercallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_free_pointercallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_init_callback_vtable_pointercallback(`vtable`: UniffiVTableCallbackInterfacePointerCallback,
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(`ptr`: Long,`width`: Short,`height`: Short,`hotspotX`: Short,`hotspotY`: Short,`rgba`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(`ptr`: Long,`x`: Short,`y`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_clone_rdpclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_free_rdpclient(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_constructor_rdpclient_new(`config`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_method_rdpclient_connect(`ptr`: Long,`host`: RustBuffer.ByValue,`port`: Short,`socksProxy`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_disconnect(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_get_dirty_rects(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_rdp_transport_fn_method_rdpclient_get_framebuffer(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_rdp_transport_fn_method_rdpclient_is_connected(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_clipboard_text(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_key(`ptr`: Long,`scancode`: Short,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_button(`ptr`: Long,`button`: RustBuffer.ByValue,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_move(`ptr`: Long,`x`: Short,`y`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_mouse_wheel(`ptr`: Long,`vertical`: Byte,`delta`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_send_unicode_key(`ptr`: Long,`ch`: Int,`pressed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_set_clipboard_callback(`ptr`: Long,`cb`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(`ptr`: Long,`cb`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(`ptr`: Long,`cb`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_rdpclient_set_session_callback(`ptr`: Long,`cb`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_clone_sessioncallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun uniffi_rdp_transport_fn_free_sessioncallback(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_init_callback_vtable_sessioncallback(`vtable`: UniffiVTableCallbackInterfaceSessionCallback,
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_sessioncallback_on_connected(`ptr`: Long,`width`: Short,`height`: Short,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_sessioncallback_on_error(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_sessioncallback_on_disconnected(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun uniffi_rdp_transport_fn_method_sessioncallback_on_server_cert(`ptr`: Long,`sha256`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun ffi_rdp_transport_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_rdp_transport_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_rdp_transport_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    external fun ffi_rdp_transport_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_rdp_transport_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_u8(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun ffi_rdp_transport_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_i8(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
+    external fun ffi_rdp_transport_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_u16(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun ffi_rdp_transport_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_i16(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Short
+    external fun ffi_rdp_transport_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_u32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun ffi_rdp_transport_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_i32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun ffi_rdp_transport_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_u64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun ffi_rdp_transport_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_i64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Long
+    external fun ffi_rdp_transport_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_f32(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Float
+    external fun ffi_rdp_transport_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_f64(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Double
+    external fun ffi_rdp_transport_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_rust_buffer(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun ffi_rdp_transport_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_cancel_void(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_free_void(`handle`: Long,
+    ): Unit
+    external fun ffi_rdp_transport_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+
+        
+}
+
+private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
     // Get the bindings contract version from our ComponentInterface
-    val bindings_contract_version = 26
+    val bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     val scaffolding_contract_version = lib.ffi_rdp_transport_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
-private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_rdp_transport_checksum_method_clipboardcallback_on_remote_clipboard() != 43205.toShort()) {
+private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_rdp_transport_checksum_method_clipboardcallback_on_remote_clipboard() != 26900) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_framecallback_on_frame_update() != 43586.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_framecallback_on_frame_update() != 22386) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_framecallback_on_resize() != 54094.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_framecallback_on_resize() != 62021) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap() != 35826.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_bitmap() != 28142) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden() != 42953.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_hidden() != 41643) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default() != 43433.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_default() != 58241) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position() != 49559.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_pointercallback_on_pointer_position() != 11369) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_connect() != 51883.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_connect() != 62634) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_disconnect() != 46360.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_disconnect() != 17462) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_get_dirty_rects() != 16903.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_get_dirty_rects() != 64020) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_get_framebuffer() != 56230.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_get_framebuffer() != 63545) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_is_connected() != 8935.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_is_connected() != 48249) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_clipboard_text() != 11513.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_clipboard_text() != 1301) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_key() != 14769.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_key() != 18692) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_button() != 44136.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_button() != 8391) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_move() != 11507.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_move() != 41946) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_wheel() != 25813.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_mouse_wheel() != 44938) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_unicode_key() != 29889.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_send_unicode_key() != 63832) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_clipboard_callback() != 12031.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_clipboard_callback() != 53381) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback() != 49675.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_frame_callback() != 19537) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback() != 482.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_pointer_callback() != 45574) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback() != 44349.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_rdpclient_set_session_callback() != 53109) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_connected() != 9345.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_connected() != 30846) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_error() != 54683.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_error() != 13402) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_disconnected() != 47606.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_disconnected() != 33844) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_server_cert() != 29250.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_method_sessioncallback_on_server_cert() != 36446) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_rdp_transport_checksum_constructor_rdpclient_new() != 25630.toShort()) {
+    if (lib.uniffi_rdp_transport_checksum_constructor_rdpclient_new() != 19675) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+}
+
+/**
+ * @suppress
+ */
+public fun uniffiEnsureInitialized() {
+    IntegrityCheckingUniffiLib
+    // UniffiLib() initialized as objects are used, but we still need to explicitly
+    // reference it so initialization across crates works as expected.
+    UniffiLib
 }
 
 // Async support
@@ -1286,8 +1190,33 @@ interface Disposable {
     fun destroy()
     companion object {
         fun destroy(vararg args: Any?) {
-            args.filterIsInstance<Disposable>()
-                .forEach(Disposable::destroy)
+            for (arg in args) {
+                when (arg) {
+                    is Disposable -> arg.destroy()
+                    is ArrayList<*> -> {
+                        for (idx in arg.indices) {
+                            val element = arg[idx]
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Map<*, *> -> {
+                        for (element in arg.values) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Iterable<*> -> {
+                        for (element in arg) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1308,17 +1237,127 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
     }
 
 /** 
+ * Placeholder object used to signal that we're constructing an interface with a FFI handle.
+ *
+ * This is the first argument for interface constructors that input a raw handle. It exists is that
+ * so we can avoid signature conflicts when an interface has a regular constructor than inputs a
+ * Long.
+ *
+ * @suppress
+ * */
+object UniffiWithHandle
+
+/** 
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
  * */
-object NoPointer
+object NoHandle// Magic number for the Rust proxy to call using the same mechanism as every other method,
+// to free the callback once it's dropped by Rust.
+internal const val IDX_CALLBACK_FREE = 0
+// Callback return codes
+internal const val UNIFFI_CALLBACK_SUCCESS = 0
+internal const val UNIFFI_CALLBACK_ERROR = 1
+internal const val UNIFFI_CALLBACK_UNEXPECTED_ERROR = 2
+
+/**
+ * @suppress
+ */
+public abstract class FfiConverterCallbackInterface<CallbackInterface: Any>: FfiConverter<CallbackInterface, Long> {
+    internal val handleMap = UniffiHandleMap<CallbackInterface>()
+
+    internal fun drop(handle: Long) {
+        handleMap.remove(handle)
+    }
+
+    override fun lift(value: Long): CallbackInterface {
+        return handleMap.get(value)
+    }
+
+    override fun read(buf: ByteBuffer) = lift(buf.getLong())
+
+    override fun lower(value: CallbackInterface) = handleMap.insert(value)
+
+    override fun allocationSize(value: CallbackInterface) = 8UL
+
+    override fun write(value: CallbackInterface, buf: ByteBuffer) {
+        buf.putLong(lower(value))
+    }
+}
+/**
+ * The cleaner interface for Object finalization code to run.
+ * This is the entry point to any implementation that we're using.
+ *
+ * The cleaner registers objects and returns cleanables, so now we are
+ * defining a `UniffiCleaner` with a `UniffiClenaer.Cleanable` to abstract the
+ * different implmentations available at compile time.
+ *
+ * @suppress
+ */
+interface UniffiCleaner {
+    interface Cleanable {
+        fun clean()
+    }
+
+    fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable
+
+    companion object
+}
+
+// The fallback Jna cleaner, which is available for both Android, and the JVM.
+private class UniffiJnaCleaner : UniffiCleaner {
+    private val cleaner = com.sun.jna.internal.Cleaner.getCleaner()
+
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
+}
+
+private class UniffiJnaCleanable(
+    private val cleanable: com.sun.jna.internal.Cleaner.Cleanable,
+) : UniffiCleaner.Cleanable {
+    override fun clean() = cleanable.clean()
+}
+
+
+// We decide at uniffi binding generation time whether we were
+// using Android or not.
+// There are further runtime checks to chose the correct implementation
+// of the cleaner.
+private fun UniffiCleaner.Companion.create(): UniffiCleaner =
+    try {
+        // For safety's sake: if the library hasn't been run in android_cleaner = true
+        // mode, but is being run on Android, then we still need to think about
+        // Android API versions.
+        // So we check if java.lang.ref.Cleaner is there, and use that…
+        java.lang.Class.forName("java.lang.ref.Cleaner")
+        JavaLangRefCleaner()
+    } catch (e: ClassNotFoundException) {
+        // … otherwise, fallback to the JNA cleaner.
+        UniffiJnaCleaner()
+    }
+
+private class JavaLangRefCleaner : UniffiCleaner {
+    val cleaner = java.lang.ref.Cleaner.create()
+
+    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
+        JavaLangRefCleanable(cleaner.register(value, cleanUpTask))
+}
+
+private class JavaLangRefCleanable(
+    val cleanable: java.lang.ref.Cleaner.Cleanable
+) : UniffiCleaner.Cleanable {
+    override fun clean() = cleanable.clean()
+}
 
 /**
  * @suppress
  */
 public object FfiConverterUByte: FfiConverter<UByte, Byte> {
     override fun lift(value: Byte): UByte {
+        return value.toUByte()
+    }
+
+    fun lift(value: Int): UByte {
         return value.toUByte()
     }
 
@@ -1342,6 +1381,10 @@ public object FfiConverterUByte: FfiConverter<UByte, Byte> {
  */
 public object FfiConverterUShort: FfiConverter<UShort, Short> {
     override fun lift(value: Short): UShort {
+        return value.toUShort()
+    }
+
+    fun lift(value: Int): UShort {
         return value.toUShort()
     }
 
@@ -1506,21 +1549,18 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 }
 
 
-// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
-//
-// Each instance implements core operations for working with the Rust `Arc<T>` and the
-// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
 //
 // There's some subtlety here, because we have to be careful not to operate on a Rust
 // struct after it has been dropped, and because we must expose a public API for freeing
 // theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
 //
-//   * Each instance holds an opaque pointer to the underlying Rust struct.
-//     Method calls need to read this pointer from the object's state and pass it in to
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
 //     the Rust FFI.
 //
-//   * When an instance is no longer needed, its pointer should be passed to a
+//   * When an instance is no longer needed, its handle should be passed to a
 //     special destructor function provided by the Rust FFI, which will drop the
 //     underlying Rust struct.
 //
@@ -1545,13 +1585,13 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 //      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
 //         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
 //
-// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// If we try to implement this with mutual exclusion on access to the handle, there is the
 // possibility of a race between a method call and a concurrent call to `destroy`:
 //
-//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
-//      before it can pass the pointer over the FFI to Rust.
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
 //    * Thread B calls `destroy` and frees the underlying Rust struct.
-//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
 //      a use-after-free.
 //
 // One possible solution would be to use a `ReadWriteLock`, with each method call taking
@@ -1604,69 +1644,6 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 //
 
 
-/**
- * The cleaner interface for Object finalization code to run.
- * This is the entry point to any implementation that we're using.
- *
- * The cleaner registers objects and returns cleanables, so now we are
- * defining a `UniffiCleaner` with a `UniffiClenaer.Cleanable` to abstract the
- * different implmentations available at compile time.
- *
- * @suppress
- */
-interface UniffiCleaner {
-    interface Cleanable {
-        fun clean()
-    }
-
-    fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable
-
-    companion object
-}
-
-// The fallback Jna cleaner, which is available for both Android, and the JVM.
-private class UniffiJnaCleaner : UniffiCleaner {
-    private val cleaner = com.sun.jna.internal.Cleaner.getCleaner()
-
-    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
-        UniffiJnaCleanable(cleaner.register(value, cleanUpTask))
-}
-
-private class UniffiJnaCleanable(
-    private val cleanable: com.sun.jna.internal.Cleaner.Cleanable,
-) : UniffiCleaner.Cleanable {
-    override fun clean() = cleanable.clean()
-}
-
-// We decide at uniffi binding generation time whether we were
-// using Android or not.
-// There are further runtime checks to chose the correct implementation
-// of the cleaner.
-private fun UniffiCleaner.Companion.create(): UniffiCleaner =
-    try {
-        // For safety's sake: if the library hasn't been run in android_cleaner = true
-        // mode, but is being run on Android, then we still need to think about
-        // Android API versions.
-        // So we check if java.lang.ref.Cleaner is there, and use that…
-        java.lang.Class.forName("java.lang.ref.Cleaner")
-        JavaLangRefCleaner()
-    } catch (e: ClassNotFoundException) {
-        // … otherwise, fallback to the JNA cleaner.
-        UniffiJnaCleaner()
-    }
-
-private class JavaLangRefCleaner : UniffiCleaner {
-    val cleaner = java.lang.ref.Cleaner.create()
-
-    override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
-        JavaLangRefCleanable(cleaner.register(value, cleanUpTask))
-}
-
-private class JavaLangRefCleanable(
-    val cleanable: java.lang.ref.Cleaner.Cleanable
-) : UniffiCleaner.Cleanable {
-    override fun clean() = cleanable.clean()
-}
 public interface ClipboardCallback {
     
     fun `onRemoteClipboard`(`text`: kotlin.String)
@@ -1674,29 +1651,41 @@ public interface ClipboardCallback {
     companion object
 }
 
-open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback {
+open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback
+{
 
-    constructor(pointer: Pointer) {
-        this.pointer = pointer
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
 
     /**
+     * @suppress
+     *
      * This constructor can be used to instantiate a fake object. Only used for tests. Any
      * attempt to actually use an object constructed this way will fail as there is no
      * connected Rust object.
      */
     @Suppress("UNUSED_PARAMETER")
-    constructor(noPointer: NoPointer) {
-        this.pointer = null
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = null
     }
 
-    protected val pointer: Pointer?
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
+
+    /**
+     * Whether the current object has been destroyed and its reference is gone in the Rust side.
+     */
+    val uniffiIsDestroyed: Boolean get() = wasDestroyed.get()
 
     override fun destroy() {
         // Only allow a single call to this method.
@@ -1704,7 +1693,7 @@ open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback {
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -1714,7 +1703,7 @@ open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback {
         this.destroy()
     }
 
-    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
         // Check and increment the call counter, to keep the object alive.
         // This needs a compare-and-set retry loop in case of concurrent updates.
         do {
@@ -1726,41 +1715,51 @@ open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
         } while (! this.callCounter.compareAndSet(c, c + 1L))
-        // Now we can safely do the method call without the pointer being freed concurrently.
+        // Now we can safely do the method call without the handle being freed concurrently.
         try {
-            return block(this.uniffiClonePointer())
+            return block(this.uniffiCloneHandle())
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
 
     // Use a static inner class instead of a closure so as not to accidentally
     // capture `this` as part of the cleanable's action.
-    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
         override fun run() {
-            pointer?.let { ptr ->
-                uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_clipboardcallback(ptr, status)
-                }
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_rdp_transport_fn_free_clipboardcallback(handle, status)
             }
         }
     }
 
-    fun uniffiClonePointer(): Pointer {
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_clipboardcallback(pointer!!, status)
+            UniffiLib.uniffi_rdp_transport_fn_clone_clipboardcallback(handle, status)
         }
     }
 
     override fun `onRemoteClipboard`(`text`: kotlin.String)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_clipboardcallback_on_remote_clipboard(
-        it, FfiConverterString.lower(`text`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_clipboardcallback_on_remote_clipboard(
+        it,
+        
+        FfiConverterString.lower(`text`),_status)
 }
     }
     
@@ -1769,42 +1768,18 @@ open class ClipboardCallbackImpl: Disposable, AutoCloseable, ClipboardCallback {
     
 
     
+
+
     
+    
+    /**
+     * @suppress
+     */
     companion object
     
 }
-// Magic number for the Rust proxy to call using the same mechanism as every other method,
-// to free the callback once it's dropped by Rust.
-internal const val IDX_CALLBACK_FREE = 0
-// Callback return codes
-internal const val UNIFFI_CALLBACK_SUCCESS = 0
-internal const val UNIFFI_CALLBACK_ERROR = 1
-internal const val UNIFFI_CALLBACK_UNEXPECTED_ERROR = 2
 
-/**
- * @suppress
- */
-public abstract class FfiConverterCallbackInterface<CallbackInterface: Any>: FfiConverter<CallbackInterface, Long> {
-    internal val handleMap = UniffiHandleMap<CallbackInterface>()
 
-    internal fun drop(handle: Long) {
-        handleMap.remove(handle)
-    }
-
-    override fun lift(value: Long): CallbackInterface {
-        return handleMap.get(value)
-    }
-
-    override fun read(buf: ByteBuffer) = lift(buf.getLong())
-
-    override fun lower(value: CallbackInterface) = handleMap.insert(value)
-
-    override fun allocationSize(value: CallbackInterface) = 8UL
-
-    override fun write(value: CallbackInterface, buf: ByteBuffer) {
-        buf.putLong(lower(value))
-    }
-}
 
 // Put the implementation in an object so we don't pollute the top-level namespace
 internal object uniffiCallbackInterfaceClipboardCallback {
@@ -1827,9 +1802,16 @@ internal object uniffiCallbackInterfaceClipboardCallback {
         }
     }
 
+    internal object uniffiClone: UniffiCallbackInterfaceClone {
+        override fun callback(handle: Long): Long {
+            return FfiConverterTypeClipboardCallback.handleMap.clone(handle)
+        }
+    }
+
     internal var vtable = UniffiVTableCallbackInterfaceClipboardCallback.UniffiByValue(
-        `onRemoteClipboard`,
         uniffiFree,
+        uniffiClone,
+        `onRemoteClipboard`,
     )
 
     // Registers the foreign callback with the Rust side.
@@ -1842,48 +1824,54 @@ internal object uniffiCallbackInterfaceClipboardCallback {
 /**
  * @suppress
  */
-public object FfiConverterTypeClipboardCallback: FfiConverter<ClipboardCallback, Pointer> {
+public object FfiConverterTypeClipboardCallback: FfiConverter<ClipboardCallback, Long> {
     internal val handleMap = UniffiHandleMap<ClipboardCallback>()
 
-    override fun lower(value: ClipboardCallback): Pointer {
-        return Pointer(handleMap.insert(value))
+    override fun lower(value: ClipboardCallback): Long {
+        if (value is ClipboardCallbackImpl) {
+             // Rust-implemented object.  Clone the handle and return it
+            return value.uniffiCloneHandle()
+         } else {
+            // Kotlin object, generate a new vtable handle and return that.
+            return handleMap.insert(value)
+         }
     }
 
-    override fun lift(value: Pointer): ClipboardCallback {
-        return ClipboardCallbackImpl(value)
+    override fun lift(value: Long): ClipboardCallback {
+        if ((value and 1.toLong()) == 0.toLong()) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return ClipboardCallbackImpl(UniffiWithHandle, value)
+        } else {
+            // Kotlin-generated handle, get the object from the handle map
+            return handleMap.remove(value)
+        }
     }
 
     override fun read(buf: ByteBuffer): ClipboardCallback {
-        // The Rust code always writes pointers as 8 bytes, and will
-        // fail to compile if they don't fit.
-        return lift(Pointer(buf.getLong()))
+        return lift(buf.getLong())
     }
 
     override fun allocationSize(value: ClipboardCallback) = 8UL
 
     override fun write(value: ClipboardCallback, buf: ByteBuffer) {
-        // The Rust code always expects pointers written as 8 bytes,
-        // and will fail to compile if they don't fit.
-        buf.putLong(Pointer.nativeValue(lower(value)))
+        buf.putLong(lower(value))
     }
 }
 
 
-// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
-//
-// Each instance implements core operations for working with the Rust `Arc<T>` and the
-// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
 //
 // There's some subtlety here, because we have to be careful not to operate on a Rust
 // struct after it has been dropped, and because we must expose a public API for freeing
 // theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
 //
-//   * Each instance holds an opaque pointer to the underlying Rust struct.
-//     Method calls need to read this pointer from the object's state and pass it in to
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
 //     the Rust FFI.
 //
-//   * When an instance is no longer needed, its pointer should be passed to a
+//   * When an instance is no longer needed, its handle should be passed to a
 //     special destructor function provided by the Rust FFI, which will drop the
 //     underlying Rust struct.
 //
@@ -1908,13 +1896,13 @@ public object FfiConverterTypeClipboardCallback: FfiConverter<ClipboardCallback,
 //      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
 //         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
 //
-// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// If we try to implement this with mutual exclusion on access to the handle, there is the
 // possibility of a race between a method call and a concurrent call to `destroy`:
 //
-//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
-//      before it can pass the pointer over the FFI to Rust.
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
 //    * Thread B calls `destroy` and frees the underlying Rust struct.
-//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
 //      a use-after-free.
 //
 // One possible solution would be to use a `ReadWriteLock`, with each method call taking
@@ -1976,29 +1964,41 @@ public interface FrameCallback {
     companion object
 }
 
-open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
+open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback
+{
 
-    constructor(pointer: Pointer) {
-        this.pointer = pointer
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
 
     /**
+     * @suppress
+     *
      * This constructor can be used to instantiate a fake object. Only used for tests. Any
      * attempt to actually use an object constructed this way will fail as there is no
      * connected Rust object.
      */
     @Suppress("UNUSED_PARAMETER")
-    constructor(noPointer: NoPointer) {
-        this.pointer = null
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = null
     }
 
-    protected val pointer: Pointer?
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
+
+    /**
+     * Whether the current object has been destroyed and its reference is gone in the Rust side.
+     */
+    val uniffiIsDestroyed: Boolean get() = wasDestroyed.get()
 
     override fun destroy() {
         // Only allow a single call to this method.
@@ -2006,7 +2006,7 @@ open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -2016,7 +2016,7 @@ open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
         this.destroy()
     }
 
-    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
         // Check and increment the call counter, to keep the object alive.
         // This needs a compare-and-set retry loop in case of concurrent updates.
         do {
@@ -2028,41 +2028,54 @@ open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
         } while (! this.callCounter.compareAndSet(c, c + 1L))
-        // Now we can safely do the method call without the pointer being freed concurrently.
+        // Now we can safely do the method call without the handle being freed concurrently.
         try {
-            return block(this.uniffiClonePointer())
+            return block(this.uniffiCloneHandle())
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
 
     // Use a static inner class instead of a closure so as not to accidentally
     // capture `this` as part of the cleanable's action.
-    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
         override fun run() {
-            pointer?.let { ptr ->
-                uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_framecallback(ptr, status)
-                }
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_rdp_transport_fn_free_framecallback(handle, status)
             }
         }
     }
 
-    fun uniffiClonePointer(): Pointer {
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_framecallback(pointer!!, status)
+            UniffiLib.uniffi_rdp_transport_fn_clone_framecallback(handle, status)
         }
     }
 
     override fun `onFrameUpdate`(`x`: kotlin.UShort, `y`: kotlin.UShort, `w`: kotlin.UShort, `h`: kotlin.UShort)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_framecallback_on_frame_update(
-        it, FfiConverterUShort.lower(`x`),FfiConverterUShort.lower(`y`),FfiConverterUShort.lower(`w`),FfiConverterUShort.lower(`h`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_framecallback_on_frame_update(
+        it,
+        
+        FfiConverterUShort.lower(`x`),
+        FfiConverterUShort.lower(`y`),
+        FfiConverterUShort.lower(`w`),
+        FfiConverterUShort.lower(`h`),_status)
 }
     }
     
@@ -2070,10 +2083,13 @@ open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
 
     override fun `onResize`(`width`: kotlin.UShort, `height`: kotlin.UShort)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_framecallback_on_resize(
-        it, FfiConverterUShort.lower(`width`),FfiConverterUShort.lower(`height`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_framecallback_on_resize(
+        it,
+        
+        FfiConverterUShort.lower(`width`),
+        FfiConverterUShort.lower(`height`),_status)
 }
     }
     
@@ -2082,10 +2098,17 @@ open class FrameCallbackImpl: Disposable, AutoCloseable, FrameCallback {
     
 
     
+
+
     
+    
+    /**
+     * @suppress
+     */
     companion object
     
 }
+
 
 
 // Put the implementation in an object so we don't pollute the top-level namespace
@@ -2125,10 +2148,17 @@ internal object uniffiCallbackInterfaceFrameCallback {
         }
     }
 
+    internal object uniffiClone: UniffiCallbackInterfaceClone {
+        override fun callback(handle: Long): Long {
+            return FfiConverterTypeFrameCallback.handleMap.clone(handle)
+        }
+    }
+
     internal var vtable = UniffiVTableCallbackInterfaceFrameCallback.UniffiByValue(
+        uniffiFree,
+        uniffiClone,
         `onFrameUpdate`,
         `onResize`,
-        uniffiFree,
     )
 
     // Registers the foreign callback with the Rust side.
@@ -2141,48 +2171,54 @@ internal object uniffiCallbackInterfaceFrameCallback {
 /**
  * @suppress
  */
-public object FfiConverterTypeFrameCallback: FfiConverter<FrameCallback, Pointer> {
+public object FfiConverterTypeFrameCallback: FfiConverter<FrameCallback, Long> {
     internal val handleMap = UniffiHandleMap<FrameCallback>()
 
-    override fun lower(value: FrameCallback): Pointer {
-        return Pointer(handleMap.insert(value))
+    override fun lower(value: FrameCallback): Long {
+        if (value is FrameCallbackImpl) {
+             // Rust-implemented object.  Clone the handle and return it
+            return value.uniffiCloneHandle()
+         } else {
+            // Kotlin object, generate a new vtable handle and return that.
+            return handleMap.insert(value)
+         }
     }
 
-    override fun lift(value: Pointer): FrameCallback {
-        return FrameCallbackImpl(value)
+    override fun lift(value: Long): FrameCallback {
+        if ((value and 1.toLong()) == 0.toLong()) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return FrameCallbackImpl(UniffiWithHandle, value)
+        } else {
+            // Kotlin-generated handle, get the object from the handle map
+            return handleMap.remove(value)
+        }
     }
 
     override fun read(buf: ByteBuffer): FrameCallback {
-        // The Rust code always writes pointers as 8 bytes, and will
-        // fail to compile if they don't fit.
-        return lift(Pointer(buf.getLong()))
+        return lift(buf.getLong())
     }
 
     override fun allocationSize(value: FrameCallback) = 8UL
 
     override fun write(value: FrameCallback, buf: ByteBuffer) {
-        // The Rust code always expects pointers written as 8 bytes,
-        // and will fail to compile if they don't fit.
-        buf.putLong(Pointer.nativeValue(lower(value)))
+        buf.putLong(lower(value))
     }
 }
 
 
-// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
-//
-// Each instance implements core operations for working with the Rust `Arc<T>` and the
-// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
 //
 // There's some subtlety here, because we have to be careful not to operate on a Rust
 // struct after it has been dropped, and because we must expose a public API for freeing
 // theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
 //
-//   * Each instance holds an opaque pointer to the underlying Rust struct.
-//     Method calls need to read this pointer from the object's state and pass it in to
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
 //     the Rust FFI.
 //
-//   * When an instance is no longer needed, its pointer should be passed to a
+//   * When an instance is no longer needed, its handle should be passed to a
 //     special destructor function provided by the Rust FFI, which will drop the
 //     underlying Rust struct.
 //
@@ -2207,13 +2243,13 @@ public object FfiConverterTypeFrameCallback: FfiConverter<FrameCallback, Pointer
 //      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
 //         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
 //
-// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// If we try to implement this with mutual exclusion on access to the handle, there is the
 // possibility of a race between a method call and a concurrent call to `destroy`:
 //
-//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
-//      before it can pass the pointer over the FFI to Rust.
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
 //    * Thread B calls `destroy` and frees the underlying Rust struct.
-//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
 //      a use-after-free.
 //
 // One possible solution would be to use a `ReadWriteLock`, with each method call taking
@@ -2307,29 +2343,41 @@ public interface PointerCallback {
  * pointer bitmap (RGBA, non-premultiplied alpha — `pointer_software_rendering`
  * stays off so we composite client-side).
  */
-open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
+open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback
+{
 
-    constructor(pointer: Pointer) {
-        this.pointer = pointer
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
 
     /**
+     * @suppress
+     *
      * This constructor can be used to instantiate a fake object. Only used for tests. Any
      * attempt to actually use an object constructed this way will fail as there is no
      * connected Rust object.
      */
     @Suppress("UNUSED_PARAMETER")
-    constructor(noPointer: NoPointer) {
-        this.pointer = null
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = null
     }
 
-    protected val pointer: Pointer?
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
+
+    /**
+     * Whether the current object has been destroyed and its reference is gone in the Rust side.
+     */
+    val uniffiIsDestroyed: Boolean get() = wasDestroyed.get()
 
     override fun destroy() {
         // Only allow a single call to this method.
@@ -2337,7 +2385,7 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -2347,7 +2395,7 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
         this.destroy()
     }
 
-    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
         // Check and increment the call counter, to keep the object alive.
         // This needs a compare-and-set retry loop in case of concurrent updates.
         do {
@@ -2359,41 +2407,55 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
         } while (! this.callCounter.compareAndSet(c, c + 1L))
-        // Now we can safely do the method call without the pointer being freed concurrently.
+        // Now we can safely do the method call without the handle being freed concurrently.
         try {
-            return block(this.uniffiClonePointer())
+            return block(this.uniffiCloneHandle())
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
 
     // Use a static inner class instead of a closure so as not to accidentally
     // capture `this` as part of the cleanable's action.
-    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
         override fun run() {
-            pointer?.let { ptr ->
-                uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_pointercallback(ptr, status)
-                }
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_rdp_transport_fn_free_pointercallback(handle, status)
             }
         }
     }
 
-    fun uniffiClonePointer(): Pointer {
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_pointercallback(pointer!!, status)
+            UniffiLib.uniffi_rdp_transport_fn_clone_pointercallback(handle, status)
         }
     }
 
     override fun `onPointerBitmap`(`width`: kotlin.UShort, `height`: kotlin.UShort, `hotspotX`: kotlin.UShort, `hotspotY`: kotlin.UShort, `rgba`: kotlin.ByteArray)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(
-        it, FfiConverterUShort.lower(`width`),FfiConverterUShort.lower(`height`),FfiConverterUShort.lower(`hotspotX`),FfiConverterUShort.lower(`hotspotY`),FfiConverterByteArray.lower(`rgba`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_bitmap(
+        it,
+        
+        FfiConverterUShort.lower(`width`),
+        FfiConverterUShort.lower(`height`),
+        FfiConverterUShort.lower(`hotspotX`),
+        FfiConverterUShort.lower(`hotspotY`),
+        FfiConverterByteArray.lower(`rgba`),_status)
 }
     }
     
@@ -2404,10 +2466,11 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
      * Server requested the pointer be hidden (e.g. video playback, games).
      */override fun `onPointerHidden`()
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_hidden(
+        it,
+        _status)
 }
     }
     
@@ -2418,10 +2481,11 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
      * Server requested the default/system pointer (keep the last shape).
      */override fun `onPointerDefault`()
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_default(
+        it,
+        _status)
 }
     }
     
@@ -2433,10 +2497,13 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
      * client-tracked virtual cursor).
      */override fun `onPointerPosition`(`x`: kotlin.UShort, `y`: kotlin.UShort)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(
-        it, FfiConverterUShort.lower(`x`),FfiConverterUShort.lower(`y`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_pointercallback_on_pointer_position(
+        it,
+        
+        FfiConverterUShort.lower(`x`),
+        FfiConverterUShort.lower(`y`),_status)
 }
     }
     
@@ -2445,10 +2512,17 @@ open class PointerCallbackImpl: Disposable, AutoCloseable, PointerCallback {
     
 
     
+
+
     
+    
+    /**
+     * @suppress
+     */
     companion object
     
 }
+
 
 
 // Put the implementation in an object so we don't pollute the top-level namespace
@@ -2511,12 +2585,19 @@ internal object uniffiCallbackInterfacePointerCallback {
         }
     }
 
+    internal object uniffiClone: UniffiCallbackInterfaceClone {
+        override fun callback(handle: Long): Long {
+            return FfiConverterTypePointerCallback.handleMap.clone(handle)
+        }
+    }
+
     internal var vtable = UniffiVTableCallbackInterfacePointerCallback.UniffiByValue(
+        uniffiFree,
+        uniffiClone,
         `onPointerBitmap`,
         `onPointerHidden`,
         `onPointerDefault`,
         `onPointerPosition`,
-        uniffiFree,
     )
 
     // Registers the foreign callback with the Rust side.
@@ -2529,48 +2610,54 @@ internal object uniffiCallbackInterfacePointerCallback {
 /**
  * @suppress
  */
-public object FfiConverterTypePointerCallback: FfiConverter<PointerCallback, Pointer> {
+public object FfiConverterTypePointerCallback: FfiConverter<PointerCallback, Long> {
     internal val handleMap = UniffiHandleMap<PointerCallback>()
 
-    override fun lower(value: PointerCallback): Pointer {
-        return Pointer(handleMap.insert(value))
+    override fun lower(value: PointerCallback): Long {
+        if (value is PointerCallbackImpl) {
+             // Rust-implemented object.  Clone the handle and return it
+            return value.uniffiCloneHandle()
+         } else {
+            // Kotlin object, generate a new vtable handle and return that.
+            return handleMap.insert(value)
+         }
     }
 
-    override fun lift(value: Pointer): PointerCallback {
-        return PointerCallbackImpl(value)
+    override fun lift(value: Long): PointerCallback {
+        if ((value and 1.toLong()) == 0.toLong()) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return PointerCallbackImpl(UniffiWithHandle, value)
+        } else {
+            // Kotlin-generated handle, get the object from the handle map
+            return handleMap.remove(value)
+        }
     }
 
     override fun read(buf: ByteBuffer): PointerCallback {
-        // The Rust code always writes pointers as 8 bytes, and will
-        // fail to compile if they don't fit.
-        return lift(Pointer(buf.getLong()))
+        return lift(buf.getLong())
     }
 
     override fun allocationSize(value: PointerCallback) = 8UL
 
     override fun write(value: PointerCallback, buf: ByteBuffer) {
-        // The Rust code always expects pointers written as 8 bytes,
-        // and will fail to compile if they don't fit.
-        buf.putLong(Pointer.nativeValue(lower(value)))
+        buf.putLong(lower(value))
     }
 }
 
 
-// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
-//
-// Each instance implements core operations for working with the Rust `Arc<T>` and the
-// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
 //
 // There's some subtlety here, because we have to be careful not to operate on a Rust
 // struct after it has been dropped, and because we must expose a public API for freeing
 // theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
 //
-//   * Each instance holds an opaque pointer to the underlying Rust struct.
-//     Method calls need to read this pointer from the object's state and pass it in to
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
 //     the Rust FFI.
 //
-//   * When an instance is no longer needed, its pointer should be passed to a
+//   * When an instance is no longer needed, its handle should be passed to a
 //     special destructor function provided by the Rust FFI, which will drop the
 //     underlying Rust struct.
 //
@@ -2595,13 +2682,13 @@ public object FfiConverterTypePointerCallback: FfiConverter<PointerCallback, Poi
 //      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
 //         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
 //
-// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// If we try to implement this with mutual exclusion on access to the handle, there is the
 // possibility of a race between a method call and a concurrent call to `destroy`:
 //
-//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
-//      before it can pass the pointer over the FFI to Rust.
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
 //    * Thread B calls `destroy` and frees the underlying Rust struct.
-//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
 //      a use-after-free.
 //
 // One possible solution would be to use a `ReadWriteLock`, with each method call taking
@@ -2689,36 +2776,50 @@ public interface RdpClientInterface {
     companion object
 }
 
-open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
+open class RdpClient: Disposable, AutoCloseable, RdpClientInterface
+{
 
-    constructor(pointer: Pointer) {
-        this.pointer = pointer
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
 
     /**
+     * @suppress
+     *
      * This constructor can be used to instantiate a fake object. Only used for tests. Any
      * attempt to actually use an object constructed this way will fail as there is no
      * connected Rust object.
      */
     @Suppress("UNUSED_PARAMETER")
-    constructor(noPointer: NoPointer) {
-        this.pointer = null
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = null
     }
     constructor(`config`: RdpConfig) :
-        this(
+        this(UniffiWithHandle, 
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_constructor_rdpclient_new(
+    UniffiLib.uniffi_rdp_transport_fn_constructor_rdpclient_new(
+    
+        
         FfiConverterTypeRdpConfig.lower(`config`),_status)
 }
     )
 
-    protected val pointer: Pointer?
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
+
+    /**
+     * Whether the current object has been destroyed and its reference is gone in the Rust side.
+     */
+    val uniffiIsDestroyed: Boolean get() = wasDestroyed.get()
 
     override fun destroy() {
         // Only allow a single call to this method.
@@ -2726,7 +2827,7 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -2736,7 +2837,7 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
         this.destroy()
     }
 
-    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
         // Check and increment the call counter, to keep the object alive.
         // This needs a compare-and-set retry loop in case of concurrent updates.
         do {
@@ -2748,42 +2849,54 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
         } while (! this.callCounter.compareAndSet(c, c + 1L))
-        // Now we can safely do the method call without the pointer being freed concurrently.
+        // Now we can safely do the method call without the handle being freed concurrently.
         try {
-            return block(this.uniffiClonePointer())
+            return block(this.uniffiCloneHandle())
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
 
     // Use a static inner class instead of a closure so as not to accidentally
     // capture `this` as part of the cleanable's action.
-    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
         override fun run() {
-            pointer?.let { ptr ->
-                uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_rdpclient(ptr, status)
-                }
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_rdp_transport_fn_free_rdpclient(handle, status)
             }
         }
     }
 
-    fun uniffiClonePointer(): Pointer {
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_rdpclient(pointer!!, status)
+            UniffiLib.uniffi_rdp_transport_fn_clone_rdpclient(handle, status)
         }
     }
 
     
     @Throws(RdpException::class)override fun `connect`(`host`: kotlin.String, `port`: kotlin.UShort, `socksProxy`: SocksProxyConfig?)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCallWithError(RdpException) { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_connect(
-        it, FfiConverterString.lower(`host`),FfiConverterUShort.lower(`port`),FfiConverterOptionalTypeSocksProxyConfig.lower(`socksProxy`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_connect(
+        it,
+        
+        FfiConverterString.lower(`host`),
+        FfiConverterUShort.lower(`port`),
+        FfiConverterOptionalTypeSocksProxyConfig.lower(`socksProxy`),_status)
 }
     }
     
@@ -2791,10 +2904,11 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `disconnect`()
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_disconnect(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_disconnect(
+        it,
+        _status)
 }
     }
     
@@ -2802,10 +2916,11 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `getDirtyRects`(): List<RdpRect> {
             return FfiConverterSequenceTypeRdpRect.lift(
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_get_dirty_rects(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_get_dirty_rects(
+        it,
+        _status)
 }
     }
     )
@@ -2814,10 +2929,11 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `getFramebuffer`(): FrameData? {
             return FfiConverterOptionalTypeFrameData.lift(
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_get_framebuffer(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_get_framebuffer(
+        it,
+        _status)
 }
     }
     )
@@ -2826,10 +2942,11 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `isConnected`(): kotlin.Boolean {
             return FfiConverterBoolean.lift(
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_is_connected(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_is_connected(
+        it,
+        _status)
 }
     }
     )
@@ -2838,10 +2955,12 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendClipboardText`(`text`: kotlin.String)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_clipboard_text(
-        it, FfiConverterString.lower(`text`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_clipboard_text(
+        it,
+        
+        FfiConverterString.lower(`text`),_status)
 }
     }
     
@@ -2849,10 +2968,13 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendKey`(`scancode`: kotlin.UShort, `pressed`: kotlin.Boolean)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_key(
-        it, FfiConverterUShort.lower(`scancode`),FfiConverterBoolean.lower(`pressed`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_key(
+        it,
+        
+        FfiConverterUShort.lower(`scancode`),
+        FfiConverterBoolean.lower(`pressed`),_status)
 }
     }
     
@@ -2860,10 +2982,13 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendMouseButton`(`button`: MouseButton, `pressed`: kotlin.Boolean)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_button(
-        it, FfiConverterTypeMouseButton.lower(`button`),FfiConverterBoolean.lower(`pressed`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_button(
+        it,
+        
+        FfiConverterTypeMouseButton.lower(`button`),
+        FfiConverterBoolean.lower(`pressed`),_status)
 }
     }
     
@@ -2871,10 +2996,13 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendMouseMove`(`x`: kotlin.UShort, `y`: kotlin.UShort)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_move(
-        it, FfiConverterUShort.lower(`x`),FfiConverterUShort.lower(`y`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_move(
+        it,
+        
+        FfiConverterUShort.lower(`x`),
+        FfiConverterUShort.lower(`y`),_status)
 }
     }
     
@@ -2882,10 +3010,13 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendMouseWheel`(`vertical`: kotlin.Boolean, `delta`: kotlin.Short)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_wheel(
-        it, FfiConverterBoolean.lower(`vertical`),FfiConverterShort.lower(`delta`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_mouse_wheel(
+        it,
+        
+        FfiConverterBoolean.lower(`vertical`),
+        FfiConverterShort.lower(`delta`),_status)
 }
     }
     
@@ -2893,10 +3024,13 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `sendUnicodeKey`(`ch`: kotlin.UInt, `pressed`: kotlin.Boolean)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_send_unicode_key(
-        it, FfiConverterUInt.lower(`ch`),FfiConverterBoolean.lower(`pressed`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_send_unicode_key(
+        it,
+        
+        FfiConverterUInt.lower(`ch`),
+        FfiConverterBoolean.lower(`pressed`),_status)
 }
     }
     
@@ -2904,10 +3038,12 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `setClipboardCallback`(`cb`: ClipboardCallback)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_clipboard_callback(
-        it, FfiConverterTypeClipboardCallback.lower(`cb`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_set_clipboard_callback(
+        it,
+        
+        FfiConverterTypeClipboardCallback.lower(`cb`),_status)
 }
     }
     
@@ -2915,10 +3051,12 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `setFrameCallback`(`cb`: FrameCallback)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(
-        it, FfiConverterTypeFrameCallback.lower(`cb`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_set_frame_callback(
+        it,
+        
+        FfiConverterTypeFrameCallback.lower(`cb`),_status)
 }
     }
     
@@ -2926,10 +3064,12 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `setPointerCallback`(`cb`: PointerCallback)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(
-        it, FfiConverterTypePointerCallback.lower(`cb`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_set_pointer_callback(
+        it,
+        
+        FfiConverterTypePointerCallback.lower(`cb`),_status)
 }
     }
     
@@ -2937,10 +3077,12 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
 
     override fun `setSessionCallback`(`cb`: SessionCallback)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_rdpclient_set_session_callback(
-        it, FfiConverterTypeSessionCallback.lower(`cb`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_rdpclient_set_session_callback(
+        it,
+        
+        FfiConverterTypeSessionCallback.lower(`cb`),_status)
 }
     }
     
@@ -2949,55 +3091,54 @@ open class RdpClient: Disposable, AutoCloseable, RdpClientInterface {
     
 
     
+
+
     
+    
+    /**
+     * @suppress
+     */
     companion object
     
 }
 
+
 /**
  * @suppress
  */
-public object FfiConverterTypeRdpClient: FfiConverter<RdpClient, Pointer> {
-
-    override fun lower(value: RdpClient): Pointer {
-        return value.uniffiClonePointer()
+public object FfiConverterTypeRdpClient: FfiConverter<RdpClient, Long> {
+    override fun lower(value: RdpClient): Long {
+        return value.uniffiCloneHandle()
     }
 
-    override fun lift(value: Pointer): RdpClient {
-        return RdpClient(value)
+    override fun lift(value: Long): RdpClient {
+        return RdpClient(UniffiWithHandle, value)
     }
 
     override fun read(buf: ByteBuffer): RdpClient {
-        // The Rust code always writes pointers as 8 bytes, and will
-        // fail to compile if they don't fit.
-        return lift(Pointer(buf.getLong()))
+        return lift(buf.getLong())
     }
 
     override fun allocationSize(value: RdpClient) = 8UL
 
     override fun write(value: RdpClient, buf: ByteBuffer) {
-        // The Rust code always expects pointers written as 8 bytes,
-        // and will fail to compile if they don't fit.
-        buf.putLong(Pointer.nativeValue(lower(value)))
+        buf.putLong(lower(value))
     }
 }
 
 
-// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
-//
-// Each instance implements core operations for working with the Rust `Arc<T>` and the
-// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
 //
 // There's some subtlety here, because we have to be careful not to operate on a Rust
 // struct after it has been dropped, and because we must expose a public API for freeing
 // theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
 //
-//   * Each instance holds an opaque pointer to the underlying Rust struct.
-//     Method calls need to read this pointer from the object's state and pass it in to
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
 //     the Rust FFI.
 //
-//   * When an instance is no longer needed, its pointer should be passed to a
+//   * When an instance is no longer needed, its handle should be passed to a
 //     special destructor function provided by the Rust FFI, which will drop the
 //     underlying Rust struct.
 //
@@ -3022,13 +3163,13 @@ public object FfiConverterTypeRdpClient: FfiConverter<RdpClient, Pointer> {
 //      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
 //         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
 //
-// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// If we try to implement this with mutual exclusion on access to the handle, there is the
 // possibility of a race between a method call and a concurrent call to `destroy`:
 //
-//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
-//      before it can pass the pointer over the FFI to Rust.
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
 //    * Thread B calls `destroy` and frees the underlying Rust struct.
-//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
 //      a use-after-free.
 //
 // One possible solution would be to use a `ReadWriteLock`, with each method call taking
@@ -3127,29 +3268,41 @@ public interface SessionCallback {
  * the Rust `log` crate (visible only via `adb logcat`), so the UI sat on the
  * empty placeholder with no explanation.
  */
-open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
+open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback
+{
 
-    constructor(pointer: Pointer) {
-        this.pointer = pointer
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
 
     /**
+     * @suppress
+     *
      * This constructor can be used to instantiate a fake object. Only used for tests. Any
      * attempt to actually use an object constructed this way will fail as there is no
      * connected Rust object.
      */
     @Suppress("UNUSED_PARAMETER")
-    constructor(noPointer: NoPointer) {
-        this.pointer = null
-        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = null
     }
 
-    protected val pointer: Pointer?
-    protected val cleanable: UniffiCleaner.Cleanable
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable?
 
     private val wasDestroyed = AtomicBoolean(false)
     private val callCounter = AtomicLong(1)
+
+    /**
+     * Whether the current object has been destroyed and its reference is gone in the Rust side.
+     */
+    val uniffiIsDestroyed: Boolean get() = wasDestroyed.get()
 
     override fun destroy() {
         // Only allow a single call to this method.
@@ -3157,7 +3310,7 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
         if (this.wasDestroyed.compareAndSet(false, true)) {
             // This decrement always matches the initial count of 1 given at creation time.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
@@ -3167,7 +3320,7 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
         this.destroy()
     }
 
-    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
         // Check and increment the call counter, to keep the object alive.
         // This needs a compare-and-set retry loop in case of concurrent updates.
         do {
@@ -3179,32 +3332,40 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
                 throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
             }
         } while (! this.callCounter.compareAndSet(c, c + 1L))
-        // Now we can safely do the method call without the pointer being freed concurrently.
+        // Now we can safely do the method call without the handle being freed concurrently.
         try {
-            return block(this.uniffiClonePointer())
+            return block(this.uniffiCloneHandle())
         } finally {
             // This decrement always matches the increment we performed above.
             if (this.callCounter.decrementAndGet() == 0L) {
-                cleanable.clean()
+                cleanable?.clean()
             }
         }
     }
 
     // Use a static inner class instead of a closure so as not to accidentally
     // capture `this` as part of the cleanable's action.
-    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
         override fun run() {
-            pointer?.let { ptr ->
-                uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_free_sessioncallback(ptr, status)
-                }
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_rdp_transport_fn_free_sessioncallback(handle, status)
             }
         }
     }
 
-    fun uniffiClonePointer(): Pointer {
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_rdp_transport_fn_clone_sessioncallback(pointer!!, status)
+            UniffiLib.uniffi_rdp_transport_fn_clone_sessioncallback(handle, status)
         }
     }
 
@@ -3215,10 +3376,13 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
      * after; frames follow.
      */override fun `onConnected`(`width`: kotlin.UShort, `height`: kotlin.UShort)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_sessioncallback_on_connected(
-        it, FfiConverterUShort.lower(`width`),FfiConverterUShort.lower(`height`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_sessioncallback_on_connected(
+        it,
+        
+        FfiConverterUShort.lower(`width`),
+        FfiConverterUShort.lower(`height`),_status)
 }
     }
     
@@ -3230,10 +3394,12 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
      * an English description of the last failure observed.
      */override fun `onError`(`message`: kotlin.String)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_sessioncallback_on_error(
-        it, FfiConverterString.lower(`message`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_sessioncallback_on_error(
+        it,
+        
+        FfiConverterString.lower(`message`),_status)
 }
     }
     
@@ -3245,10 +3411,11 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
      * disconnect or local `disconnect()`).
      */override fun `onDisconnected`()
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_sessioncallback_on_disconnected(
-        it, _status)
+    UniffiLib.uniffi_rdp_transport_fn_method_sessioncallback_on_disconnected(
+        it,
+        _status)
 }
     }
     
@@ -3262,10 +3429,12 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
      * via `RdpConfig.pinned_cert_sha256` before any credentials are sent.
      */override fun `onServerCert`(`sha256`: kotlin.String)
         = 
-    callWithPointer {
+    callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_rdp_transport_fn_method_sessioncallback_on_server_cert(
-        it, FfiConverterString.lower(`sha256`),_status)
+    UniffiLib.uniffi_rdp_transport_fn_method_sessioncallback_on_server_cert(
+        it,
+        
+        FfiConverterString.lower(`sha256`),_status)
 }
     }
     
@@ -3274,10 +3443,17 @@ open class SessionCallbackImpl: Disposable, AutoCloseable, SessionCallback {
     
 
     
+
+
     
+    
+    /**
+     * @suppress
+     */
     companion object
     
 }
+
 
 
 // Put the implementation in an object so we don't pollute the top-level namespace
@@ -3337,12 +3513,19 @@ internal object uniffiCallbackInterfaceSessionCallback {
         }
     }
 
+    internal object uniffiClone: UniffiCallbackInterfaceClone {
+        override fun callback(handle: Long): Long {
+            return FfiConverterTypeSessionCallback.handleMap.clone(handle)
+        }
+    }
+
     internal var vtable = UniffiVTableCallbackInterfaceSessionCallback.UniffiByValue(
+        uniffiFree,
+        uniffiClone,
         `onConnected`,
         `onError`,
         `onDisconnected`,
         `onServerCert`,
-        uniffiFree,
     )
 
     // Registers the foreign callback with the Rust side.
@@ -3355,39 +3538,55 @@ internal object uniffiCallbackInterfaceSessionCallback {
 /**
  * @suppress
  */
-public object FfiConverterTypeSessionCallback: FfiConverter<SessionCallback, Pointer> {
+public object FfiConverterTypeSessionCallback: FfiConverter<SessionCallback, Long> {
     internal val handleMap = UniffiHandleMap<SessionCallback>()
 
-    override fun lower(value: SessionCallback): Pointer {
-        return Pointer(handleMap.insert(value))
+    override fun lower(value: SessionCallback): Long {
+        if (value is SessionCallbackImpl) {
+             // Rust-implemented object.  Clone the handle and return it
+            return value.uniffiCloneHandle()
+         } else {
+            // Kotlin object, generate a new vtable handle and return that.
+            return handleMap.insert(value)
+         }
     }
 
-    override fun lift(value: Pointer): SessionCallback {
-        return SessionCallbackImpl(value)
+    override fun lift(value: Long): SessionCallback {
+        if ((value and 1.toLong()) == 0.toLong()) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return SessionCallbackImpl(UniffiWithHandle, value)
+        } else {
+            // Kotlin-generated handle, get the object from the handle map
+            return handleMap.remove(value)
+        }
     }
 
     override fun read(buf: ByteBuffer): SessionCallback {
-        // The Rust code always writes pointers as 8 bytes, and will
-        // fail to compile if they don't fit.
-        return lift(Pointer(buf.getLong()))
+        return lift(buf.getLong())
     }
 
     override fun allocationSize(value: SessionCallback) = 8UL
 
     override fun write(value: SessionCallback, buf: ByteBuffer) {
-        // The Rust code always expects pointers written as 8 bytes,
-        // and will fail to compile if they don't fit.
-        buf.putLong(Pointer.nativeValue(lower(value)))
+        buf.putLong(lower(value))
     }
 }
 
 
 
 data class FrameData (
-    var `width`: kotlin.UShort, 
-    var `height`: kotlin.UShort, 
+    var `width`: kotlin.UShort
+    , 
+    var `height`: kotlin.UShort
+    , 
     var `pixels`: kotlin.ByteArray
-) {
+    
+){
+    
+
+    
+
     
     companion object
 }
@@ -3420,19 +3619,26 @@ public object FfiConverterTypeFrameData: FfiConverterRustBuffer<FrameData> {
 
 
 data class RdpConfig (
-    var `username`: kotlin.String, 
-    var `password`: kotlin.String, 
-    var `domain`: kotlin.String, 
-    var `width`: kotlin.UShort, 
-    var `height`: kotlin.UShort, 
-    var `colorDepth`: kotlin.UByte, 
+    var `username`: kotlin.String
+    , 
+    var `password`: kotlin.String
+    , 
+    var `domain`: kotlin.String
+    , 
+    var `width`: kotlin.UShort
+    , 
+    var `height`: kotlin.UShort
+    , 
+    var `colorDepth`: kotlin.UByte
+    , 
     /**
      * Request CredSSP / NLA during the handshake. Default true (callers
      * should construct this with true). Set false to fall back to SSL-
      * only security, useful against servers where ironrdp's CredSSP
      * doesn't interop — #109, Windows Server 2025 Datacenter.
      */
-    var `enableCredssp`: kotlin.Boolean, 
+    var `enableCredssp`: kotlin.Boolean
+    , 
     /**
      * Lowercase-hex SHA-256 of the server's DER leaf certificate that was
      * pinned on a previous connection, or None on first connect. When set,
@@ -3443,7 +3649,12 @@ data class RdpConfig (
      * [SessionCallback::on_server_cert] so the caller can pin it.
      */
     var `pinnedCertSha256`: kotlin.String?
-) {
+    
+){
+    
+
+    
+
     
     companion object
 }
@@ -3491,11 +3702,19 @@ public object FfiConverterTypeRdpConfig: FfiConverterRustBuffer<RdpConfig> {
 
 
 data class RdpRect (
-    var `x`: kotlin.UShort, 
-    var `y`: kotlin.UShort, 
-    var `width`: kotlin.UShort, 
+    var `x`: kotlin.UShort
+    , 
+    var `y`: kotlin.UShort
+    , 
+    var `width`: kotlin.UShort
+    , 
     var `height`: kotlin.UShort
-) {
+    
+){
+    
+
+    
+
     
     companion object
 }
@@ -3537,9 +3756,15 @@ public object FfiConverterTypeRdpRect: FfiConverterRustBuffer<RdpRect> {
  * SOCKS5 listener that wgbridge / tsbridge expose (#149 step 4).
  */
 data class SocksProxyConfig (
-    var `host`: kotlin.String, 
+    var `host`: kotlin.String
+    , 
     var `port`: kotlin.UShort
-) {
+    
+){
+    
+
+    
+
     
     companion object
 }
@@ -3574,6 +3799,10 @@ enum class MouseButton {
     LEFT,
     RIGHT,
     MIDDLE;
+
+    
+
+
     companion object
 }
 
@@ -3639,6 +3868,9 @@ sealed class RdpException: kotlin.Exception() {
             get() = ""
     }
     
+
+    
+
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<RdpException> {
         override fun lift(error_buf: RustBuffer.ByValue): RdpException = FfiConverterTypeRdpError.lift(error_buf)

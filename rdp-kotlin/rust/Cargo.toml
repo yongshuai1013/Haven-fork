@@ -25,7 +25,13 @@ x509-cert = { version = "0.2", default-features = false }
 smallvec = "1"
 log = "0.4"
 android_logger = "0.15"
-uniffi = { version = "0.28", features = ["cli"] }
+# uniffi 0.32's cargo_metadata dep would pull cargo-platform 0.3.3, which needs
+# rustc 1.91 — but rust-toolchain.toml pins 1.89 for reproducible .so builds.
+# Cargo.lock therefore pins cargo-platform to 0.3.2 (the last patch that builds
+# on 1.89). If you `cargo update` and hit "cargo-platform@0.3.3 requires rustc
+# 1.91", re-pin with `cargo update -p cargo-platform --precise 0.3.2` (or raise
+# the toolchain to 1.91 and drop this note).
+uniffi = { version = "0.32", features = ["cli"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 sha2 = "0.11"
 
@@ -63,7 +69,7 @@ version = "0.11"
 optional = true
 
 [build-dependencies]
-uniffi = { version = "0.28", features = ["build"] }
+uniffi = { version = "0.32", features = ["build"] }
 
 # Local fork of ironrdp-connector with one Haven-specific patch:
 # advertise SUPPORT_DYN_VC_GFX_PROTOCOL (0x0100) in the Client Core Data so
