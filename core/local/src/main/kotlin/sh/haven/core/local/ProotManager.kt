@@ -249,6 +249,24 @@ internal fun missingDesktopBinaries(rootfs: File, binaries: List<String>): List<
     binaries.filterNot { File(rootfs, it).exists() }
 
 /**
+ * Packages to actually remove when uninstalling one desktop, given the
+ * package lists of the *other* desktops still installed on the same distro.
+ * A package another installed desktop also declares is retained — removing
+ * it would delete a binary that desktop's install-detection relies on and
+ * corrupt its state (#368: Custom-X11 and Native-X11 both ship `xterm`, and
+ * every VNC desktop ships `tigervnc`, so a naive `apk del <full list>` broke
+ * a sibling and set off the uninstall loop). Pure set arithmetic so it is
+ * unit-testable without a guest.
+ */
+internal fun desktopPackagesToRemove(
+    targetPackages: List<String>,
+    otherInstalledPackages: Collection<List<String>>,
+): List<String> {
+    val retained = otherInstalledPackages.flatten().toSet()
+    return targetPackages.filterNot { it in retained }
+}
+
+/**
  * Manages the PRoot binary and Alpine Linux rootfs.
  *
  * PRoot is bundled as libproot.so in jniLibs (extracted to nativeLibraryDir
@@ -2792,21 +2810,33 @@ chmod +x /root/.vnc/xstartup""")
             val ops = PackageOps.forFamily(distro.family)
             val pkgs = de.spec.packagesPerFamily[distro.family]
                 ?: error("${de.spec.id} has no package list for ${distro.family}")
-            val (output, exit) = runCommandInProot(ops.removeCmd(pkgs))
-            Log.d(TAG, "remove ${de.label} exit=$exit output(last 300)=${output.takeLast(300)}")
+            // Snapshot the other installed desktops BEFORE removing anything:
+            // once a shared package is gone the detection binary check flips
+            // the sibling to "uninstalled", so both this retain-set and the
+            // marker rewrite must be computed from the pre-removal state. (#368)
+            val others = installedDesktops - de
+            val toRemove = desktopPackagesToRemove(
+                targetPackages = pkgs,
+                otherInstalledPackages = others.map { it.spec.packagesPerFamily[distro.family] ?: emptyList() },
+            )
+            if (toRemove.isNotEmpty()) {
+                val (output, exit) = runCommandInProot(ops.removeCmd(toRemove))
+                Log.d(TAG, "remove ${de.label}: removing $toRemove exit=$exit output(last 300)=${output.takeLast(300)}")
+            } else {
+                Log.d(TAG, "remove ${de.label}: all packages shared with ${others.map { it.name }}, none removed")
+            }
 
-            val remaining = installedDesktops - de
             val marker = File(activeRootfsDir, "root/.haven-desktop")
-            if (remaining.isEmpty()) {
+            if (others.isEmpty()) {
                 marker.delete()
             } else {
-                marker.writeText(remaining.joinToString("\n") { it.name })
+                marker.writeText(others.joinToString("\n") { it.name })
             }
             // Remove DE-specific marker file
             if (de.verifyBinary.startsWith("root/.haven-")) {
                 File(activeRootfsDir, de.verifyBinary).delete()
             }
-            Log.d(TAG, "${de.label} uninstalled, remaining: ${remaining.map { it.name }}")
+            Log.d(TAG, "${de.label} uninstalled, remaining: ${others.map { it.name }}")
             _desktopState.value = DesktopSetupState.Complete
         } catch (e: Exception) {
             Log.e(TAG, "[de-uninstall ${de.spec.id}] failed", e)
