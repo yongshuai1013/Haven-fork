@@ -65,6 +65,9 @@ class ConnectionRepository @Inject constructor(
 
     suspend fun updateSortOrder(id: String, sortOrder: Int) = connectionDao.updateSortOrder(id, sortOrder)
 
+    /** Targeted host update, no re-encrypt — #376 rediscovery follows a device to its new DHCP address. */
+    suspend fun updateHost(id: String, host: String) = connectionDao.updateHost(id, host)
+
     suspend fun updateVncSettings(
         id: String,
         port: Int,

@@ -190,6 +190,9 @@ class ConnectionsViewModelSessionTest {
                 every { activeProfiles } returns MutableStateFlow(emptyMap())
             },
             userMessageBus = sh.haven.core.data.message.UserMessageBus(),
+            hostRediscovery = mockk(relaxed = true) {
+                coEvery { rediscover(any()) } returns null
+            },
             usbipForwarder = mockk(relaxed = true),
             biometricGate = mockk(relaxed = true),
             pendingAuthPromptHolder = mockk(relaxed = true),

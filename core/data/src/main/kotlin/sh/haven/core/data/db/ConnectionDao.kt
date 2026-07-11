@@ -41,6 +41,9 @@ interface ConnectionDao {
     @Query("UPDATE connection_profiles SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSortOrder(id: String, sortOrder: Int)
 
+    @Query("UPDATE connection_profiles SET host = :host WHERE id = :id")
+    suspend fun updateHost(id: String, host: String)
+
     @Query("UPDATE connection_profiles SET mcpEnabled = :enabled WHERE id = :id")
     suspend fun updateMcpEnabled(id: String, enabled: Boolean)
 

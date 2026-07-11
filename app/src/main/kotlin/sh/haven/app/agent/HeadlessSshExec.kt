@@ -47,6 +47,7 @@ class HeadlessSshExec @Inject constructor(
     private val sshKeyRepository: SshKeyRepository,
     private val sshIdentityRepository: SshIdentityRepository,
     private val hostKeyVerifier: HostKeyVerifier,
+    private val hostRediscovery: sh.haven.feature.connections.HostRediscovery,
 ) {
     /** Test seam — unit tests swap this to avoid opening real sockets. */
     internal var clientFactory: () -> SshClient = { SshClient() }
@@ -98,7 +99,22 @@ class HeadlessSshExec @Inject constructor(
             val hostKeyEntry = try {
                 client.connect(config)
             } catch (e: Exception) {
-                throw McpError(-32603, "Connect to '${profile.label}' failed: ${e.message ?: e.cause?.message ?: e.javaClass.simpleName}")
+                // #376: a network failure on a private address may just mean
+                // DHCP moved the device — follow its host key once, so
+                // automations (MacroDroid run_command against a hotspot
+                // client) survive address rotation without macro changes.
+                val newHost = if (isNetworkError(e)) {
+                    runCatching { hostRediscovery.rediscover(profile) }.getOrNull()
+                } else null
+                if (newHost == null) {
+                    throw McpError(-32603, "Connect to '${profile.label}' failed: ${e.message ?: e.cause?.message ?: e.javaClass.simpleName}")
+                }
+                Log.i(TAG, "'${profile.label}' host rediscovered ${profile.host} → $newHost — retrying")
+                try {
+                    client.connect(config.copy(host = newHost))
+                } catch (e2: Exception) {
+                    throw McpError(-32603, "Connect to '${profile.label}' failed after host rediscovery ($newHost): ${e2.message ?: e2.javaClass.simpleName}")
+                }
             }
             when (hostKeyVerifier.verify(hostKeyEntry)) {
                 is HostKeyResult.Trusted -> { /* ok */ }
@@ -117,6 +133,17 @@ class HeadlessSshExec @Inject constructor(
         } finally {
             runCatching { client.disconnect() }
         }
+    }
+
+    private fun isNetworkError(e: Exception): Boolean {
+        val msg = e.message ?: ""
+        return e is java.net.ConnectException ||
+            e is java.net.UnknownHostException ||
+            e is java.net.SocketTimeoutException ||
+            e is java.net.NoRouteToHostException ||
+            msg.contains("refused", ignoreCase = true) ||
+            msg.contains("timed out", ignoreCase = true) ||
+            msg.contains("unreachable", ignoreCase = true)
     }
 
     private companion object {

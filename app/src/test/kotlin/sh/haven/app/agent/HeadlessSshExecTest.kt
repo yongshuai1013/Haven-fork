@@ -58,6 +58,9 @@ class HeadlessSshExecTest {
         sshKeyRepository = sshKeyRepository,
         sshIdentityRepository = sshIdentityRepository,
         hostKeyVerifier = hostKeyVerifier,
+        hostRediscovery = mockk(relaxed = true) {
+            coEvery { rediscover(any()) } returns null
+        },
     ).apply { clientFactory = { client } }
 
     private fun expectMcpError(contains: String, block: suspend () -> Unit) {

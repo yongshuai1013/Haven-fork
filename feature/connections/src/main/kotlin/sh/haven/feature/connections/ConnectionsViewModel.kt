@@ -148,6 +148,7 @@ class ConnectionsViewModel @Inject constructor(
     private val agentUiCommandBus: sh.haven.core.data.agent.AgentUiCommandBus,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
     private val userMessageBus: sh.haven.core.data.message.UserMessageBus,
+    private val hostRediscovery: HostRediscovery,
     private val usbipForwarder: sh.haven.feature.connections.usb.UsbipConnectionForwarder,
     private val biometricGate: sh.haven.core.data.keystore.BiometricGate,
     private val pendingAuthPromptHolder: sh.haven.core.data.agent.PendingAuthPromptHolder,
@@ -2572,6 +2573,7 @@ class ConnectionsViewModel @Inject constructor(
         rememberPassword: Boolean? = null,
         usernameOverride: String? = null,
         preselectedSessionName: String? = null,
+        allowRediscovery: Boolean = true,
     ) {
         val effectiveUsername = usernameOverride?.takeIf { it.isNotBlank() } ?: profile.username
         viewModelScope.launch {
@@ -2804,7 +2806,27 @@ class ConnectionsViewModel @Inject constructor(
                 } else if (!keyOnly && isAuthMessage) {
                     _error.value = "Authentication failed — check username and password"
                 } else {
-                    _error.value = msg.ifBlank { "Connection failed" }
+                    // #376: a network error on a private address may just mean
+                    // DHCP moved the device. If exactly one machine on the
+                    // subnet presents this profile's known host key, follow it
+                    // and retry once (allowRediscovery=false stops recursion).
+                    val newHost = if (isNetworkError && allowRediscovery) {
+                        runCatching { hostRediscovery.rediscover(profile) }.getOrNull()
+                    } else null
+                    if (newHost != null) {
+                        userMessageBus.emit(
+                            sh.haven.core.data.message.UserMessage(
+                                "${profile.label}: address updated ${profile.host} → $newHost (matched host key)",
+                                sh.haven.core.data.message.UserMessage.Severity.INFO,
+                            ),
+                        )
+                        connectSsh(
+                            profile.copy(host = newHost), password, keyOnly, rememberPassword,
+                            usernameOverride, preselectedSessionName, allowRediscovery = false,
+                        )
+                    } else {
+                        _error.value = msg.ifBlank { "Connection failed" }
+                    }
                 }
             } finally {
                 _connectingProfileId.value = null

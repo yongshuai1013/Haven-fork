@@ -744,6 +744,32 @@ class SshClient : Closeable {
         fun clearDnsCache() { }
 
         /**
+         * Fetch a server's host key by running the SSH handshake through KEX
+         * and abandoning at auth — an in-process ssh-keyscan (#376 host
+         * rediscovery). "none" auth keeps the exchange short; JSch exposes the
+         * key once KEX completes, so the expected auth failure still yields
+         * it. Null when the host is unreachable or the handshake died before
+         * KEX (refused, not an SSH server, algorithm mismatch).
+         */
+        fun keyScan(host: String, port: Int, timeoutMs: Int = 4_000): KnownHostEntry? = try {
+            val sess = JSch().getSession("haven-keyscan", host, port)
+            sess.setConfig("StrictHostKeyChecking", "no")
+            sess.setConfig("PreferredAuthentications", "none")
+            try {
+                sess.connect(timeoutMs)
+            } catch (_: JSchException) {
+                // Expected: auth fails after KEX; the host key is already set.
+            }
+            val hk = try { sess.hostKey } catch (_: Throwable) { null }
+            runCatching { sess.disconnect() }
+            hk?.let {
+                KnownHostEntry(hostname = host, port = port, keyType = it.type, publicKeyBase64 = it.key)
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        /**
          * Whether the "Any hardware key" up-front detection prompt
          * ([FidoAuthenticator.detectPresentSkKey], used for a pool of >1
          * enrolled hardware keys) should be SKIPPED because a higher-priority
