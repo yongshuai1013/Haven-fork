@@ -1,0 +1,3 @@
+🤖 New: run_command — run a one-shot command on a saved SSH connection straight from a MacroDroid/Tasker HTTP macro (or any automation) and read { exitCode, stdout, stderr } back in the same response. No plugin needed: point the HTTP Request action at Haven's agent endpoint with your pairing token. It reuses a live connection, or makes a one-shot headless connect with fail-closed host-key trust; a standing policy lets it run unattended. Thanks to ehoeve786 (#367).
+
+🖥️ Fixed: uninstalling one desktop no longer breaks the others. Removing an X11/VNC desktop used to delete a shared package (like xterm or tigervnc) that another installed desktop still needed; uninstall now keeps anything the others rely on. Thanks to sugerpersion (#368).
