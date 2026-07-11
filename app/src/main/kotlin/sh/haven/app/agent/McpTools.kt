@@ -3884,22 +3884,16 @@ internal class McpTools(
     }
 
     /**
-     * Write a raw string to a session's PTY. Tries SSH first, then the
-     * local-shell manager; surfaces the most informative "no session" error.
+     * Write a raw string to a session's PTY on whichever transport owns it —
+     * SSH, local, mosh, ET, or Reticulum (#366: only the first two were
+     * tried, so agent input to a mosh session failed "No local session"
+     * while snapshot reads resolved it fine).
      */
     private fun sendRawInput(sessionId: String, s: String) {
-        val sshErr = try {
-            sshSessionManager.sendInput(sessionId, s)
-            null
+        try {
+            sessionManagerRegistry.sendTerminalInput(sessionId, s)
         } catch (e: IllegalStateException) {
-            e.message
-        }
-        if (sshErr != null) {
-            try {
-                localSessionManager.sendInput(sessionId, s)
-            } catch (e: IllegalStateException) {
-                throw McpError(-32603, e.message ?: sshErr)
-            }
+            throw McpError(-32603, e.message ?: "No terminal session: $sessionId")
         }
     }
 

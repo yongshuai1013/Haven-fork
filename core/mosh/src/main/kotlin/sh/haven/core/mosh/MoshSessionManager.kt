@@ -230,6 +230,20 @@ class MoshSessionManager @Inject constructor(
         }
     }
 
+    /**
+     * Send [text] as UTF-8 to the mosh session's input. Throws when no
+     * session exists or its transport is gone — matches the
+     * SshSessionManager/LocalSessionManager sendInput contract so the
+     * agent input dispatcher can chain transports (#366).
+     */
+    fun sendInput(sessionId: String, text: String) {
+        val session = _sessions.value[sessionId]
+            ?: throw IllegalStateException("No mosh session: $sessionId")
+        val mosh = session.moshSession
+            ?: throw IllegalStateException("Mosh session $sessionId has no live transport")
+        mosh.sendInput(text.toByteArray(Charsets.UTF_8))
+    }
+
     fun removeAllSessionsForProfile(profileId: String) {
         val toRemove = _sessions.value.values.filter { it.profileId == profileId }
         _sessions.update { map -> map.filterValues { it.profileId != profileId } }

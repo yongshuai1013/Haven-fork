@@ -191,6 +191,15 @@ class ReticulumSessionManager @Inject constructor(
         }
     }
 
+    /** Send [text] as UTF-8 to the rnsh session's input — sendInput contract, see #366. */
+    fun sendInput(sessionId: String, text: String) {
+        val session = _sessions.value[sessionId]
+            ?: throw IllegalStateException("No Reticulum session: $sessionId")
+        val rns = session.reticulumSession
+            ?: throw IllegalStateException("Reticulum session $sessionId has no live transport")
+        rns.sendInput(text.toByteArray(Charsets.UTF_8))
+    }
+
     fun removeAllSessionsForProfile(profileId: String) {
         val toRemove = _sessions.value.values.filter { it.profileId == profileId }
         _sessions.update { map -> map.filterValues { it.profileId != profileId } }

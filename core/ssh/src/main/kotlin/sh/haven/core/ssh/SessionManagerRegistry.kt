@@ -51,6 +51,38 @@ class SessionManagerRegistry @Inject constructor(
     }
 
     /**
+     * Write raw input to whichever transport owns [sessionId]. Session ids
+     * are UUIDs, so at most one manager claims the id — its error (e.g.
+     * "has no active terminal") is the informative one; a manager that has
+     * never heard of the id says "No <transport> session". Covers every
+     * transport with a PTY-like input; #366 was the forgotten-transport bug
+     * again — agent input tried SSH+local only, so mosh/ET/Reticulum
+     * sessions answered "No local session" while snapshot reads worked.
+     *
+     * @throws IllegalStateException when no transport delivers.
+     */
+    fun sendTerminalInput(sessionId: String, text: String) {
+        val errors = mutableListOf<String>()
+        val attempts = listOf<(String, String) -> Unit>(
+            ssh::sendInput, local::sendInput, mosh::sendInput, et::sendInput, reticulum::sendInput,
+        )
+        for (attempt in attempts) {
+            try {
+                attempt(sessionId, text)
+                return
+            } catch (e: IllegalStateException) {
+                errors += e.message ?: e.javaClass.simpleName
+            }
+        }
+        // A "No <transport> session: id" error just means that manager never
+        // owned the id; anything else is a real diagnosis from the owner.
+        throw IllegalStateException(
+            errors.firstOrNull { !it.startsWith("No ") }
+                ?: "No terminal session $sessionId on any transport (SSH, local, mosh, ET, Reticulum)",
+        )
+    }
+
+    /**
      * True if the FGS should stay running. Any active transport session
      * keeps it alive (the original semantics), as does any registered
      * [ForegroundKeepAlive] — currently just the MCP endpoint, which
