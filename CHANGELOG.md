@@ -5,6 +5,14 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.42
+
+🌐 **Fixed: your chosen terminal locale actually applies** (#374) — picking a locale (e.g. `zh_CN.UTF-8`) set `LANG` but left `LC_ALL` pinned to `C.UTF-8`, and `LC_ALL` outranks `LANG` for every category — so the choice silently didn't take. Local sessions now export `LC_ALL` alongside `LANG` (which also overrides the stale default in already-installed guests' `.profile`), and freshly installed guests default `LC_ALL` to follow `LANG`. glibc distros still need the locale generated (`dpkg-reconfigure locales`) before programs render it. The locale is also settable via the agent endpoint now (`terminal_locale` preference). Thanks to sugerpersion for the report.
+
+☁️ **Fixed: disconnecting rclone cloud storage works** (#363) — tapping Disconnect on an rclone storage connection (or disconnecting via the agent endpoint) silently did nothing and the card stayed "connected" forever; the rclone session type had been left out of the central disconnect path. Disconnecting mid-OAuth now also cancels the pending auth attempt instead of leaving it running to its timeout. Thanks to hung319 for the report.
+
+🛠️ **Fixed: fakeroot in new proot guests** (#375) — Android kernels lack SysV IPC, so stock `fakeroot` dies with "Function not implemented" under proot (breaking package-build tools that wrap it). Freshly installed guests now prefer the TCP variant via a small `fakeroot` shim where the distro ships one (Debian/Ubuntu do). Existing guests can switch by hand: `update-alternatives --set fakeroot /usr/bin/fakeroot-tcp`. Arch packages only the SysV build, so this can't help there yet. Thanks to sugerpersion for the report.
+
 ## v5.68.41
 
 🖥️ **Fixed: X11 desktops now start a dbus session bus** (#370) — launching an X11-over-VNC desktop (Xfce4, or a Custom command (X11) session) left `DBUS_SESSION_BUS_ADDRESS` unset, so desktop components that need a session bus failed to come up — you'd get a bare grey Xvnc screen instead of your desktop. Startup now establishes a dbus session bus before running the session command, so Xfce4's daemons and whatever your custom command launches find the bus. This is also the likely cause of the "Custom command (X11) ignores my command and just starts VNC" report (#361): the command was running but its session couldn't start without dbus. Best-effort — desktops that ship no `dbus-launch` (e.g. Openbox, which needs none) are unaffected. Thanks to sugerpersion for the report.
