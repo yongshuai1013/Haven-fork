@@ -1,0 +1,4 @@
+Connections follow devices across IP changes.
+
+• When a connect fails on a private address, Haven re-scans the network and follows the machine presenting the profile's trusted SSH host key — saved connections survive hotspot/DHCP address rotation (#376). Fails closed on any ambiguity.
+• Agent endpoint: send_terminal_input now reaches Mosh/ET/Reticulum terminals (#366).

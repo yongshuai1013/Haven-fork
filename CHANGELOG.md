@@ -5,6 +5,12 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.44
+
+📍 **New: connections follow a device when its address changes** (#376) — a device on a phone hotspot (or any DHCP network) can get a different IP every time it connects, leaving the saved connection pointing at a dead address. When a connect now fails on a private address, Haven sweeps the local network on the profile's port and — only when exactly one machine presents the profile's already-trusted SSH host key — updates the saved address and retries. The host key is the device's identity; the IP was only ever a hint. Fails closed on any ambiguity, and never applies to profiles you haven't trusted interactively first. Works for taps in the app and for automations using the agent endpoint's `run_command`/`connect_profile` (the MacroDroid case from #367). Thanks to ehoeve786 for the use case.
+
+🤖 **Fixed: agent input reaches Mosh, Eternal Terminal, and Reticulum terminals** (#366) — `send_terminal_input` only knew SSH and local sessions, so typing into a mosh session via the agent endpoint failed with "No local session" even though snapshots of the same session worked. Input now routes to whichever transport owns the session, and the error when none does names all five transports.
+
 ## v5.68.43
 
 🖥️ **Fixed: desktop sessions get a clean Linux environment** (#373) — X11/VNC, nested-Wayland, and native desktops inherited the Android app process's environment (`BOOTCLASSPATH`, `ANDROID_*`, zygote sockets — 13 stray variables measured on device) and carried no `LANG`. Desktop sessions now start from a clean guest environment matching the terminal path — which also means desktops follow your chosen terminal locale from now on (#374's fix, extended to desktops). Session variables (DISPLAY, dbus, XDG runtime) are layered on top as before. Thanks to sugerpersion for pressing on this — it was a real bug.
