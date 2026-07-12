@@ -1658,29 +1658,55 @@ class TerminalViewModel @Inject constructor(
         val liveIds = currentTabs.map { it.sessionId }.toSet()
         for (tab in currentTabs) {
             val existing = terminalSessionRegistry.get(tab.sessionId)
-            if (existing == null) {
-                terminalSessionRegistry.register(tab.sessionId, tab.emulator)
-            }
-            // Attach the agent test handles once. Covers both fresh tabs
-            // and the agent-headless-then-adopted case, where the registry
-            // entry already exists (registered by open_local_shell). An
-            // agent-registered entry keeps ITS feedOutput: the registry's
-            // emulator is the headless one, and the tab's feedOutput writes
-            // to the tab's own emulator — attaching it made
-            // feed_terminal_output a silent no-op for agent reads.
-            if (existing?.oscHandler == null) {
-                // Prefer the flows already on the entry: an agent-headless
-                // shell tracks modes on its own PTY tee (#336), and replacing
-                // them with a tab's stubs left bracketPasteMode dead — the
-                // dual of the feedOutput rule below.
-                terminalSessionRegistry.setAgentHandles(
-                    tab.sessionId,
-                    existing?.mouseMode ?: tab.mouseMode,
-                    existing?.activeMouseMode ?: tab.activeMouseMode,
-                    existing?.bracketPasteMode ?: tab.bracketPasteMode,
-                    tab.oscHandler,
-                    existing?.feedOutput ?: tab.feedOutput,
-                )
+            when {
+                existing == null -> {
+                    terminalSessionRegistry.register(tab.sessionId, tab.emulator)
+                    terminalSessionRegistry.setAgentHandles(
+                        tab.sessionId,
+                        tab.mouseMode,
+                        tab.activeMouseMode,
+                        tab.bracketPasteMode,
+                        tab.oscHandler,
+                        tab.feedOutput,
+                    )
+                }
+                existing.emulator !== tab.emulator -> {
+                    // The entry holds an emulator that is NOT the one this tab
+                    // renders — open_local_shell claimed the registry while this
+                    // tab was being built (fresh-app-start race, #378). The tab's
+                    // emulator is on screen, resized, and fed by its own pipeline;
+                    // repoint the agent handles at it so feed_terminal_output /
+                    // read_terminal_snapshot see what the user sees. Also drop the
+                    // now-orphaned agent tee so PTY output stops double-feeding a
+                    // headless emulator nothing reads.
+                    terminalSessionRegistry.adoptTabHandles(
+                        tab.sessionId,
+                        tab.emulator,
+                        tab.mouseMode,
+                        tab.activeMouseMode,
+                        tab.bracketPasteMode,
+                        tab.oscHandler,
+                        tab.feedOutput,
+                    )
+                    if (tab.transportType == "LOCAL") {
+                        localSessionManager.clearAgentTee(tab.sessionId)
+                    }
+                }
+                existing.oscHandler == null -> {
+                    // Agent-headless entry adopted by a UI tab sharing the SAME
+                    // emulator: attach the tab's OSC handler but keep the entry's
+                    // feedOutput and mode flows — the agent's MouseModeTracker
+                    // sits on the PTY tee (#336) and its feed writes to the shared
+                    // emulator; a tab stub would leave bracketPasteMode dead.
+                    terminalSessionRegistry.setAgentHandles(
+                        tab.sessionId,
+                        existing.mouseMode ?: tab.mouseMode,
+                        existing.activeMouseMode ?: tab.activeMouseMode,
+                        existing.bracketPasteMode ?: tab.bracketPasteMode,
+                        tab.oscHandler,
+                        existing.feedOutput ?: tab.feedOutput,
+                    )
+                }
             }
         }
         // Unregister registry entries whose underlying *session* has

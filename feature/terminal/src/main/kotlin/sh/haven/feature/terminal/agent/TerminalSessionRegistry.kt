@@ -2,6 +2,7 @@ package sh.haven.feature.terminal.agent
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import org.connectbot.terminal.ComposeController
 import org.connectbot.terminal.GestureInjector
 import org.connectbot.terminal.ScrollController
@@ -68,23 +69,103 @@ class TerminalSessionRegistry @Inject constructor() {
     private val _sessions = MutableStateFlow<Map<String, Entry>>(emptyMap())
     val sessions: StateFlow<Map<String, Entry>> = _sessions
 
+    // All mutators go through _sessions.update {} — the MCP dispatcher and the
+    // main thread both write here, and plain read-modify-write on .value lost
+    // updates in exactly the open_local_shell-vs-tab-sync race of #378.
+
     fun register(sessionId: String, emulator: TerminalEmulator) {
-        _sessions.value = _sessions.value + (sessionId to Entry(emulator))
+        _sessions.update { it + (sessionId to Entry(emulator)) }
+    }
+
+    /**
+     * Atomically claim the registry slot for a headless agent shell — entry
+     * complete with output injection + private-mode flows in one write.
+     * Returns false (leaving the existing entry untouched) if the slot is
+     * already taken, i.e. a UI tab won the race and its emulator is the one
+     * on screen (#378). oscHandler stays null so a later UI-tab adoption
+     * still attaches the full tab handles (#336).
+     */
+    fun registerHeadless(
+        sessionId: String,
+        emulator: TerminalEmulator,
+        feedOutput: (ByteArray, Int, Int) -> Unit,
+        mouseMode: StateFlow<Boolean>,
+        activeMouseMode: StateFlow<Int?>,
+        bracketPasteMode: StateFlow<Boolean>,
+    ): Boolean {
+        var claimed = false
+        _sessions.update { map ->
+            if (map.containsKey(sessionId)) {
+                claimed = false
+                map
+            } else {
+                claimed = true
+                map + (
+                    sessionId to Entry(
+                        emulator = emulator,
+                        mouseMode = mouseMode,
+                        activeMouseMode = activeMouseMode,
+                        bracketPasteMode = bracketPasteMode,
+                        feedOutput = feedOutput,
+                    )
+                    )
+            }
+        }
+        return claimed
+    }
+
+    /**
+     * Repoint a session's entry at a UI tab's live handles. Heals the #378
+     * race: open_local_shell claimed the slot with a headless emulator while
+     * syncSessions was concurrently building a real tab for the same session
+     * — the tab's emulator is the one rendered and resized on screen, so it
+     * must be what feed_terminal_output / read_terminal_snapshot resolve.
+     * Selection/scroll/gesture/compose controllers are preserved: they were
+     * set by the visible tab's Composition and remain valid.
+     */
+    fun adoptTabHandles(
+        sessionId: String,
+        emulator: TerminalEmulator,
+        mouseMode: StateFlow<Boolean>,
+        activeMouseMode: StateFlow<Int?>,
+        bracketPasteMode: StateFlow<Boolean>,
+        oscHandler: OscHandler,
+        feedOutput: (ByteArray, Int, Int) -> Unit,
+    ) {
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (
+                sessionId to current.copy(
+                    emulator = emulator,
+                    mouseMode = mouseMode,
+                    activeMouseMode = activeMouseMode,
+                    bracketPasteMode = bracketPasteMode,
+                    oscHandler = oscHandler,
+                    feedOutput = feedOutput,
+                )
+                )
+        }
     }
 
     fun setSelectionController(sessionId: String, controller: SelectionController?) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (sessionId to current.copy(selectionController = controller))
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (sessionId to current.copy(selectionController = controller))
+        }
     }
 
     fun setScrollController(sessionId: String, controller: ScrollController?) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (sessionId to current.copy(scrollController = controller))
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (sessionId to current.copy(scrollController = controller))
+        }
     }
 
     fun setGestureInjector(sessionId: String, injector: GestureInjector?) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (sessionId to current.copy(gestureInjector = injector))
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (sessionId to current.copy(gestureInjector = injector))
+        }
     }
 
     /**
@@ -95,8 +176,10 @@ class TerminalSessionRegistry @Inject constructor() {
      * toolbar toggle.
      */
     fun setComposeController(sessionId: String, controller: ComposeController?) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (sessionId to current.copy(composeController = controller))
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (sessionId to current.copy(composeController = controller))
+        }
     }
 
     /**
@@ -113,54 +196,22 @@ class TerminalSessionRegistry @Inject constructor() {
         oscHandler: OscHandler,
         feedOutput: (ByteArray, Int, Int) -> Unit,
     ) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (
-            sessionId to current.copy(
-                mouseMode = mouseMode,
-                activeMouseMode = activeMouseMode,
-                bracketPasteMode = bracketPasteMode,
-                oscHandler = oscHandler,
-                feedOutput = feedOutput,
-            )
-            )
-    }
-
-    /**
-     * Attach just the output-injection handle. Used by the agent's headless
-     * shell path (open_local_shell), whose registry emulator is NOT a UI
-     * tab's — without this, tab adoption attached the TAB's feedOutput to
-     * the agent entry and feed_terminal_output injected into an emulator
-     * the agent tools never read (silent no-op).
-     */
-    fun setFeedOutput(sessionId: String, feedOutput: (ByteArray, Int, Int) -> Unit) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (sessionId to current.copy(feedOutput = feedOutput))
-    }
-
-    /**
-     * Attach just the private-mode flows (mouse / bracketed paste). Used by
-     * the agent's headless shell path, which runs a MouseModeTracker on its
-     * output tee but has no OSC handler — oscHandler stays null so a later
-     * UI-tab adoption still attaches the full tab handles. (#336)
-     */
-    fun setModeFlows(
-        sessionId: String,
-        mouseMode: StateFlow<Boolean>,
-        activeMouseMode: StateFlow<Int?>,
-        bracketPasteMode: StateFlow<Boolean>,
-    ) {
-        val current = _sessions.value[sessionId] ?: return
-        _sessions.value = _sessions.value + (
-            sessionId to current.copy(
-                mouseMode = mouseMode,
-                activeMouseMode = activeMouseMode,
-                bracketPasteMode = bracketPasteMode,
-            )
-            )
+        _sessions.update { map ->
+            val current = map[sessionId] ?: return@update map
+            map + (
+                sessionId to current.copy(
+                    mouseMode = mouseMode,
+                    activeMouseMode = activeMouseMode,
+                    bracketPasteMode = bracketPasteMode,
+                    oscHandler = oscHandler,
+                    feedOutput = feedOutput,
+                )
+                )
+        }
     }
 
     fun unregister(sessionId: String) {
-        _sessions.value = _sessions.value - sessionId
+        _sessions.update { it - sessionId }
     }
 
     fun get(sessionId: String): Entry? = _sessions.value[sessionId]

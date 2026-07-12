@@ -5121,11 +5121,18 @@ internal class McpTools(
         // MCP tools (read_terminal_snapshot, tap_terminal,
         // send_terminal_input) work against headless agent shells —
         // not just sessions the user has visited in the Terminal tab
-        // (gap surfaced during v5.32.0-rc2 MCP testing). When a UI
-        // tab is later built for the same session, syncSessions skips
-        // it because LocalSession is already attached, so the
-        // registry's headless emulator stays the source of truth for
-        // agent reads.
+        // (gap surfaced during v5.32.0-rc2 MCP testing). When the
+        // Terminal tab adopts the session later, it shares this same
+        // emulator, so agent reads and the on-screen tab agree.
+        //
+        // Racy on a fresh app start (#378): TerminalViewModel's
+        // syncSessions may be building a UI tab for this session
+        // concurrently, complete with its own emulator + LocalSession.
+        // The registry claim below is atomic — if the tab registered
+        // first we skip the headless emulator entirely; if we claim
+        // first and the tab still gets built, syncSessions detects the
+        // emulator mismatch and repoints the entry at the tab.
+        var agentFeed: ((ByteArray, Int, Int) -> Unit)? = null
         if (terminalSessionRegistry.get(sessionId) == null) {
             val scrollbackRows = preferencesRepository.terminalScrollbackRows.first()
             val agentEmulator = org.connectbot.terminal.TerminalEmulatorFactory.create(
@@ -5164,34 +5171,36 @@ internal class McpTools(
             // bracket-pasted to a REPL in a local shell (#336). Synchronized:
             // the PTY reader thread and an MCP feed call can interleave.
             val modeTracker = sh.haven.feature.terminal.MouseModeTracker()
-            val agentFeed: (ByteArray, Int, Int) -> Unit = { data, off, len ->
+            val feed: (ByteArray, Int, Int) -> Unit = { data, off, len ->
                 synchronized(modeTracker) { modeTracker.process(data, off, len) }
                 val copy = data.copyOfRange(off, off + len)
                 mainHandler.post { agentEmulator.writeInput(copy, 0, copy.size) }
             }
-            localSessionManager.startHeadlessShell(
-                sessionId,
-                extraOnData = agentFeed,
-                plain = plain,
-            )
-            terminalSessionRegistry.register(sessionId, agentEmulator)
-            // feed_terminal_output must inject into THIS emulator — the one
-            // the agent tools read. Registering a feed here also stops the
-            // later UI-tab adoption from attaching the tab's feedOutput
-            // (which writes to the tab's own emulator — silent no-op for
-            // agent reads; found testing #226).
-            terminalSessionRegistry.setFeedOutput(sessionId, agentFeed)
-            terminalSessionRegistry.setModeFlows(
-                sessionId,
-                mouseMode = modeTracker.mouseMode,
-                activeMouseMode = modeTracker.activeMouseMode,
-                bracketPasteMode = modeTracker.bracketPasteMode,
-            )
-        } else {
-            // No-op when an existing LocalSession is attached, regardless of
-            // the original plain choice — see LocalSessionManager.startHeadlessShell.
-            localSessionManager.startHeadlessShell(sessionId, plain = plain)
+            // Atomic claim: feed + mode flows land in the same write as the
+            // emulator (#226/#336 rules preserved — the entry's feedOutput
+            // must inject into the emulator the agent tools read, and the
+            // mode flows come from the tracker on the same stream). If a UI
+            // tab registered between the get() above and here, the claim
+            // fails and the tab's emulator stays the source of truth.
+            if (terminalSessionRegistry.registerHeadless(
+                    sessionId,
+                    agentEmulator,
+                    feed,
+                    mouseMode = modeTracker.mouseMode,
+                    activeMouseMode = modeTracker.activeMouseMode,
+                    bracketPasteMode = modeTracker.bracketPasteMode,
+                )
+            ) {
+                agentFeed = feed
+            }
         }
+        // No-op when an existing LocalSession is attached, regardless of
+        // the original plain choice — see LocalSessionManager.startHeadlessShell.
+        localSessionManager.startHeadlessShell(
+            sessionId,
+            extraOnData = agentFeed,
+            plain = plain,
+        )
         // The PTY reader thread starts asynchronously, so wait briefly for the
         // shell's first output before returning — otherwise an immediate
         // send_terminal_input / read_terminal_scrollback races an unattached
