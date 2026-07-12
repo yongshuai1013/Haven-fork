@@ -66,6 +66,7 @@ class StandingPolicyToolsTest {
         prootInstallLogRepository = mockk<sh.haven.core.data.repository.ProotInstallLogRepository>(relaxed = true),
         sshKeyRepository = mockk<sh.haven.core.data.repository.SshKeyRepository>(relaxed = true),
         knownHostDao = mockk(relaxed = true),
+        stepCaConfigRepository = mockk<sh.haven.core.data.repository.StepCaConfigRepository>(relaxed = true),
         totpSecretRepository = mockk<sh.haven.core.data.repository.TotpSecretRepository>(relaxed = true),
             ageIdentityRepository = mockk<sh.haven.core.data.repository.AgeIdentityRepository>(relaxed = true),
         desktopSessionRegistry = mockk<sh.haven.core.data.desktop.DesktopSessionRegistry>(relaxed = true),

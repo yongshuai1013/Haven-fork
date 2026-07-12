@@ -99,6 +99,7 @@ internal class McpTools(
     private val prootInstallLogRepository: sh.haven.core.data.repository.ProotInstallLogRepository,
     private val sshKeyRepository: sh.haven.core.data.repository.SshKeyRepository,
     private val knownHostDao: sh.haven.core.data.db.KnownHostDao,
+    private val stepCaConfigRepository: sh.haven.core.data.repository.StepCaConfigRepository,
     private val totpSecretRepository: sh.haven.core.data.repository.TotpSecretRepository,
     private val ageIdentityRepository: sh.haven.core.data.repository.AgeIdentityRepository,
     private val desktopSessionRegistry: sh.haven.core.data.desktop.DesktopSessionRegistry,
@@ -229,6 +230,9 @@ internal class McpTools(
     private val hostKeyProvider = HostKeyToolProvider(
         knownHostDao = knownHostDao,
     )
+    private val stepCaProvider = StepCaToolProvider(
+        stepCaConfigRepository = stepCaConfigRepository,
+    )
     private val rcloneProvider = RcloneToolProvider(
         rcloneClient = rcloneClient,
         syncProfileRepository = syncProfileRepository,
@@ -281,7 +285,7 @@ internal class McpTools(
     private val tools: Map<String, ToolHandler> =
         toolsPart1() + toolsPart2() + toolsPart3() + toolsPart4() +
             keyStoreProvider.tools() + tunnelProvider.tools() + sshKeyProvider.tools() +
-            hostKeyProvider.tools() + rcloneProvider.tools() + usbProvider.tools() +
+            hostKeyProvider.tools() + stepCaProvider.tools() + rcloneProvider.tools() + usbProvider.tools() +
             desktopProvider.tools() + mailProvider.tools()
 
     private fun toolsPart1(): Map<String, ToolHandler> = linkedMapOf(

@@ -41,9 +41,9 @@ Tools are grouped into sections by what they touch, and each tool is collapsed �
 expand one for its description and arguments. The tag after each name is its
 consent level:
 
-- **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (65 tools).
+- **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (67 tools).
 - **asks once per session** — reversible actions and screen-reading; prompts the first time each session, then proceeds (47 tools).
-- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (79 tools).
+- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (80 tools).
 
 ## Sections
 
@@ -55,7 +55,7 @@ consent level:
 - [**Linux guest (proot) & desktops**](#sec-linux) — 44 tools
 - [**Networking — tunnels & port forwarding**](#sec-networking) — 11 tools
 - [**USB & host-device brokers**](#sec-usb) — 17 tools
-- [**Security — SSH keys, host keys, TOTP & age**](#sec-security) — 11 tools
+- [**Security — SSH keys, host keys, TOTP & age**](#sec-security) — 14 tools
 - [**Agent ↔ you (attention & self-drive)**](#sec-agent-you) — 12 tools
 - [**Agent endpoint, device & diagnostics**](#sec-agent-endpoint) — 13 tools
 
@@ -1732,9 +1732,19 @@ Perform a USB endpoint-0 control transfer on an opened device. Args: deviceName,
 
 <a id="sec-security"></a>
 
-## Security — SSH keys, host keys, TOTP & age (11)
+## Security — SSH keys, host keys, TOTP & age (14)
 
-The SSH key store, pinned host keys (TOFU), TOTP secrets, and age encryption identities.
+The SSH key store, pinned host keys (TOFU), trusted host CAs, TOTP secrets, and age encryption identities.
+
+<details markdown="1">
+<summary><code>add_trusted_host_ca</code> · asks every call</summary>
+
+Trust an SSH host CA (#133): register a CA public key so any server presenting an OpenSSH host certificate signed by it connects without a TOFU prompt. `caPublicKey` is an OpenSSH public-key line ("ssh-ed25519 AAAA… [comment]") or a bare base64 blob; `name` is a label. Ed25519 and ECDSA host CAs are verified natively; RSA host CAs are stored but not yet validated by the SSH library. Establishing trust is a security boundary — gated by consent.
+
+- `caPublicKey` (string, required) — The CA's OpenSSH public key line, or bare base64 blob.
+- `name` (string, required) — Label for this trusted CA (shown under Keys → Certificate authorities).
+
+</details>
 
 <details markdown="1">
 <summary><code>create_age_identity</code> · asks every call</summary>
@@ -1771,6 +1781,15 @@ Delete a saved SSH key by id. Profiles that referenced it via sshKeyId will fall
 Delete a saved TOTP secret by id. Profiles referencing it via a TOTP auth element fall through to a manual OTP prompt on next connect. Irreversible.
 
 - `totpSecretId` (string, required) — TOTP secret id from list_totp_secrets.
+
+</details>
+
+<details markdown="1">
+<summary><code>delete_trusted_host_ca</code> · asks every call</summary>
+
+Remove a trusted SSH host CA by id (from list_trusted_host_cas). Servers signed by it fall back to the usual per-host TOFU prompt on the next connect. Deletes the whole step-ca config row for that id. No-op if none matches; returns removed=true/false. Gated by consent.
+
+- `id` (string, required) — The config id to remove (from list_trusted_host_cas).
 
 </details>
 
@@ -1820,6 +1839,13 @@ List saved SSH keys available for SSH / Mosh / SFTP profiles. Returns id, label,
 <summary><code>list_totp_secrets</code> · no per-call prompt</summary>
 
 List saved OATH-TOTP authenticator secrets (#178). Returns id, label, issuer, accountName, algorithm, digits, periodSeconds, and createdAt. The base32 secret itself is NEVER returned — it stays encrypted at rest. Reference an id as a `TOTP:<id>` token in create_connection's authMethods to auto-fill the SSH 'Verification code:' prompt.
+
+</details>
+
+<details markdown="1">
+<summary><code>list_trusted_host_cas</code> · no per-call prompt</summary>
+
+List the trusted SSH host-CA entries — the step-ca configs whose SSH host-CA public key is set (#133). A server presenting an OpenSSH host certificate signed by one of these CAs connects with no TOFU fingerprint prompt. Returns, per entry: id, name, keyType, and fingerprint (SHA-256, OpenSSH format). Configs with no host-CA key are omitted. Use add_trusted_host_ca / delete_trusted_host_ca to change the store.
 
 </details>
 
