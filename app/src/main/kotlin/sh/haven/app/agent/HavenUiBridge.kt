@@ -98,6 +98,64 @@ class HavenUiBridge @Inject constructor(
         overlays.mapNotNull { (label, ref) -> ref.get()?.let { label to it } }
     }
 
+    /** One of the app's on-screen windows: its root [decor] view, screen-origin, and a dump label. */
+    private class WindowInfo(val decor: View, val locX: Int, val locY: Int, val label: String?)
+
+    /**
+     * The app's attached, visible windows in z-order (bottom→top) — the
+     * activity window PLUS any Compose dialogs / dropdown menus / bottom
+     * sheets, which each render in their own window (multi-window coverage,
+     * the follow-up the earlier activity-only phase deferred). Reflects into
+     * `WindowManagerGlobal.mViews`; that is per-PROCESS, so it only ever
+     * exposes Haven's own windows (no cross-app leak). Falls back to the
+     * activity window alone if the greylist field is unavailable, so behaviour
+     * degrades to the previous phase rather than breaking.
+     */
+    private fun appWindows(activity: Activity): List<WindowInfo> {
+        val activityDecor = activity.window.decorView
+        val loc = IntArray(2)
+        fun infoFor(v: View, label: String?): WindowInfo {
+            v.getLocationOnScreen(loc)
+            return WindowInfo(v, loc[0], loc[1], label)
+        }
+        val roots = windowManagerRootViews()
+            ?: return listOf(infoFor(activityDecor, null))
+        val overlaysNow = overlaySnapshot()
+        var extra = 0
+        return roots
+            .filter { it.isAttachedToWindow && it.windowVisibility == View.VISIBLE && it.width > 0 && it.height > 0 }
+            .map { v ->
+                val label = when {
+                    v === activityDecor -> null
+                    else -> overlaysNow.firstOrNull { isDescendant(v, it.second) }?.first
+                        ?: "window-${++extra}"
+                }
+                infoFor(v, label)
+            }
+    }
+
+    /** `WindowManagerGlobal.getInstance().mViews`, or null if the greylist path is unavailable. */
+    private fun windowManagerRootViews(): List<View>? = try {
+        val cls = Class.forName("android.view.WindowManagerGlobal")
+        val instance = cls.getMethod("getInstance").invoke(null)
+        val field = cls.getDeclaredField("mViews").apply { isAccessible = true }
+        when (val value = field.get(instance)) {
+            is List<*> -> value.filterIsInstance<View>()
+            is Array<*> -> value.filterIsInstance<View>()
+            else -> null
+        }.takeIf { it != null && it.isNotEmpty() }
+    } catch (e: Throwable) {
+        null
+    }
+
+    private fun isDescendant(root: View, target: View): Boolean {
+        if (root === target) return true
+        if (root is ViewGroup) {
+            for (i in 0 until root.childCount) if (isDescendant(root.getChildAt(i), target)) return true
+        }
+        return false
+    }
+
     /** Called from [MainActivity.onResume]: this activity is now foreground. */
     fun attach(activity: Activity) {
         activityRef = WeakReference(activity)
@@ -120,6 +178,12 @@ class HavenUiBridge @Inject constructor(
      * main thread, via [PixelCopy] (which reads the hardware-composited
      * surface — the only correct path for Compose's hardware layers; a
      * Canvas-draw of the decor view yields blank for accelerated content).
+     *
+     * Captures the ACTIVITY window's pixels. A Compose dialog / dropdown menu
+     * over it renders in a separate window whose Surface is not reachable to
+     * composite here, so it may not appear in the image — but [dumpUi] does
+     * report those windows' elements (in this same coordinate space), so an
+     * agent drives popups off the dump, not the pixels.
      */
     suspend fun captureScreen(): CaptureResult = withContext(Dispatchers.Main.immediate) {
         val activity = activityRef?.get()
@@ -159,11 +223,11 @@ class HavenUiBridge @Inject constructor(
      */
     suspend fun dispatchTap(x: Int, y: Int, holdMs: Long): InjectResult =
         withContext(Dispatchers.Main.immediate) {
-            val view = injectableView() ?: return@withContext injectionRefusal()
+            val (view, lx, ly) = injectTarget(x, y) ?: return@withContext injectionRefusal()
             val downTime = SystemClock.uptimeMillis()
-            dispatch(view, downTime, downTime, MotionEvent.ACTION_DOWN, x, y)
+            dispatch(view, downTime, downTime, MotionEvent.ACTION_DOWN, lx, ly)
             if (holdMs > 0) delay(holdMs)
-            dispatch(view, downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y)
+            dispatch(view, downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, lx, ly)
             InjectResult.Delivered
         }
 
@@ -180,34 +244,57 @@ class HavenUiBridge @Inject constructor(
         durationMs: Long,
         steps: Int,
     ): InjectResult = withContext(Dispatchers.Main.immediate) {
-        val view = injectableView() ?: return@withContext injectionRefusal()
+        // A drag stays within one window: pick it by the START point and apply
+        // the same activity-space→window-local offset to every interpolated step.
+        val target = injectTarget(fromX, fromY) ?: return@withContext injectionRefusal()
+        val view = target.first
+        val offX = target.second - fromX
+        val offY = target.third - fromY
         val n = steps.coerceIn(1, 200)
         val stepDelay = (durationMs / n).coerceAtLeast(1)
         val downTime = SystemClock.uptimeMillis()
-        dispatch(view, downTime, downTime, MotionEvent.ACTION_DOWN, fromX, fromY)
+        dispatch(view, downTime, downTime, MotionEvent.ACTION_DOWN, fromX + offX, fromY + offY)
         for (i in 1..n) {
             delay(stepDelay)
             val t = i.toFloat() / n
-            val ix = (fromX + (toX - fromX) * t).toInt()
-            val iy = (fromY + (toY - fromY) * t).toInt()
+            val ix = (fromX + (toX - fromX) * t).toInt() + offX
+            val iy = (fromY + (toY - fromY) * t).toInt() + offY
             dispatch(view, downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE, ix, iy)
         }
-        dispatch(view, downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, toX, toY)
+        dispatch(view, downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, toX + offX, toY + offY)
         InjectResult.Delivered
     }
 
     /**
-     * The decor view to inject into, or null when injection must be refused
-     * (a consent prompt is showing — the self-confirm guard — or no activity
-     * is foreground). On a null return, [injectionRefusal] gives the reason.
-     * Both must run on the main thread, back to back, within one dispatch.
+     * The window to inject a tap at ([x],[y]) into — the topmost app window
+     * whose bounds contain that point (so a dropdown menu / dialog above the
+     * activity receives the tap, not the covered activity beneath it) — with
+     * the point translated into that window's local coordinates. Null when
+     * injection must be refused (a consent prompt is showing — the
+     * self-confirm guard — or no activity is foreground).
+     *
+     * [x]/[y] are in the activity-window coordinate space the dump and capture
+     * report; the activity window's own origin is subtracted back out so a
+     * child window's local coordinates come out right.
      */
-    private fun injectableView(): View? {
+    private fun injectTarget(x: Int, y: Int): Triple<View, Int, Int>? {
         if (consentManager.pending.value.isNotEmpty()) return null
-        return activityRef?.get()?.window?.decorView
+        val activity = activityRef?.get() ?: return null
+        val windows = appWindows(activity)
+        val activityDecor = activity.window.decorView
+        val loc = IntArray(2).also { activityDecor.getLocationOnScreen(it) }
+        // Caller coords are activity-window space; map to absolute screen.
+        val screenX = x + loc[0]
+        val screenY = y + loc[1]
+        // Topmost (last in z-order) window containing the point.
+        val hit = windows.lastOrNull { w ->
+            screenX >= w.locX && screenX < w.locX + w.decor.width &&
+                screenY >= w.locY && screenY < w.locY + w.decor.height
+        } ?: return Triple(activityDecor, x, y)
+        return Triple(hit.decor, screenX - hit.locX, screenY - hit.locY)
     }
 
-    /** The refusal that pairs with a null [injectableView] (re-checks the same state). */
+    /** The refusal that pairs with a null [injectTarget] (re-checks the same state). */
     private fun injectionRefusal(): InjectResult.Refused =
         if (consentManager.pending.value.isNotEmpty()) {
             InjectResult.Refused(
@@ -254,12 +341,14 @@ class HavenUiBridge @Inject constructor(
      * them straight to [dispatchTap]. Bounds are window-relative pixels,
      * the same space [captureScreen]/[dispatchTap] use.
      *
-     * Phase 1: the **activity window only**. Compose dialogs / bottom
-     * sheets render in separate windows that [captureScreen] and
-     * [dispatchTap] don't currently reach either; multi-window coverage is
-     * a follow-up. Reads the public [SemanticsNode] API; the two owner /
-     * root-node accessors are `internal`, so they're reached by reflection
-     * (defensively, scanning for the getter by name).
+     * Multi-window: the activity window PLUS any Compose dialogs / dropdown
+     * menus / bottom sheets, each of which renders in its own window (via
+     * [appWindows]). A child window's node bounds are translated into the
+     * activity-window coordinate space that [dispatchTap] and [captureScreen]
+     * use, so a bound read from the dump can be tapped directly. Reads the
+     * public [SemanticsNode] API; the two owner / root-node accessors are
+     * `internal`, so they're reached by reflection (defensively, scanning for
+     * the getter by name).
      */
     suspend fun dumpUi(): DumpResult = withContext(Dispatchers.Main.immediate) {
         val activity = activityRef?.get()
@@ -271,31 +360,28 @@ class HavenUiBridge @Inject constructor(
             return@withContext DumpResult.Secure
         }
         val decor = window.decorView
-        val composeView = findComposeView(decor)
-            ?: return@withContext DumpResult.Failed("No Compose view in the foreground window.")
-        val owner = reflectGetter(composeView, "getSemanticsOwner") as? SemanticsOwner
-            ?: return@withContext DumpResult.Failed("Compose semantics owner not reachable.")
-        val root = (reflectGetter(owner, "getUnmergedRootSemanticsNode") as? SemanticsNode)
-            ?: (reflectGetter(owner, "getRootSemanticsNode") as? SemanticsNode)
-            ?: return@withContext DumpResult.Failed("Compose root semantics node not reachable.")
+        val activityLoc = IntArray(2).also { decor.getLocationOnScreen(it) }
         val nodes = ArrayList<UiNode>()
-        try {
-            walkSemantics(root, nodes, window = null)
-        } catch (e: Throwable) {
-            return@withContext DumpResult.Failed("Semantics walk failed: ${e.message}")
-        }
-        // Overlay windows (consent sheet, dialogs) — see [overlays] (#355). A
-        // failure to walk one must not lose the activity window's nodes, so
-        // each is best-effort.
-        for ((label, view) in overlaySnapshot()) {
+        var walkedAny = false
+        // Each window is best-effort: a failure to walk one (a popup mid-
+        // animation, an unexpected view root) must not lose the others' nodes.
+        for (win in appWindows(activity)) {
             runCatching {
-                val ov = findComposeView(view) ?: return@runCatching
-                val oOwner = reflectGetter(ov, "getSemanticsOwner") as? SemanticsOwner ?: return@runCatching
-                val oRoot = (reflectGetter(oOwner, "getUnmergedRootSemanticsNode") as? SemanticsNode)
-                    ?: (reflectGetter(oOwner, "getRootSemanticsNode") as? SemanticsNode)
+                val cv = findComposeView(win.decor) ?: return@runCatching
+                val owner = reflectGetter(cv, "getSemanticsOwner") as? SemanticsOwner ?: return@runCatching
+                val root = (reflectGetter(owner, "getUnmergedRootSemanticsNode") as? SemanticsNode)
+                    ?: (reflectGetter(owner, "getRootSemanticsNode") as? SemanticsNode)
                     ?: return@runCatching
-                walkSemantics(oRoot, nodes, window = label)
+                // Offset a child window's node bounds into activity-window space.
+                walkSemantics(
+                    root, nodes, window = win.label,
+                    offsetX = win.locX - activityLoc[0], offsetY = win.locY - activityLoc[1],
+                )
+                walkedAny = true
             }
+        }
+        if (!walkedAny) {
+            return@withContext DumpResult.Failed("No Compose semantics reachable in any foreground window.")
         }
         DumpResult.Ok(nodes, decor.width, decor.height)
     }
@@ -317,7 +403,13 @@ class HavenUiBridge @Inject constructor(
         null
     }
 
-    private fun walkSemantics(node: SemanticsNode, out: MutableList<UiNode>, window: String?) {
+    private fun walkSemantics(
+        node: SemanticsNode,
+        out: MutableList<UiNode>,
+        window: String?,
+        offsetX: Int = 0,
+        offsetY: Int = 0,
+    ) {
         val cfg = node.config
         val text = cfg.getOrNull(SemanticsProperties.Text)?.joinToString(" ") { it.text }?.takeIf { it.isNotEmpty() }
         val desc = cfg.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")?.takeIf { it.isNotEmpty() }
@@ -326,6 +418,8 @@ class HavenUiBridge @Inject constructor(
         val clickable = cfg.contains(SemanticsActions.OnClick)
         val disabled = cfg.contains(SemanticsProperties.Disabled)
         if (text != null || desc != null || editable != null || clickable) {
+            // boundsInWindow is relative to this node's OWN window; offset by the
+            // window's origin so every node reports in one (activity-window) space.
             val b = node.boundsInWindow
             out += UiNode(
                 text = text,
@@ -334,14 +428,14 @@ class HavenUiBridge @Inject constructor(
                 role = role,
                 clickable = clickable,
                 disabled = disabled,
-                left = b.left.toInt(),
-                top = b.top.toInt(),
-                right = b.right.toInt(),
-                bottom = b.bottom.toInt(),
+                left = b.left.toInt() + offsetX,
+                top = b.top.toInt() + offsetY,
+                right = b.right.toInt() + offsetX,
+                bottom = b.bottom.toInt() + offsetY,
                 window = window,
             )
         }
-        for (child in node.children) walkSemantics(child, out, window)
+        for (child in node.children) walkSemantics(child, out, window, offsetX, offsetY)
     }
 
     /** One semantic element: its text/desc/role, whether it's clickable/editable, and window-pixel bounds. */
