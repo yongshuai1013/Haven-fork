@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.61
+
+⏱️ **A jump-host connection that goes quiet now fails instead of spinning forever** — a connection through a jump host runs over a tunnelling channel rather than a socket, so the connect timeout never applied to it: if the machine on the far side accepted the channel but said nothing, Haven waited indefinitely, showed no error, and wrote nothing to the connection log. It now gives the far side a deadline to say hello, and reports what happened — naming the hop that went quiet — instead of leaving a spinner turning. Only that first hello is on the clock; typing a password, entering a TOTP code or touching a security key is never rushed. (#383)
+
 ## v5.68.60
 
 🖥️ **The terminal can no longer lose a shell's first output** — the same JSch trap fixed for jump hosts in v5.68.59 also sat on the interactive shell: Haven opened the shell channel and only bound its streams afterwards, and anything the remote sent in that gap (login banner, MOTD, first prompt) was silently discarded. It bit far more rarely there than on a jump host — a shell's first output waits for the remote shell to start, while a jump target's SSH banner is already in flight — so no one reported it; it was found while fixing #381 and is closed the same way, by binding the channel's streams before it is opened. (#382)
