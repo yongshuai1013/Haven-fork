@@ -3034,7 +3034,13 @@ class ConnectionsViewModel @Inject constructor(
                 val existingSessions = withContext(Dispatchers.IO) {
                     listExistingMultiplexerSessions(smgr) { client.execCommand(it) }
                 }
-                if (existingSessions.isNotEmpty()) {
+                // The session this profile was last on is still running: go
+                // straight back to it. The ET transport is new but the shell
+                // inside the multiplexer is exactly where the user left it —
+                // that, not transport resumption, is what survives an app
+                // restart (#371).
+                val autoAttach = autoAttachSessionName(profile, existingSessions)
+                if (autoAttach == null && existingSessions.isNotEmpty()) {
                     etPendingClient = client
                     etPendingProfile = profile
                     etPendingVerboseLogger = verboseLogger
@@ -3051,8 +3057,9 @@ class ConnectionsViewModel @Inject constructor(
                     return@launch // UI will call onSessionSelected() to continue
                 }
 
-                // No existing sessions — proceed directly
-                finishEtConnect(sessionId, profile, client, smgr, null, verboseLogger = verboseLogger)
+                // Re-attach to the remembered session, or (nothing remembered
+                // and nothing running) start a fresh one.
+                finishEtConnect(sessionId, profile, client, smgr, autoAttach, verboseLogger = verboseLogger)
             } catch (e: Exception) {
                 Log.e(TAG, "connectEternalTerminal failed for ${profile.label}: ${e.message}", e)
                 connectionLogRepository.logEvent(profile.id, ConnectionLog.Status.FAILED, details = e.message, verboseLog = verboseLogger?.drain())
@@ -3125,7 +3132,14 @@ class ConnectionsViewModel @Inject constructor(
                 val existingSessions = withContext(Dispatchers.IO) {
                     listExistingMultiplexerSessions(smgr) { client.execCommand(it) }
                 }
-                if (existingSessions.isNotEmpty()) {
+                // The session this profile was last on is still running: go
+                // straight back to it. A mosh-server can't be re-attached by a
+                // new client — it ignores one even with the right key (#371) —
+                // but the multiplexer session behind it survives the app, so
+                // re-attaching to that is what puts the user back where they
+                // left off.
+                val autoAttach = autoAttachSessionName(profile, existingSessions)
+                if (autoAttach == null && existingSessions.isNotEmpty()) {
                     // Keep SSH client alive for mosh-server exec after user picks
                     moshPendingClient = client
                     moshPendingHost = profile.host
@@ -3143,8 +3157,9 @@ class ConnectionsViewModel @Inject constructor(
                     return@launch // UI will call onSessionSelected() to continue
                 }
 
-                // No existing sessions — proceed directly
-                finishMoshConnect(sessionId, profile.id, profile.host, client, smgr, null, verboseLogger = verboseLogger)
+                // Re-attach to the remembered session, or (nothing remembered
+                // and nothing running) start a fresh one.
+                finishMoshConnect(sessionId, profile.id, profile.host, client, smgr, autoAttach, verboseLogger = verboseLogger)
             } catch (e: Exception) {
                 Log.e(TAG, "connectMosh failed for ${profile.label}: ${e.message}", e)
                 connectionLogRepository.logEvent(profile.id, ConnectionLog.Status.FAILED, details = e.message, verboseLog = verboseLogger?.drain())

@@ -54,7 +54,7 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         AgeIdentityEntity::class,
         SshIdentity::class,
     ],
-    version = 76,
+    version = 78,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -1238,6 +1238,45 @@ abstract class HavenDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 addColumnIfMissing(db, "workspace_item", "sessionName", "TEXT")
             }
+        }
+
+        /**
+         * No schema change — the bump exists only to give the abandoned v77
+         * below a version to land on. Everyone on a released build takes this
+         * path, and it does nothing.
+         */
+        val MIGRATION_76_78 = object : Migration(76, 78) {
+            override fun migrate(db: SupportSQLiteDatabase) = Unit
+        }
+
+        /**
+         * Undo an abandoned schema. A never-released build (the #371 mosh
+         * saved-key experiment) shipped a v77 that added four
+         * `connection_profiles` columns; the approach turned out to be
+         * impossible (a mosh-server ignores a second client, so the saved key
+         * is useless) and the code is gone. Room refuses to open a database
+         * newer than the app, so any device that ran that build would crash on
+         * startup forever — dropping the columns brings it back in line
+         * instead. Only ever runs on a machine that installed the dev build;
+         * released versions go 76 → 78 straight past it.
+         */
+        val MIGRATION_77_78 = object : Migration(77, 78) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (col in listOf(
+                    "moshReconnectToExisting", "savedMoshKey", "savedMoshPort", "savedMoshServerIp",
+                )) {
+                    dropColumnIfPresent(db, "connection_profiles", col)
+                }
+            }
+        }
+
+        /** DROP COLUMN needs SQLite 3.35+ (Android 12+); absent/failed is survivable here. */
+        private fun dropColumnIfPresent(db: SupportSQLiteDatabase, table: String, column: String) {
+            val exists = db.query("PRAGMA table_info($table)").use { c ->
+                val nameIdx = c.getColumnIndex("name")
+                generateSequence { if (c.moveToNext()) c.getString(nameIdx) else null }.any { it == column }
+            }
+            if (exists) db.execSQL("ALTER TABLE $table DROP COLUMN $column")
         }
 
         private fun addColumnIfMissing(

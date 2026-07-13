@@ -2,6 +2,7 @@ package sh.haven.feature.connections
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.haven.core.data.db.entities.ConnectionProfile
@@ -76,5 +77,40 @@ class MoshEtBootstrapTest {
         }
         assertTrue(names.isEmpty())
         assertTrue(!called)
+    }
+
+    // --- auto-attach to the remembered multiplexer session (#371 follow-up) ---
+    //
+    // The transport can't be resumed after an app restart, but the tmux/zellij
+    // session behind it can — so a reconnect goes straight back to it instead
+    // of stopping at the picker. Null means "keep the picker".
+
+    @Test fun remembersAndReattachesToTheSessionStillRunning() {
+        val p = profile.copy(lastSessionName = "box")
+        assertEquals("box", autoAttachSessionName(p, listOf("box", "scratch")))
+    }
+
+    @Test fun rememberedSessionGoneFallsBackToThePicker() {
+        // Killed, or the host rebooted: the name no longer exists remotely.
+        val p = profile.copy(lastSessionName = "box")
+        assertNull(autoAttachSessionName(p, listOf("scratch", "other")))
+    }
+
+    @Test fun nothingRememberedKeepsThePicker() {
+        assertNull(autoAttachSessionName(profile.copy(lastSessionName = null), listOf("scratch")))
+        assertNull(autoAttachSessionName(profile.copy(lastSessionName = ""), listOf("scratch")))
+    }
+
+    @Test fun severalRememberedSessionsKeepThePicker() {
+        // A multi-session restore is a real choice — don't make it silently.
+        val p = profile.copy(lastSessionName = "box|scratch")
+        assertNull(autoAttachSessionName(p, listOf("box", "scratch")))
+    }
+
+    @Test fun nothingRunningRemotelyStartsFresh() {
+        // Remembered, but the remote has no sessions at all: null → the connect
+        // falls through and creates the session (tmux new-session -A).
+        val p = profile.copy(lastSessionName = "box")
+        assertNull(autoAttachSessionName(p, emptyList()))
     }
 }

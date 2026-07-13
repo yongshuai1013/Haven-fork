@@ -58,6 +58,32 @@ internal fun moshEtBootstrapConfig(
 )
 
 /**
+ * The multiplexer session to re-attach to without stopping at the picker:
+ * the one this profile was last attached to, when it is still running on
+ * the remote.
+ *
+ * This is what actually survives an app restart. The Mosh/ET transport
+ * itself cannot be resumed — a mosh-server ignores a second client process
+ * even with the right key, port and IP (verified against stock mosh; #371)
+ * — but the tmux/zellij/screen session behind it lives on, and attaching
+ * back to it restores the shell exactly where the user left it. The silent
+ * group-launch path has always attached by [ConnectionProfile.lastSessionName];
+ * this lets the interactive connect do the same instead of asking.
+ *
+ * Null — keep the picker — when nothing is remembered, when the remembered
+ * session is gone (killed, or the host rebooted), or when several are
+ * remembered, since then the user genuinely has a choice to make.
+ */
+internal fun autoAttachSessionName(profile: ConnectionProfile, existing: List<String>): String? {
+    val remembered = profile.lastSessionName
+        ?.split("|")
+        ?.filter { it.isNotBlank() }
+        ?.singleOrNull()
+        ?: return null
+    return remembered.takeIf { it in existing }
+}
+
+/**
  * Best-effort listing of existing multiplexer sessions on the remote: a
  * manager without a list command, a non-zero exit, or an exec failure all
  * yield an empty list, so the connect proceeds to a fresh session instead
