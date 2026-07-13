@@ -245,7 +245,7 @@ fun ConnectionEditDialog(
     var rdpColorDepth by rememberSaveable { mutableStateOf(existing?.rdpColorDepth ?: 32) }
     var spicePassword by rememberSaveable { mutableStateOf(existing?.spicePassword ?: "") }
     var spiceSshForward by rememberSaveable {
-        mutableStateOf(existing?.let { it.connectionType == "SPICE" && it.spiceSshForward && it.spiceSshProfileId != null } ?: false)
+        mutableStateOf(existing?.let { strictTunnelInitialEnabled(it.connectionType, "SPICE", it.spiceSshForward, it.spiceSshProfileId) } ?: false)
     }
     var spiceSshProfileId by rememberSaveable { mutableStateOf(existing?.spiceSshProfileId) }
     var smbShare by rememberSaveable { mutableStateOf(existing?.smbShare ?: "") }
@@ -256,7 +256,7 @@ fun ConnectionEditDialog(
     var vncUsername by rememberSaveable { mutableStateOf(existing?.vncUsername ?: "") }
     var vncPassword by rememberSaveable { mutableStateOf(existing?.vncPassword ?: "") }
     var vncSshForward by rememberSaveable {
-        mutableStateOf(existing?.let { it.connectionType == "VNC" && it.vncSshForward && it.vncSshProfileId != null } ?: false)
+        mutableStateOf(existing?.let { strictTunnelInitialEnabled(it.connectionType, "VNC", it.vncSshForward, it.vncSshProfileId) } ?: false)
     }
     var vncSshProfileId by rememberSaveable { mutableStateOf(existing?.vncSshProfileId) }
     var vncColorDepth by rememberSaveable { mutableStateOf(existing?.vncColorDepth ?: "BPP_24_TRUE") }
@@ -1580,65 +1580,19 @@ fun ConnectionEditDialog(
                     }
                 } else if (connectionType == "VNC") {
                     ConnectionSection(stringResource(R.string.connections_section_vnc))
-                    // VNC: same shape as RDP — tunnel toggle first (it changes
-                    // what Host means), then connection fields. Mirrors the
-                    // RDP block below for consistency (see #107 follow-up).
-                    BooleanToggleRow(
-                        label = stringResource(R.string.connections_field_tunnel_through_ssh),
-                        checked = vncSshForward,
-                        onCheckedChange = { newValue ->
+                    // VNC: tunnel toggle first (it changes what Host means),
+                    // then connection fields.
+                    SshTunnelBlock(
+                        enabled = vncSshForward,
+                        carrierId = vncSshProfileId,
+                        sshProfiles = sshProfiles,
+                        onEnabledChange = { newValue ->
                             vncSshForward = newValue
-                            if (newValue) {
-                                if (host.isBlank() || host == "localhost") host = "127.0.0.1"
-                            } else {
-                                vncSshProfileId = null
-                                if (host == "127.0.0.1" || host == "localhost") host = ""
-                            }
+                            if (!newValue) vncSshProfileId = null
+                            host = tunnelHostOnToggle(newValue, host)
                         },
+                        onCarrierChange = { vncSshProfileId = it },
                     )
-                    if (vncSshForward) {
-                        val sshCandidates = sshProfiles.filter { it.isSsh }
-                        if (sshCandidates.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            var sshExpanded by remember { mutableStateOf(false) }
-                            val selectedSsh = sshCandidates.firstOrNull { it.id == vncSshProfileId }
-                            ExposedDropdownMenuBox(
-                                expanded = sshExpanded,
-                                onExpandedChange = { sshExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedSsh?.label ?: stringResource(R.string.connections_dropdown_select_ssh),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text(stringResource(R.string.connections_field_ssh_connection)) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sshExpanded,
-                                    onDismissRequest = { sshExpanded = false },
-                                ) {
-                                    sshCandidates.forEach { candidate ->
-                                        DropdownMenuItem(
-                                            text = { Text(candidate.label) },
-                                            onClick = {
-                                                vncSshProfileId = candidate.id
-                                                sshExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                stringResource(R.string.connections_helper_add_ssh_first),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = host,
@@ -1729,71 +1683,17 @@ fun ConnectionEditDialog(
                     ConnectionSection(stringResource(R.string.connections_section_rdp))
                     // RDP: SSH tunnel toggle first (it changes what Host means),
                     // then host, port, username, domain.
-                    BooleanToggleRow(
-                        label = stringResource(R.string.connections_field_tunnel_through_ssh),
-                        checked = rdpSshForward,
-                        onCheckedChange = { newValue ->
+                    SshTunnelBlock(
+                        enabled = rdpSshForward,
+                        carrierId = rdpSshProfileId,
+                        sshProfiles = sshProfiles,
+                        onEnabledChange = { newValue ->
                             rdpSshForward = newValue
-                            if (newValue) {
-                                // Default to 127.0.0.1 (not "localhost") so
-                                // the remote sshd doesn't hit the IPv6
-                                // loopback first and fail against a
-                                // server bound to IPv4 only. Matches the
-                                // VNC tunnel fix in v5.24.14.
-                                if (host.isBlank() || host == "localhost") host = "127.0.0.1"
-                            } else {
-                                rdpSshProfileId = null
-                                if (host == "127.0.0.1" || host == "localhost") host = ""
-                            }
+                            if (!newValue) rdpSshProfileId = null
+                            host = tunnelHostOnToggle(newValue, host)
                         },
+                        onCarrierChange = { rdpSshProfileId = it },
                     )
-                    // SSH profile dropdown sits right next to the tunnel toggle
-                    // so the two fields read as one decision ("tunnel through
-                    // [this SSH connection]"), rather than having the SSH
-                    // picker buried at the bottom of the dialog.
-                    if (rdpSshForward) {
-                        val sshCandidates = sshProfiles.filter { it.isSsh }
-                        if (sshCandidates.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            var sshExpanded by remember { mutableStateOf(false) }
-                            val selectedSsh = sshCandidates.firstOrNull { it.id == rdpSshProfileId }
-                            ExposedDropdownMenuBox(
-                                expanded = sshExpanded,
-                                onExpandedChange = { sshExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedSsh?.label ?: stringResource(R.string.connections_dropdown_select_ssh),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text(stringResource(R.string.connections_field_ssh_connection)) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sshExpanded,
-                                    onDismissRequest = { sshExpanded = false },
-                                ) {
-                                    sshCandidates.forEach { candidate ->
-                                        DropdownMenuItem(
-                                            text = { Text(candidate.label) },
-                                            onClick = {
-                                                rdpSshProfileId = candidate.id
-                                                sshExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                stringResource(R.string.connections_helper_add_ssh_first),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = host,
@@ -1915,62 +1815,17 @@ fun ConnectionEditDialog(
                     // SPICE: tunnel toggle first (changes what Host means), then
                     // host/port/password. Auth is a single optional ticket — no
                     // username/domain/colour-depth (the framebuffer is 32bpp).
-                    BooleanToggleRow(
-                        label = stringResource(R.string.connections_field_tunnel_through_ssh),
-                        checked = spiceSshForward,
-                        onCheckedChange = { newValue ->
+                    SshTunnelBlock(
+                        enabled = spiceSshForward,
+                        carrierId = spiceSshProfileId,
+                        sshProfiles = sshProfiles,
+                        onEnabledChange = { newValue ->
                             spiceSshForward = newValue
-                            if (newValue) {
-                                if (host.isBlank() || host == "localhost") host = "127.0.0.1"
-                            } else {
-                                spiceSshProfileId = null
-                                if (host == "127.0.0.1" || host == "localhost") host = ""
-                            }
+                            if (!newValue) spiceSshProfileId = null
+                            host = tunnelHostOnToggle(newValue, host)
                         },
+                        onCarrierChange = { spiceSshProfileId = it },
                     )
-                    if (spiceSshForward) {
-                        val sshCandidates = sshProfiles.filter { it.isSsh }
-                        if (sshCandidates.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            var sshExpanded by remember { mutableStateOf(false) }
-                            val selectedSsh = sshCandidates.firstOrNull { it.id == spiceSshProfileId }
-                            ExposedDropdownMenuBox(
-                                expanded = sshExpanded,
-                                onExpandedChange = { sshExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedSsh?.label ?: stringResource(R.string.connections_dropdown_select_ssh),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text(stringResource(R.string.connections_field_ssh_connection)) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sshExpanded,
-                                    onDismissRequest = { sshExpanded = false },
-                                ) {
-                                    sshCandidates.forEach { candidate ->
-                                        DropdownMenuItem(
-                                            text = { Text(candidate.label) },
-                                            onClick = {
-                                                spiceSshProfileId = candidate.id
-                                                sshExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                stringResource(R.string.connections_helper_add_ssh_first),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = host,
@@ -2187,66 +2042,17 @@ fun ConnectionEditDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(4.dp))
-                    BooleanToggleRow(
-                        label = stringResource(R.string.connections_field_tunnel_through_ssh),
-                        checked = smbSshForward,
-                        onCheckedChange = { newValue ->
+                    SshTunnelBlock(
+                        enabled = smbSshForward,
+                        carrierId = smbSshProfileId,
+                        sshProfiles = sshProfiles,
+                        onEnabledChange = { newValue ->
                             smbSshForward = newValue
-                            if (newValue) {
-                                // 127.0.0.1 rather than "localhost" so the
-                                // remote sshd doesn't resolve to the IPv6
-                                // loopback first. Matches the VNC tunnel
-                                // fix in v5.24.14.
-                                if (host.isBlank() || host == "localhost") host = "127.0.0.1"
-                            } else {
-                                smbSshProfileId = null
-                                if (host == "127.0.0.1" || host == "localhost") host = ""
-                            }
+                            if (!newValue) smbSshProfileId = null
+                            host = tunnelHostOnToggle(newValue, host)
                         },
+                        onCarrierChange = { smbSshProfileId = it },
                     )
-                    if (smbSshForward) {
-                        val sshCandidates = sshProfiles.filter { it.isSsh }
-                        if (sshCandidates.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            var sshExpanded by remember { mutableStateOf(false) }
-                            val selectedSsh = sshCandidates.firstOrNull { it.id == smbSshProfileId }
-                            ExposedDropdownMenuBox(
-                                expanded = sshExpanded,
-                                onExpandedChange = { sshExpanded = it },
-                            ) {
-                                OutlinedTextField(
-                                    value = selectedSsh?.label ?: stringResource(R.string.connections_dropdown_select_ssh),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text(stringResource(R.string.connections_field_ssh_connection)) },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sshExpanded,
-                                    onDismissRequest = { sshExpanded = false },
-                                ) {
-                                    sshCandidates.forEach { candidate ->
-                                        DropdownMenuItem(
-                                            text = { Text(candidate.label) },
-                                            onClick = {
-                                                smbSshProfileId = candidate.id
-                                                sshExpanded = false
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            Text(
-                                stringResource(R.string.connections_helper_add_ssh_first),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
                 } else if (connectionType == "SSH") {
                     CollapsibleSection(stringResource(R.string.connections_section_connection), secConnectionExpanded, { secConnectionExpanded = !secConnectionExpanded }) {
                     // Discovered hosts — filter by typed prefix
@@ -3306,10 +3112,10 @@ fun ConnectionEditDialog(
             val canSave = knockOk && when (connectionType) {
                 "LOCAL" -> true // No host/auth needed
                 "SSH" -> host.isNotBlank()
-                "VNC" -> host.isNotBlank() && (!vncSshForward || vncSshProfileId != null)
-                "RDP" -> host.isNotBlank() && rdpUsername.isNotBlank() && (!rdpSshForward || rdpSshProfileId != null)
-                "SPICE" -> host.isNotBlank() && (!spiceSshForward || spiceSshProfileId != null)
-                "SMB" -> host.isNotBlank() && smbShare.isNotBlank() && (!smbSshForward || smbSshProfileId != null)
+                "VNC" -> host.isNotBlank() && tunnelComplete(vncSshForward, vncSshProfileId)
+                "RDP" -> host.isNotBlank() && rdpUsername.isNotBlank() && tunnelComplete(rdpSshForward, rdpSshProfileId)
+                "SPICE" -> host.isNotBlank() && tunnelComplete(spiceSshForward, spiceSshProfileId)
+                "SMB" -> host.isNotBlank() && smbShare.isNotBlank() && tunnelComplete(smbSshForward, smbSshProfileId)
                 // OAuth providers authenticate on connect (no Configure step); every
                 // other provider must have its remote written via Configure first (#295).
                 "RCLONE" -> rcloneProvider.isNotBlank() &&
@@ -3354,7 +3160,7 @@ fun ConnectionEditDialog(
                             vncUsername = vncUsername.ifBlank { null },
                             vncPassword = vncPassword.ifBlank { null },
                             vncSshForward = vncSshForward,
-                            vncSshProfileId = if (vncSshForward) vncSshProfileId else null,
+                            vncSshProfileId = tunnelCarrierForSave(vncSshForward, vncSshProfileId),
                             vncColorDepth = vncColorDepth,
                             colorTag = colorTag,
                             groupId = groupId,
@@ -3389,7 +3195,7 @@ fun ConnectionEditDialog(
                             rdpPassword = rdpPassword.ifBlank { null },
                             rdpDomain = rdpDomain.ifBlank { null },
                             rdpSshForward = rdpSshForward,
-                            rdpSshProfileId = if (rdpSshForward) rdpSshProfileId else null,
+                            rdpSshProfileId = tunnelCarrierForSave(rdpSshForward, rdpSshProfileId),
                             rdpUseNla = rdpUseNla,
                             rdpColorDepth = rdpColorDepth,
                             colorTag = colorTag,
@@ -3423,7 +3229,7 @@ fun ConnectionEditDialog(
                             spicePort = spicePortInt,
                             spicePassword = spicePassword.ifBlank { null },
                             spiceSshForward = spiceSshForward,
-                            spiceSshProfileId = if (spiceSshForward) spiceSshProfileId else null,
+                            spiceSshProfileId = tunnelCarrierForSave(spiceSshForward, spiceSshProfileId),
                             colorTag = colorTag,
                             groupId = groupId,
                             identityId = identityId,
@@ -3532,7 +3338,7 @@ fun ConnectionEditDialog(
                             smbPassword = smbPassword.ifBlank { null },
                             smbDomain = smbDomain.ifBlank { null },
                             smbSshForward = smbSshForward,
-                            smbSshProfileId = if (smbSshForward) smbSshProfileId else null,
+                            smbSshProfileId = tunnelCarrierForSave(smbSshForward, smbSshProfileId),
                             colorTag = colorTag,
                             groupId = groupId,
                             identityId = identityId,
@@ -3891,6 +3697,74 @@ private fun friendlyTunnelTypeLabel(t: sh.haven.core.data.db.entities.TunnelConf
  * switch thumb; an optional [description] line renders directly below
  * the label when the toggle is on.
  */
+/**
+ * The shared "Tunnel through SSH" editor block: toggle row plus the SSH
+ * carrier dropdown (or an "add an SSH connection first" error when no SSH
+ * profiles exist). The dropdown sits right next to the toggle so the two
+ * fields read as one decision — "tunnel through [this SSH connection]".
+ * VNC / RDP / SPICE / SMB render this at their existing form positions;
+ * host-field relabelling stays at the call site because labels,
+ * placeholders and helper text are protocol-specific. Host rewrites on
+ * toggle go through [tunnelHostOnToggle] in the caller's onEnabledChange.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SshTunnelBlock(
+    enabled: Boolean,
+    carrierId: String?,
+    sshProfiles: List<ConnectionProfile>,
+    onEnabledChange: (Boolean) -> Unit,
+    onCarrierChange: (String) -> Unit,
+) {
+    BooleanToggleRow(
+        label = stringResource(R.string.connections_field_tunnel_through_ssh),
+        checked = enabled,
+        onCheckedChange = onEnabledChange,
+    )
+    if (!enabled) return
+    val sshCandidates = sshProfiles.filter { it.isSsh }
+    if (sshCandidates.isNotEmpty()) {
+        Spacer(Modifier.height(4.dp))
+        var sshExpanded by remember { mutableStateOf(false) }
+        val selectedSsh = sshCandidates.firstOrNull { it.id == carrierId }
+        ExposedDropdownMenuBox(
+            expanded = sshExpanded,
+            onExpandedChange = { sshExpanded = it },
+        ) {
+            OutlinedTextField(
+                value = selectedSsh?.label ?: stringResource(R.string.connections_dropdown_select_ssh),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.connections_field_ssh_connection)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            )
+            ExposedDropdownMenu(
+                expanded = sshExpanded,
+                onDismissRequest = { sshExpanded = false },
+            ) {
+                sshCandidates.forEach { candidate ->
+                    DropdownMenuItem(
+                        text = { Text(candidate.label) },
+                        onClick = {
+                            onCarrierChange(candidate.id)
+                            sshExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+    } else {
+        Text(
+            stringResource(R.string.connections_helper_add_ssh_first),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
 @Composable
 private fun BooleanToggleRow(
     label: String,
