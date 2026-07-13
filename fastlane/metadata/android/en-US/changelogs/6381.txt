@@ -1,0 +1,4 @@
+• The mouse wheel now scrolls the terminal. With a hardware mouse only click-drag worked; wheel events were dropped entirely. Each notch now goes where a swipe would — to a mouse-mode app (tmux, vim, less), as arrow keys in a full-screen TUI, or through Haven's scrollback.
+• Reconnecting a Mosh/Eternal Terminal profile that uses tmux/zellij/screen re-attaches to the session you were last on, instead of asking — your shell comes back where you left it, even after the app restarts. The picker still appears when there's a genuine choice.
+• Copying a folder no longer follows symlinks into a loop; a linked directory is copied as a link.
+• SFTP and SMB now create missing parent directories for a nested path instead of failing.

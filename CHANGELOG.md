@@ -5,6 +5,16 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.58
+
+🖱️ **The mouse wheel works in the terminal** — with a hardware mouse, the scroll wheel did nothing; only click-drag scrolled. Wheel events carry no pressed pointer, so the terminal's gesture handler never woke for them and they were dropped. Each notch now goes wherever a swipe would: to an app that asked for the mouse (tmux mouse mode, vim, less), as arrow keys on a full-screen TUI, or through Haven's own scrollback.
+
+🔁 **Reconnecting drops you back into the session you left** — a Mosh or Eternal Terminal profile that uses a session manager (tmux/zellij/screen) now re-attaches to the session it was last on instead of stopping to ask. Your shell comes back exactly where it was, even after the app restarts. The picker still appears when there's a real choice to make: nothing remembered, the remembered session gone, or several to pick from.
+
+🔗 **Copying a folder no longer follows symlinks into a loop** — a symlink met while copying is copied as a link rather than descended into, so a link pointing back up its own tree can't spin forever.
+
+Also in this release: SFTP and SMB now create missing parent directories when asked to make a nested path (they previously created a single level and failed), and a batch of internal tidying — shared shell-quoting, the file-browser copy/paste routed through one backend interface, and the connection editor's four SSH-tunnel blocks collapsed into one.
+
 ## v5.68.57
 
 🔑 **Passphrase-protected keys work without pinning them to every profile** (#381) — when a connection had no specific key assigned, Haven's "try any saved key" fallback only offered plaintext keys and silently skipped passphrase-protected ones. So if your only key has a passphrase (with the passphrase stored in Haven), it wasn't offered unless you explicitly assigned it to each host — which is why a jump host could fail "Auth fail for methods publickey" until the key was pinned to it. The auto-selection now offers a stored-passphrase key too. Thanks to BlackDex for the thorough testing that isolated this.
