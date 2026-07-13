@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.60
+
+🖥️ **The terminal can no longer lose a shell's first output** — the same JSch trap fixed for jump hosts in v5.68.59 also sat on the interactive shell: Haven opened the shell channel and only bound its streams afterwards, and anything the remote sent in that gap (login banner, MOTD, first prompt) was silently discarded. It bit far more rarely there than on a jump host — a shell's first output waits for the remote shell to start, while a jump target's SSH banner is already in flight — so no one reported it; it was found while fixing #381 and is closed the same way, by binding the channel's streams before it is opened. (#382)
+
 ## v5.68.59
 
 🔗 **Connecting through a jump host no longer stalls on the first attempt** — with `ssh -J`, the first tap connected the jump host and then hung: the target's spinner span forever, nothing opened, and no connection log was written. Haven was opening the tunnelling channel before binding its streams, so the target's SSH banner — sent the instant the channel opens — landed in a gap where JSch silently discards incoming bytes, and the connect then waited forever for a greeting that was never resent. Tapping again usually won the race, which is why it "worked the second time" while leaving a dead session behind. The channel's streams are now bound before it is opened. (#381, thanks BlackDex)

@@ -1,0 +1,1 @@
+• The terminal can no longer lose a shell's first output. The same JSch trap fixed for jump hosts in 5.68.59 also sat on the interactive shell: the channel was opened before its streams were bound, so a login banner, MOTD or first prompt sent in that gap was silently dropped. Rare in practice, and found while fixing the jump-host stall rather than reported — closed the same way.
