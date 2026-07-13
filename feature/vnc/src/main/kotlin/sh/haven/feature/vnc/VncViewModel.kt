@@ -35,13 +35,6 @@ import javax.inject.Inject
 
 private const val TAG = "VncViewModel"
 
-/** An active SSH session that can be used for tunneling. */
-data class SshTunnelOption(
-    val sessionId: String,
-    val label: String,
-    val profileId: String,
-)
-
 @HiltViewModel
 class VncViewModel @Inject constructor(
     private val sshSessionManager: SshSessionManager,
@@ -99,36 +92,6 @@ class VncViewModel @Inject constructor(
 
     fun setActive(active: Boolean) {
         client?.paused = !active
-    }
-
-    /** List active sessions with SSH clients available for tunneling. */
-    fun getActiveSshSessions(): List<SshTunnelOption> {
-        val ssh = sshSessionManager.activeSessions.map { session ->
-            SshTunnelOption(
-                sessionId = session.sessionId,
-                label = session.label,
-                profileId = session.profileId,
-            )
-        }
-        val mosh = moshSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { session ->
-                SshTunnelOption(
-                    sessionId = session.sessionId,
-                    label = "${session.label} (Mosh)",
-                    profileId = session.profileId,
-                )
-            }
-        val et = etSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { session ->
-                SshTunnelOption(
-                    sessionId = session.sessionId,
-                    label = "${session.label} (ET)",
-                    profileId = session.profileId,
-                )
-            }
-        return ssh + mosh + et
     }
 
     /**

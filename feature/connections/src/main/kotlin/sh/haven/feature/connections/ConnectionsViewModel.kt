@@ -787,7 +787,6 @@ class ConnectionsViewModel @Inject constructor(
         val password: String?,
         val username: String? = null,
         val sshForward: Boolean = false,
-        val sshProfileId: String? = null,
         val sshSessionId: String? = null,
         val profileId: String? = null,
         val colorDepth: String = "BPP_24_TRUE",
@@ -805,7 +804,7 @@ class ConnectionsViewModel @Inject constructor(
     val navigateToWayland: StateFlow<Boolean> = _navigateToWayland.asStateFlow()
 
     /** Emitted to navigate to RDP screen with connection params. */
-    data class RdpNavigation(val host: String, val port: Int, val username: String, val password: String, val domain: String, val sshForward: Boolean = false, val sshProfileId: String? = null, val sshSessionId: String? = null, val profileId: String? = null, val useNla: Boolean = true, val colorDepth: Int = 32, val portKnockSequence: String? = null, val portKnockDelayMs: Int = 100)
+    data class RdpNavigation(val host: String, val port: Int, val username: String, val password: String, val domain: String, val sshForward: Boolean = false, val sshSessionId: String? = null, val profileId: String? = null, val useNla: Boolean = true, val colorDepth: Int = 32, val portKnockSequence: String? = null, val portKnockDelayMs: Int = 100)
     private val _navigateToRdp = MutableStateFlow<RdpNavigation?>(null)
     val navigateToRdp: StateFlow<RdpNavigation?> = _navigateToRdp.asStateFlow()
 
@@ -815,7 +814,6 @@ class ConnectionsViewModel @Inject constructor(
         val port: Int,
         val password: String?,
         val sshForward: Boolean = false,
-        val sshProfileId: String? = null,
         val sshSessionId: String? = null,
         val profileId: String? = null,
     )
@@ -1825,7 +1823,6 @@ class ConnectionsViewModel @Inject constructor(
                     _navigateToVnc.value = VncNavigation(
                         host, port, password, username,
                         sshForward = true,
-                        sshProfileId = sshProfileId,
                         sshSessionId = sshSessionId,
                         profileId = profile.id,
                         colorDepth = profile.vncColorDepth,
@@ -1845,7 +1842,6 @@ class ConnectionsViewModel @Inject constructor(
                 _navigateToVnc.value = VncNavigation(
                     host, port, password, username,
                     sshForward = profile.vncSshForward,
-                    sshProfileId = profile.vncSshProfileId,
                     profileId = profile.id,
                     colorDepth = profile.vncColorDepth,
                     portKnockSequence = profile.portKnockSequence,
@@ -1881,7 +1877,6 @@ class ConnectionsViewModel @Inject constructor(
                     _navigateToRdp.value = RdpNavigation(
                         host, port, username, rdpPassword, domain,
                         sshForward = true,
-                        sshProfileId = sshProfileId,
                         sshSessionId = sshSessionId,
                         profileId = profile.id,
                         useNla = profile.rdpUseNla,
@@ -1896,7 +1891,7 @@ class ConnectionsViewModel @Inject constructor(
                     _connectingProfileId.value = null
                 }
             } else {
-                _navigateToRdp.value = RdpNavigation(host, port, username, rdpPassword, domain, profile.rdpSshForward, profile.rdpSshProfileId, profileId = profile.id, useNla = profile.rdpUseNla, colorDepth = profile.rdpColorDepth, portKnockSequence = profile.portKnockSequence, portKnockDelayMs = profile.portKnockDelayMs)
+                _navigateToRdp.value = RdpNavigation(host, port, username, rdpPassword, domain, profile.rdpSshForward, profileId = profile.id, useNla = profile.rdpUseNla, colorDepth = profile.rdpColorDepth, portKnockSequence = profile.portKnockSequence, portKnockDelayMs = profile.portKnockDelayMs)
             }
         }
     }
@@ -1923,7 +1918,6 @@ class ConnectionsViewModel @Inject constructor(
                     _navigateToSpice.value = SpiceNavigation(
                         host, port, password,
                         sshForward = true,
-                        sshProfileId = sshProfileId,
                         sshSessionId = sshSessionId,
                         profileId = profile.id,
                     )
@@ -1937,7 +1931,6 @@ class ConnectionsViewModel @Inject constructor(
                 _navigateToSpice.value = SpiceNavigation(
                     host, port, password,
                     sshForward = profile.spiceSshForward,
-                    sshProfileId = profile.spiceSshProfileId,
                     profileId = profile.id,
                 )
             }

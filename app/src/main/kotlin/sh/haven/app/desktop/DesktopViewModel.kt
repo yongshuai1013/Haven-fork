@@ -61,13 +61,6 @@ import javax.inject.Inject
 
 private const val TAG = "DesktopViewModel"
 
-/** An active SSH session that can be used for tunneling. */
-data class SshTunnelOption(
-    val sessionId: String,
-    val label: String,
-    val profileId: String,
-)
-
 private sealed class DesktopStartOutcome {
     object Ready : DesktopStartOutcome()
     object Timeout : DesktopStartOutcome()
@@ -782,7 +775,6 @@ class DesktopViewModel @Inject constructor(
                         domain = profile.rdpDomain.orEmpty(),
                         sshForward = profile.rdpSshForward,
                         sshSessionId = sshSessionId,
-                        sshProfileId = profile.rdpSshProfileId,
                         profileId = profile.id,
                         useNla = profile.rdpUseNla,
                         colorDepth = profile.rdpColorDepth,
@@ -1217,11 +1209,9 @@ class DesktopViewModel @Inject constructor(
             val pointerPos = MutableStateFlow(0 to 0)
             val bandwidthSuggestion = MutableStateFlow<String?>(null)
 
-            // Hoisted out of try so the catch / onError can clean them up
+            // Hoisted out of try so the catch / onError can clean it up
             // when the dial fails (#121). tunnelLease owns the forward +
             // dependent release + the parent-gone teardown callback.
-            var tunnelPort: Int? = null
-            var tunnelSessionId: String? = null
             var tunnelLease: SshSessionManager.TunnelLease? = null
             var tabAdded = false
             try {
@@ -1244,8 +1234,6 @@ class DesktopViewModel @Inject constructor(
                     // fix in VncScreen covered the pure VNC→tunnel path
                     // but missed the saved-on-SSH Desktop-tab path.
                     val lp = sshClient.setPortForwardingL("127.0.0.1", 0, "127.0.0.1", port)
-                    tunnelPort = lp
-                    tunnelSessionId = sshSessionId
                     actualHost = "127.0.0.1"
                     actualPort = lp
                     Log.d(TAG, "VNC SSH tunnel: localhost:$lp -> 127.0.0.1:$port (via $host)")
@@ -1341,8 +1329,6 @@ class DesktopViewModel @Inject constructor(
                     _cursor = cursor,
                     _pointerPos = pointerPos,
                     _bandwidthSuggestion = bandwidthSuggestion,
-                    tunnelPort = tunnelPort,
-                    tunnelSessionId = tunnelSessionId,
                     tunnelLease = tunnelLease,
                     profileId = profileId,
                     originalHost = host,
@@ -1446,7 +1432,6 @@ class DesktopViewModel @Inject constructor(
         domain: String = "",
         sshForward: Boolean = false,
         sshSessionId: String? = null,
-        sshProfileId: String? = null,
         profileId: String? = null,
         useNla: Boolean = true,
         colorDepth: Int = 16,
@@ -1468,11 +1453,9 @@ class DesktopViewModel @Inject constructor(
             val colorTag = resolveColorTag(profileId)
             val tabId = UUID.randomUUID().toString()
 
-            // Hoisted out of try so the catch / onError can clean them up
+            // Hoisted out of try so the catch / onError can clean it up
             // when the dial fails (#121). tunnelLease owns the forward +
             // dependent release + the parent-gone teardown callback.
-            var tunnelPort: Int? = null
-            var tunnelSessionId: String? = null
             var tunnelLease: SshSessionManager.TunnelLease? = null
             try {
                 val actualHost: String
@@ -1488,8 +1471,6 @@ class DesktopViewModel @Inject constructor(
                     val sshClient = findSshClient(sshSessionId)
                         ?: throw IllegalStateException("SSH session not found")
                     val lp = sshClient.setPortForwardingL("127.0.0.1", 0, host, port)
-                    tunnelPort = lp
-                    tunnelSessionId = sshSessionId
                     actualHost = "127.0.0.1"
                     actualPort = lp
                     Log.d(TAG, "RDP SSH tunnel: localhost:$lp -> $host:$port")
@@ -1601,8 +1582,6 @@ class DesktopViewModel @Inject constructor(
                     _error = error,
                     _cursor = cursor,
                     _pointerPos = pointerPos,
-                    tunnelPort = tunnelPort,
-                    tunnelSessionId = tunnelSessionId,
                     tunnelLease = tunnelLease,
                     profileId = profileId,
                 )
@@ -1667,7 +1646,6 @@ class DesktopViewModel @Inject constructor(
         password: String?,
         sshForward: Boolean = false,
         sshSessionId: String? = null,
-        sshProfileId: String? = null,
         profileId: String? = null,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1686,8 +1664,6 @@ class DesktopViewModel @Inject constructor(
             val colorTag = resolveColorTag(profileId)
             val tabId = UUID.randomUUID().toString()
 
-            var tunnelPort: Int? = null
-            var tunnelSessionId: String? = null
             var tunnelLease: SshSessionManager.TunnelLease? = null
             try {
                 val actualHost: String
@@ -1699,8 +1675,6 @@ class DesktopViewModel @Inject constructor(
                     val sshClient = findSshClient(sshSessionId)
                         ?: throw IllegalStateException("SSH session not found")
                     val lp = sshClient.setPortForwardingL("127.0.0.1", 0, host, port)
-                    tunnelPort = lp
-                    tunnelSessionId = sshSessionId
                     actualHost = "127.0.0.1"
                     actualPort = lp
                     Log.d(TAG, "SPICE SSH tunnel: localhost:$lp -> $host:$port")
@@ -1774,8 +1748,6 @@ class DesktopViewModel @Inject constructor(
                     _error = error,
                     _cursor = cursor,
                     _pointerPos = pointerPos,
-                    tunnelPort = tunnelPort,
-                    tunnelSessionId = tunnelSessionId,
                     tunnelLease = tunnelLease,
                     profileId = profileId,
                 )
@@ -1988,21 +1960,6 @@ class DesktopViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             activeTab.value?.remoteDesktop?.sendMouseWheel(deltaY = -1)
         }
-    }
-
-    // --- SSH tunnel helpers ---
-
-    fun getActiveSshSessions(): List<SshTunnelOption> {
-        val ssh = sshSessionManager.activeSessions.map { session ->
-            SshTunnelOption(session.sessionId, session.label, session.profileId)
-        }
-        val mosh = moshSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { SshTunnelOption(it.sessionId, "${it.label} (Mosh)", it.profileId) }
-        val et = etSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { SshTunnelOption(it.sessionId, "${it.label} (ET)", it.profileId) }
-        return ssh + mosh + et
     }
 
     /** Knock against the VNC/RDP host using the profile's saved sequence,

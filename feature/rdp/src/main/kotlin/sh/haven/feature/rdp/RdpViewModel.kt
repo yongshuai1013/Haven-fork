@@ -30,13 +30,6 @@ import javax.inject.Inject
 
 private const val TAG = "RdpViewModel"
 
-/** An active SSH session that can be used for tunneling. */
-data class SshTunnelOption(
-    val sessionId: String,
-    val label: String,
-    val profileId: String,
-)
-
 @HiltViewModel
 class RdpViewModel @Inject constructor(
     private val rdpSessionManager: RdpSessionManager,
@@ -62,36 +55,6 @@ class RdpViewModel @Inject constructor(
     private var rdpProfileId: String? = null
     private var tunnelPort: Int? = null
     private var tunnelSessionId: String? = null
-
-    /** List active sessions with SSH clients available for tunneling. */
-    fun getActiveSshSessions(): List<SshTunnelOption> {
-        val ssh = sshSessionManager.activeSessions.map { session ->
-            SshTunnelOption(
-                sessionId = session.sessionId,
-                label = session.label,
-                profileId = session.profileId,
-            )
-        }
-        val mosh = moshSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { session ->
-                SshTunnelOption(
-                    sessionId = session.sessionId,
-                    label = "${session.label} (Mosh)",
-                    profileId = session.profileId,
-                )
-            }
-        val et = etSessionManager.activeSessions
-            .filter { it.sshClient != null }
-            .map { session ->
-                SshTunnelOption(
-                    sessionId = session.sessionId,
-                    label = "${session.label} (ET)",
-                    profileId = session.profileId,
-                )
-            }
-        return ssh + mosh + et
-    }
 
     /**
      * Connect RDP through an SSH tunnel.

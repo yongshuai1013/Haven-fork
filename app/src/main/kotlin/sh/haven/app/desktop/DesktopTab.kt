@@ -51,8 +51,6 @@ sealed class DesktopTab {
         val _pointerPos: MutableStateFlow<Pair<Int, Int>> = MutableStateFlow(0 to 0),
         /** Suggested colour-depth downshift on slow connections (#107); null = none. */
         val _bandwidthSuggestion: MutableStateFlow<String?> = MutableStateFlow(null),
-        val tunnelPort: Int? = null,
-        val tunnelSessionId: String? = null,
         /** Lease tying this tab to its SSH tunnel; closing it releases the tunnel. */
         val tunnelLease: SshSessionManager.TunnelLease? = null,
         val profileId: String? = null,
@@ -89,8 +87,6 @@ sealed class DesktopTab {
         val _cursor: MutableStateFlow<CursorOverlay?> = MutableStateFlow(null),
         /** Local pointer position we last sent — drives the touchpad-mode virtual cursor seed. */
         val _pointerPos: MutableStateFlow<Pair<Int, Int>> = MutableStateFlow(0 to 0),
-        val tunnelPort: Int? = null,
-        val tunnelSessionId: String? = null,
         /** Lease tying this tab to its SSH tunnel; closing it releases the tunnel. */
         val tunnelLease: SshSessionManager.TunnelLease? = null,
         val profileId: String? = null,
@@ -115,8 +111,6 @@ sealed class DesktopTab {
         val _cursor: MutableStateFlow<CursorOverlay?> = MutableStateFlow(null),
         /** Local pointer position we last sent — seeds the touchpad-mode virtual cursor. */
         val _pointerPos: MutableStateFlow<Pair<Int, Int>> = MutableStateFlow(0 to 0),
-        val tunnelPort: Int? = null,
-        val tunnelSessionId: String? = null,
         /** Lease tying this tab to its SSH tunnel; closing it releases the tunnel. */
         val tunnelLease: SshSessionManager.TunnelLease? = null,
         val profileId: String? = null,

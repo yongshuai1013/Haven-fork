@@ -322,7 +322,7 @@ fun HavenNavHost(
         navigateToRdpEvent?.let { nav ->
             desktopViewModel.addRdpSession(
                 nav.host, nav.port, nav.username, nav.password, nav.domain,
-                nav.sshForward, nav.sshSessionId, nav.sshProfileId, nav.profileId,
+                nav.sshForward, nav.sshSessionId, nav.profileId,
                 useNla = nav.useNla,
                 colorDepth = nav.colorDepth,
             )
@@ -336,7 +336,6 @@ fun HavenNavHost(
                 nav.host, nav.port, nav.password,
                 sshForward = nav.sshForward,
                 sshSessionId = nav.sshSessionId,
-                sshProfileId = nav.sshProfileId,
                 profileId = nav.profileId,
             )
             connectionsViewModel.onDesktopNavigated()
