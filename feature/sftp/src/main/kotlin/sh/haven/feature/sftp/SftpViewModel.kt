@@ -44,6 +44,7 @@ import sh.haven.core.rclone.RcloneClient
 import sh.haven.core.rclone.RcloneSessionManager
 import sh.haven.core.rclone.SyncConfig
 import sh.haven.core.rclone.SyncProgress
+import sh.haven.core.security.posixShellQuote
 import sh.haven.core.smb.SmbClient
 import sh.haven.core.smb.SmbSessionManager
 import sh.haven.core.ssh.SshClient
@@ -3107,7 +3108,7 @@ class SftpViewModel @Inject constructor(
         val ssh = sessionManager.getSshClientForProfile(profileId) ?: return null
         return withContext(Dispatchers.IO) {
             try {
-                val cmd = "LC_ALL=C ls -ld -- '${path.replace("'", "'\\''")}'"
+                val cmd = "LC_ALL=C ls -ld -- ${posixShellQuote(path)}"
                 val r = ssh.execCommand(cmd)
                 if (r.exitStatus != 0) return@withContext null
                 val parts = r.stdout.trim().split(Regex("\\s+"))

@@ -31,6 +31,7 @@ dependencies {
     compileOnly("net.java.dev.jna:jna:5.14.0")
     implementation(libs.core.ktx)
     implementation(project(":core:data"))
+    implementation(project(":core:security"))
     implementation(project(":core:reticulum"))
     implementation(project(":core:mosh"))
     implementation(project(":core:et"))

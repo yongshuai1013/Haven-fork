@@ -60,6 +60,18 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorSearcher
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 
+sealed interface EditorState {
+    data object Idle : EditorState
+    data object Loading : EditorState
+    data class Loaded(
+        val content: String,
+        val fileName: String,
+        val filePath: String,
+        val charset: java.nio.charset.Charset = Charsets.UTF_8,
+    ) : EditorState
+    data class Error(val message: String) : EditorState
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(

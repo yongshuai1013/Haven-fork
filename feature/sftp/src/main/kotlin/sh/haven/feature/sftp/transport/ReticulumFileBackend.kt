@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import sh.haven.core.reticulum.ReticulumTransport
+import sh.haven.core.security.posixShellQuote as q
 import sh.haven.feature.sftp.SftpEntry
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -299,9 +300,6 @@ class ReticulumFileBackend(
             exec.close()
         }
     }
-
-    /** Single-quote a path for POSIX `sh`, escaping embedded single quotes. */
-    private fun q(s: String): String = "'" + s.replace("'", "'\\''") + "'"
 
     /**
      * Parse one `ls -la` line into an [SftpEntry]. Layout (GNU and busybox

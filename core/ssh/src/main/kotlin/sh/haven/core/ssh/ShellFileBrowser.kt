@@ -1,6 +1,7 @@
 package sh.haven.core.ssh
 
 import android.util.Log
+import sh.haven.core.security.posixShellQuote as shellQuote
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -151,7 +152,4 @@ class ShellFileBrowser(private val client: SshClient) {
             d.time / 1000
         }.getOrNull()
     }
-
-    private fun shellQuote(s: String): String =
-        "'" + s.replace("'", "'\\''") + "'"
 }

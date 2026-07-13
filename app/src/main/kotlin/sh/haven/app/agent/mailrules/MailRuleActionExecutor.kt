@@ -12,6 +12,7 @@ import sh.haven.core.data.mailrule.MatchableMessage
 import sh.haven.core.data.mailrule.staticDestructive
 import sh.haven.core.data.repository.MailRuleRepository
 import sh.haven.core.mail.MailSessionManager
+import sh.haven.core.security.posixShellQuote
 import sh.haven.feature.mail.MimeParser
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -192,7 +193,7 @@ class MailRuleActionExecutor @Inject constructor(
     /** Substitute the email-derived placeholders into a template. Shell- or JSON-escapes values. */
     private fun subst(template: String, ctx: ActionContext, shell: Boolean = false, json: Boolean = false): String {
         fun esc(v: String) = when {
-            shell -> "'" + v.replace("'", "'\\''") + "'"
+            shell -> posixShellQuote(v)
             json -> v.replace("\\", "\\\\").replace("\"", "\\\"")
             else -> v
         }

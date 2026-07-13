@@ -6,6 +6,7 @@ import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import sh.haven.core.security.posixShellQuote as shellQuote
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -423,8 +424,4 @@ class ScpClient(private val session: Session) {
         val parts = line.drop(1).split(' ')
         return parts.getOrNull(0)?.toLongOrNull() ?: 0L
     }
-
-    /** Shell-quote using single quotes with embedded-quote escape. */
-    private fun shellQuote(s: String): String =
-        "'" + s.replace("'", "'\\''") + "'"
 }

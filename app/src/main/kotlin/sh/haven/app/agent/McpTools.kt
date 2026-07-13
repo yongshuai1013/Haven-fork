@@ -41,6 +41,7 @@ import sh.haven.core.ffmpeg.HlsStreamServer
 import sh.haven.core.ffmpeg.TranscodeCommand
 import sh.haven.core.local.WaylandSocketHelper
 import sh.haven.core.rclone.RcloneClient
+import sh.haven.core.security.posixShellQuote
 import sh.haven.core.ssh.SessionManagerRegistry
 import sh.haven.core.ssh.SshSessionManager
 import sh.haven.feature.sftp.SftpStreamServer
@@ -6944,7 +6945,7 @@ internal class McpTools(
         val base = path.substringAfterLast('/').substringBeforeLast('.')
         val outName = "haven-view-${System.currentTimeMillis()}.png" // guest /tmp == app cacheDir
         val outGuest = "/tmp/$outName"
-        val q = "'" + path.replace("'", "'\\''") + "'" // shell-quote the source path
+        val q = posixShellQuote(path)
 
         // Build the render pipeline + the binaries it needs. `\$` escapes keep
         // shell variables/substitutions literal; `$outGuest`/`$maxWidth`/etc.
@@ -7044,7 +7045,7 @@ internal class McpTools(
         if (!prootManager.isRootfsInstalled) {
             throw McpError(-32603, "Active distro '${prootManager.activeDistroId}' has no installed rootfs")
         }
-        val q = "'" + path.replace("'", "'\\''") + "'"
+        val q = posixShellQuote(path)
         val staged = "haven-read-${System.currentTimeMillis()}"
         val script = "rm -f /tmp/$staged; { [ -f $q ] && cp -- $q /tmp/$staged ; } > /tmp/$staged.log 2>&1; echo EXIT:\$?"
         val (out, _) = prootManager.runCommandInProot(script)
@@ -7142,7 +7143,7 @@ internal class McpTools(
         }
 
         // Final (or single-call): copy the accumulated buffer into the guest.
-        val q = "'" + path.replace("'", "'\\''") + "'"
+        val q = posixShellQuote(path)
         try {
             val mk = if (mkdirs) "mkdir -p -- \"\$(dirname -- $q)\" && " else ""
             val script = "{ $mk cp -- /tmp/$staged $q ; } > /tmp/$staged.log 2>&1; echo EXIT:\$?"

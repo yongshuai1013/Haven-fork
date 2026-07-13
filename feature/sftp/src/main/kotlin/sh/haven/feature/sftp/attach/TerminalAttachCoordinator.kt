@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import sh.haven.core.data.repository.ConnectionRepository
 import sh.haven.core.rclone.RcloneClient
+import sh.haven.core.security.posixShellQuote as shellQuote
 import sh.haven.feature.sftp.transport.TransportSelector
 import java.io.File
 import javax.inject.Inject

@@ -1,8 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.hilt)
-    alias(libs.plugins.ksp)
 }
 
 android {
@@ -28,12 +26,6 @@ dependencies {
 
     implementation(libs.sora.editor)
     implementation(libs.sora.editor.textmate)
-
-    implementation(libs.activity.compose)
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.hilt.navigation.compose)
-    implementation(libs.lifecycle.viewmodel)
 
     testImplementation(libs.junit)
 }

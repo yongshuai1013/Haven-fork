@@ -3,6 +3,7 @@ package sh.haven.feature.sftp.transport
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import sh.haven.core.security.posixShellQuote as shellQuote
 import sh.haven.core.ssh.ScpClient
 import sh.haven.core.ssh.ShellFileBrowser
 import sh.haven.core.ssh.SshClient
@@ -189,7 +190,4 @@ class ScpTransport(
         val r = sshClient.execCommand(cmd)
         if (r.exitStatus != 0) throw java.io.IOException("chown failed: ${r.stderr.trim()}")
     }
-
-    private fun shellQuote(s: String): String =
-        "'" + s.replace("'", "'\\''") + "'"
 }

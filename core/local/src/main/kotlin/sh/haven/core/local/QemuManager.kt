@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import sh.haven.core.local.proot.PackageFamily
 import sh.haven.core.local.proot.PackageOps
+import sh.haven.core.security.posixShellQuote
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -288,7 +289,7 @@ class QemuManager @Inject constructor(
             "mount -o rw,sync \"/dev/mapper/crypt_$name\" \"/mnt/$name\" 2>/dev/null"
         }
         val script = "modprobe dm_crypt 2>/dev/null; " +
-            "printf '%s' " + shellSingleQuote(passphrase) + " | cryptsetup luksOpen \"$devicePath\" \"crypt_$name\" -d - 2>/dev/null; " +
+            "printf '%s' " + posixShellQuote(passphrase) + " | cryptsetup luksOpen \"$devicePath\" \"crypt_$name\" -d - 2>/dev/null; " +
             "mkdir -p \"/mnt/$name\"; { $mapperMount; }; " +
             // The real, final check — not the `&&` chain's short-circuit state,
             // which a stale/echoed marker match could otherwise satisfy without
@@ -578,9 +579,6 @@ class QemuManager @Inject constructor(
     private fun freeLoopbackPort(): Int = ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { it.localPort }
 
     private fun fail(msg: String): Nothing = throw IllegalStateException(msg)
-
-    /** Single-quote [s] for embedding in a POSIX shell command (handles embedded single quotes). */
-    private fun shellSingleQuote(s: String): String = "'" + s.replace("'", "'\\''") + "'"
 
     private fun awaitSshBanner(port: Int, timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs

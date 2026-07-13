@@ -3,7 +3,6 @@ package sh.haven.core.ssh
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.KeyPair
 import sh.haven.core.fido.SkKeyParser
-import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.util.Base64
 
@@ -96,48 +95,6 @@ object SshKeyImporter {
             )
         } finally {
             kpair.dispose()
-        }
-    }
-
-    /**
-     * Extract the Ed25519 private + public key bytes from a decrypted JSch KeyPair
-     * via reflection. JSch stores them in KeyPairEdDSA.prv_array and pub_array.
-     *
-     * Returns a 64-byte array (32 prv + 32 pub) that can be used to construct an
-     * OpenSSH format key without BouncyCastle derivation — important because
-     * prv_array may be the clamped scalar rather than the original seed.
-     *
-     * Returns null if reflection fails.
-     */
-    private fun extractEd25519KeyMaterial(kpair: KeyPair): ByteArray? {
-        return try {
-            var prv: ByteArray? = null
-            var pub: ByteArray? = null
-            var cls: Class<*>? = kpair.javaClass
-            while (cls != null) {
-                if (prv == null) {
-                    try {
-                        val field = cls.getDeclaredField("prv_array")
-                        field.isAccessible = true
-                        prv = field.get(kpair) as? ByteArray
-                    } catch (_: NoSuchFieldException) {}
-                }
-                if (pub == null) {
-                    try {
-                        val field = cls.getDeclaredField("pub_array")
-                        field.isAccessible = true
-                        pub = field.get(kpair) as? ByteArray
-                    } catch (_: NoSuchFieldException) {}
-                }
-                cls = cls.superclass
-            }
-            if (prv != null && prv.size == 32 && pub != null && pub.size == 32) {
-                prv + pub  // 64 bytes: private key material + public key
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            null
         }
     }
 

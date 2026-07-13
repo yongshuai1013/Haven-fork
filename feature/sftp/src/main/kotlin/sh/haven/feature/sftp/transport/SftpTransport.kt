@@ -1,5 +1,6 @@
 package sh.haven.feature.sftp.transport
 
+import sh.haven.core.security.posixShellQuote as shellQuote
 import sh.haven.core.ssh.SshClient
 import sh.haven.core.ssh.sftp.ListResult
 import sh.haven.core.ssh.sftp.SftpSession
@@ -125,7 +126,4 @@ class SftpTransport(
         val r = ssh.execCommand(cmd)
         if (r.exitStatus != 0) throw java.io.IOException("chown failed: ${r.stderr.trim()}")
     }
-
-    private fun shellQuote(s: String): String =
-        "'" + s.replace("'", "'\\''") + "'"
 }
