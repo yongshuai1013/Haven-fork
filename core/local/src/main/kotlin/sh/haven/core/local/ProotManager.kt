@@ -463,16 +463,22 @@ class ProotManager @Inject constructor(
      * Android system partitions exposed by [bindAndroidSystem]. `/apex` carries the
      * dynamic linker (`/system/bin/linker64` → `/apex/com.android.runtime/bin/linker64`)
      * and the runtime libs; the rest carry the binaries and their libraries. Only
-     * those that exist on this device are bound (proot errors on a missing source).
+     * those readable on this device are bound (proot errors on a missing source).
      *
-     * `/linkerconfig` is deliberately NOT here: proot can't canonicalize it under the
-     * app's SELinux domain ("can't sanitize binding" warning), and it isn't required —
-     * the Android linker falls back to a default config and still resolves libs from
-     * `/apex`+`/system` (device-verified: getprop/toybox run without it, printing only a
-     * benign "failed to find .../ld.config.txt" linker warning).
+     * The last entry is the linker's generated config, bound as a **file**. The
+     * directory `/linkerconfig` cannot be bound: the app's SELinux domain can't stat
+     * it, so proot refuses with `can't sanitize binding "/linkerconfig": Permission
+     * denied` — but the file *inside* it reads fine, and binding that is enough.
+     * Without it every Android binary run in the guest opens with "failed to find
+     * generated linker configuration from /linkerconfig/ld.config.txt" (#384).
+     *
+     * Device-verified (OnePlus 13, Android 16): with the file bound the warning is
+     * gone and getprop/toybox/`cmd package` behave exactly as before — the real
+     * config changes nothing else, it just stops the linker complaining.
      */
     private val androidSystemPaths = listOf(
         "/system", "/vendor", "/apex", "/product", "/system_ext", "/odm",
+        "/linkerconfig/ld.config.txt",
     )
 
     /**
@@ -484,10 +490,21 @@ class ProotManager @Inject constructor(
     fun androidSystemBindArgs(longForm: Boolean): Array<String> {
         if (!bindAndroidSystem) return emptyArray()
         return androidSystemPaths
-            .filter { File(it).exists() }
+            .filter(::bindableFromAppDomain)
             .flatMap { if (longForm) listOf("--bind=$it") else listOf("-b", it) }
             .toTypedArray()
     }
+
+    /**
+     * True when proot can bind [path] from this app's SELinux domain.
+     *
+     * `exists()` stats the path, and that is NOT enough here: the app may not stat
+     * `/linkerconfig/ld.config.txt` (stat is denied) even though it reads it perfectly
+     * well, so an exists()-only filter drops the one bind that silences the linker
+     * warning (#384). Accept a path that is either stat-able or readable.
+     */
+    private fun bindableFromAppDomain(path: String): Boolean =
+        File(path).let { it.exists() || it.canRead() }
 
     // --- Per-distro custom bind mounts (#301) ---
 
