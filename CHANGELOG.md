@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.67
+
+🛠️ **F-Droid build: the last component that was still using the wrong tool** — the previous two releases pointed most of the Wayland stack at our own `wayland-scanner`, but one component (wlroots) is built from a second place in the script that never got told, so on F-Droid it went on looking for a scanner the build image doesn't have. Every component is now told once, centrally, so a new one can't be forgotten. Equally important: the check for this no longer asks "did it build on my machine" — which could never fail, because this machine happens to have the very tool F-Droid lacks — but asks *which* tool each component actually used. No change to the app itself.
+
 ## v5.68.66
 
 🛠️ **One more F-Droid build fix, found by running their build rather than guessing at it** — the Wayland stack's symbol-stub generator sorts two lists and compares them, and the two tools disagree about ordering unless the locale is set to C. It exits with an error *after* the library has already been built, so the build fails holding a finished-looking file. Nobody had ever seen it, because since v5.68.41 the F-Droid build has died earlier and never reached this step. No change to the app itself.
