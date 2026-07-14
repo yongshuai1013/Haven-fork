@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.64
+
+🔗 **The terminal stopped mistaking filenames for web links** — a tap on ordinary text like `nginx.conf`, `php.ini` or a line of a Java stack trace would underline it as a link and throw you out to a browser at an invented address such as `https://nginx.co`. Two things were wrong with the link detector: it matched the *start* of any word whose dotted tail happened to begin with a domain ending, and it counted `.in`, `.cc` and `.app` as domain endings even though in a terminal those are almost always `Makefile.in`, `main.cc` or a package name. A detected link now has to end where the word ends. Real links are untouched, bare ones like `google.com` included. (#385, thanks sugerpersion)
+
 ## v5.68.63
 
 🔗 **Android binaries in the guest no longer moan about the linker config** — with "Expose Android system to guest" on, everything you ran from `/system/bin` opened with a "failed to find generated linker configuration" warning, because Haven wasn't exposing Android's `/linkerconfig/ld.config.txt`. It couldn't simply mount the folder — Android won't let the app look at it — but it can read the file inside, and mounting that is enough. The warning is gone and nothing else changes. (#384, thanks sugerpersion)
