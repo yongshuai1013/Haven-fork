@@ -233,7 +233,14 @@ fun VncSessionContent(
 
     DisposableEffect(Unit) {
         onDispose {
-            if (fullscreenOverride == null && fullscreen && window != null) {
+            // Reads `localFullscreen`, NOT `fullscreen`. DisposableEffect(Unit) keeps the
+            // effect lambda from the first composition, so a plain val like `fullscreen`
+            // is frozen at its first-composition value (false) and this would never fire.
+            // `localFullscreen` is a state delegate, so its getter yields the live value.
+            // Without this, closing a fullscreen tab left onFullscreenChanged(false)
+            // uncalled: the host kept hiding the app bar and bottom nav, and pager swipe
+            // stays disabled while it thinks we're fullscreen — no way out. (#386)
+            if (fullscreenOverride == null && localFullscreen && window != null) {
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.show(WindowInsetsCompat.Type.systemBars())
                 onFullscreenChanged(false)

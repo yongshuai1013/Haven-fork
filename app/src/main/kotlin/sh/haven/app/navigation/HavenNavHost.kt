@@ -540,6 +540,13 @@ fun HavenNavHost(
     }
     // Disable pager swipe when VNC/RDP is connected (pinch-to-zoom conflicts)
     var desktopConnected by remember { mutableStateOf(false) }
+    // A desktop fullscreen flag that outlives its session strands the user completely:
+    // it hides the app bar and bottom nav, and the same flag disables pager swipe
+    // (below), so the way out is switched off by the thing you need to get out of.
+    // Nothing is connected, so nothing can be fullscreen. (#386)
+    LaunchedEffect(desktopConnected) {
+        if (!desktopConnected && desktopFullscreen) desktopFullscreen = false
+    }
     // Disable pager swipe when SFTP text editor or image tools are open
     var sftpEditorOpen by remember { mutableStateOf(false) }
     var sftpImageToolOpen by remember { mutableStateOf(false) }
