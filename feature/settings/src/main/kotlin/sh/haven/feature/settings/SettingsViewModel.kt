@@ -514,6 +514,10 @@ class SettingsViewModel @Inject constructor(
         preferencesRepository.terminalAutoSwitchScheme
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val terminalApplySchemePalette: StateFlow<Boolean> =
+        preferencesRepository.terminalApplySchemePalette
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val terminalLightColorScheme: StateFlow<UserPreferencesRepository.TerminalColorScheme> =
         preferencesRepository.terminalLightColorScheme
             .stateIn(
@@ -857,6 +861,12 @@ class SettingsViewModel @Inject constructor(
     fun setTerminalAutoSwitchScheme(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setTerminalAutoSwitchScheme(enabled)
+        }
+    }
+
+    fun setTerminalApplySchemePalette(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setTerminalApplySchemePalette(enabled)
         }
     }
 

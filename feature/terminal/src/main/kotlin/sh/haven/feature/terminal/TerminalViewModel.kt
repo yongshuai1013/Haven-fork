@@ -571,6 +571,14 @@ class TerminalViewModel @Inject constructor(
             UserPreferencesRepository.TerminalColorScheme.HAVEN,
         )
 
+    /**
+     * Whether to push the active scheme's ANSI palette to the emulator
+     * (#407). Off by default — see [UserPreferencesRepository.terminalApplySchemePalette].
+     */
+    val terminalApplySchemePalette: StateFlow<Boolean> =
+        preferencesRepository.terminalApplySchemePalette
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     /** Live global terminal background opacity (0.0–1.0). 1.0 = opaque. */
     val terminalBackgroundOpacity: StateFlow<Float> =
         preferencesRepository.terminalBackgroundOpacity

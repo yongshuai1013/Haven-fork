@@ -257,6 +257,8 @@
     <string name="settings_color_scheme_dark_title">نظام ألوان الطرفية (داكن)</string>
     <string name="settings_color_scheme_light_dialog_title">نظام ألوان الطرفية — فاتح</string>
     <string name="settings_color_scheme_dark_dialog_title">نظام ألوان الطرفية — داكن</string>
+    <string name="settings_color_scheme_apply_palette_title">تطبيق لوحة ANSI للنمط</string>
+    <string name="settings_color_scheme_apply_palette_subtitle">أعد تلوين ألوان ANSI الـ16 لتطابق النمط. عند الإيقاف تبقى الألوان القياسية، فتظهر تطبيقات ملء الشاشة مثل mutt كما هو متوقع.</string>
     <string name="settings_toolbar_min_key_width">الحد الأدنى لعرض المفتاح: %1$d dp</string>
     <string name="settings_toolbar_uniform_grid">شبكة مفاتيح موحّدة</string>
     <string name="settings_toolbar_uniform_grid_desc">كل مفتاح يشغل خلية متساوية العرض على طريقة Termux؛ التسميات الطويلة تلتف. بدون تمرير جانبي.</string>

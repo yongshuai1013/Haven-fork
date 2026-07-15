@@ -169,6 +169,7 @@ fun SettingsScreen(
     val sessionManager by viewModel.sessionManager.collectAsState()
     val colorScheme by viewModel.terminalColorScheme.collectAsState()
     val autoSwitchColorScheme by viewModel.terminalAutoSwitchScheme.collectAsState()
+    val applySchemePalette by viewModel.terminalApplySchemePalette.collectAsState()
     val lightColorScheme by viewModel.terminalLightColorScheme.collectAsState()
     val darkColorScheme by viewModel.terminalDarkColorScheme.collectAsState()
     val backgroundOpacity by viewModel.terminalBackgroundOpacity.collectAsState()
@@ -482,6 +483,13 @@ fun SettingsScreen(
                 onClick = { showColorSchemeDialog = true },
             )
         }
+        SettingsToggleItem(
+            icon = Icons.Filled.Palette,
+            title = stringResource(R.string.settings_color_scheme_apply_palette_title),
+            subtitle = stringResource(R.string.settings_color_scheme_apply_palette_subtitle),
+            checked = applySchemePalette,
+            onCheckedChange = viewModel::setTerminalApplySchemePalette,
+        )
         SettingsItem(
             icon = Icons.Filled.Opacity,
             title = stringResource(R.string.settings_terminal_opacity_title),

@@ -108,6 +108,7 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import org.connectbot.terminal.ModifierManager
+import org.connectbot.terminal.TerminalEmulator
 import sh.haven.core.terminal.HavenKeyboardMode
 import sh.haven.core.terminal.HavenTerminal
 import sh.haven.core.data.preferences.ToolbarItem
@@ -242,6 +243,7 @@ fun TerminalScreen(
     val systemIsDark = isSystemInDarkTheme()
     LaunchedEffect(systemIsDark) { viewModel.setSystemIsDark(systemIsDark) }
     val colorScheme by viewModel.terminalColorScheme.collectAsState()
+    val applySchemePalette by viewModel.terminalApplySchemePalette.collectAsState()
     val navigateToConnections by viewModel.navigateToConnections.collectAsState()
     val newTabSessionPicker by viewModel.newTabSessionPicker.collectAsState()
     val newTabLoading by viewModel.newTabLoading.collectAsState()
@@ -1083,28 +1085,31 @@ fun TerminalScreen(
                         // MATERIAL_YOU: pulled from MaterialTheme above and
                         // re-applied whenever the system theme shifts (light /
                         // dark / wallpaper change), so the terminal repaints.
-                        // Pushing the 16-colour ANSI palette alongside the
-                        // defaults is what makes SGR-coloured prompts (the
-                        // dominant text on most screens) actually track the
-                        // scheme — defaults alone only cover unstyled cells.
+                        //
+                        // Pushing the scheme's 16-colour ANSI palette makes
+                        // SGR-coloured prompts track the theme, but it also
+                        // remaps the colours full-screen TUIs like mutt rely on
+                        // (e.g. ANSI white → a scheme "cream"), which reads as a
+                        // regression (#407). So it's opt-in: default OFF applies
+                        // only the default fg/bg and leaves libvterm's stock
+                        // palette, matching pre-#165 behaviour.
                         val terminalFgArgb = terminalFg.toArgb()
                         val terminalBgArgb = terminalBg.toArgb()
                         val ansiPalette = remember(activeTabScheme) { activeTabScheme.ansiPaletteArgb() }
-                        LaunchedEffect(terminalFgArgb, terminalBgArgb, ansiPalette, activeTab.emulator) {
-                            activeTab.emulator?.applyColorScheme(
-                                ansiPalette,
-                                terminalFgArgb,
-                                terminalBgArgb,
-                            )
+                        val applyScheme: (TerminalEmulator) -> Unit = { emu ->
+                            if (applySchemePalette) {
+                                emu.applyColorScheme(ansiPalette, terminalFgArgb, terminalBgArgb)
+                            } else {
+                                emu.setDefaultColors(terminalFgArgb, terminalBgArgb)
+                            }
+                        }
+                        LaunchedEffect(applySchemePalette, terminalFgArgb, terminalBgArgb, ansiPalette, activeTab.emulator) {
+                            activeTab.emulator?.let(applyScheme)
                         }
 
                         // Force terminal redraw on resume from background
                         androidx.lifecycle.compose.LifecycleResumeEffect(activeTab.emulator) {
-                            activeTab.emulator?.applyColorScheme(
-                                ansiPalette,
-                                terminalFgArgb,
-                                terminalBgArgb,
-                            )
+                            activeTab.emulator?.let(applyScheme)
                             onPauseOrDispose {}
                         }
 

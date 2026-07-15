@@ -257,6 +257,8 @@
     <string name="settings_color_scheme_dark_title">Цветовая схема терминала (тёмная)</string>
     <string name="settings_color_scheme_light_dialog_title">Цветовая схема терминала — светлая</string>
     <string name="settings_color_scheme_dark_dialog_title">Цветовая схема терминала — тёмная</string>
+    <string name="settings_color_scheme_apply_palette_title">Применять палитру ANSI из схемы</string>
+    <string name="settings_color_scheme_apply_palette_subtitle">Перекрасить 16 цветов ANSI под схему. При выключении сохраняются стандартные цвета, поэтому полноэкранные приложения вроде mutt выглядят как ожидается.</string>
     <string name="settings_toolbar_min_key_width">Минимальная ширина клавиши: %1$d dp</string>
     <string name="settings_toolbar_uniform_grid">Единая сетка клавиш</string>
     <string name="settings_toolbar_uniform_grid_desc">Каждая клавиша занимает ячейку одинаковой ширины, как в Termux; длинные подписи переносятся. Без бокового скролла.</string>

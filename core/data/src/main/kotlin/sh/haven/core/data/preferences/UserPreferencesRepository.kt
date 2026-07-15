@@ -45,6 +45,7 @@ class UserPreferencesRepository @Inject constructor(
     private val terminalAutoSwitchSchemeKey = booleanPreferencesKey("terminal_auto_switch_scheme")
     private val terminalLightColorSchemeKey = stringPreferencesKey("terminal_light_color_scheme")
     private val terminalDarkColorSchemeKey = stringPreferencesKey("terminal_dark_color_scheme")
+    private val terminalApplySchemePaletteKey = booleanPreferencesKey("terminal_apply_scheme_palette")
     private val terminalBackgroundOpacityKey = floatPreferencesKey("terminal_background_opacity")
     private val toolbarRowsKey = intPreferencesKey("toolbar_rows") // legacy
     private val toolbarRow1Key = stringPreferencesKey("toolbar_row1") // legacy
@@ -1517,6 +1518,24 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setTerminalDarkColorScheme(scheme: TerminalColorScheme) {
         dataStore.edit { prefs ->
             prefs[terminalDarkColorSchemeKey] = scheme.name
+        }
+    }
+
+    /**
+     * When true, the active scheme's 16-entry [TerminalColorScheme.ansi]
+     * palette is pushed to the emulator, so SGR-coloured text tracks the
+     * theme. Off by default (#407): overriding the stock ANSI palette
+     * remaps the colours full-screen TUIs like mutt rely on (e.g. ANSI
+     * white → a scheme "cream"), which reads as a regression. Off keeps
+     * libvterm's canonical palette; only the default fg/bg are themed.
+     */
+    val terminalApplySchemePalette: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[terminalApplySchemePaletteKey] ?: false
+    }
+
+    suspend fun setTerminalApplySchemePalette(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[terminalApplySchemePaletteKey] = enabled
         }
     }
 
