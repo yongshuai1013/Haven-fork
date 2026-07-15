@@ -159,7 +159,15 @@ jobs:
   # still sees every artifact.
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    # Must name a status function explicitly. With a bare `if: startsWith(...)`,
+    # GitHub applies an implicit success() over the whole dependency GRAPH — and
+    # once verify-ci greenlights the SHA, `test` is skipped, which makes that
+    # implicit success() false and silently skips publish (nothing ships). `build`
+    # already guards itself this way; publish must too. This path only became
+    # reachable when verify-ci started skipping `test` for the first time.
+    if: |
+      !cancelled() && needs.build.result == 'success' &&
+      startsWith(github.ref, 'refs/tags/')
     # Publish is just artifact download + GitHub Release upload — no heavy
     # compile work. Keep on the free 4-core runner to avoid spending larger-
     # runner minutes on ~20 seconds of I/O.
