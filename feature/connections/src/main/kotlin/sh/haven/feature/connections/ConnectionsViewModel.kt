@@ -163,6 +163,7 @@ class ConnectionsViewModel @Inject constructor(
     private val reticulumSessionManager: ReticulumSessionManager,
     private val moshSessionManager: MoshSessionManager,
     private val etSessionManager: EtSessionManager,
+    private val btSerialSessionManager: sh.haven.core.btserial.BtSerialSessionManager,
     private val reticulumTransport: ReticulumTransport,
     private val smbSessionManager: SmbSessionManager,
     private val rcloneSessionManager: RcloneSessionManager,
@@ -1388,6 +1389,9 @@ class ConnectionsViewModel @Inject constructor(
         profile.isLocal -> true
         profile.isReticulum -> true
         profile.isRclone -> true
+        // Connect only on explicit tap: a BT link is slow/blocking and needs the
+        // adapter powered + the device in range (#406).
+        profile.isBtSerial -> false
         profile.isVnc -> false
         profile.isRdp -> false
         profile.isSpice -> false
@@ -1738,6 +1742,10 @@ class ConnectionsViewModel @Inject constructor(
     ) {
         if (profile.isLocal) {
             connectLocal(profile)
+            return
+        }
+        if (profile.isBtSerial) {
+            connectBtSerial(profile)
             return
         }
         if (profile.isVnc) {
@@ -2546,6 +2554,42 @@ class ConnectionsViewModel @Inject constructor(
                 localSessionManager.updateStatus(sessionId, LocalSessionManager.SessionState.Status.ERROR)
                 localSessionManager.removeSession(sessionId)
                 _error.value = e.message ?: "Local terminal failed"
+            } finally {
+                _connectingProfileId.value = null
+            }
+        }
+    }
+
+    /**
+     * Connect a Bluetooth-serial (SPP) profile (#406): open the RFCOMM link to the
+     * paired device, then navigate to the terminal — TerminalViewModel's session
+     * collector builds the tab once the session is CONNECTED. Mirrors [connectLocal].
+     */
+    private fun connectBtSerial(profile: ConnectionProfile) {
+        viewModelScope.launch {
+            val existing = btSerialSessionManager.getSessionsForProfile(profile.id)
+            if (existing.any { it.status == sh.haven.core.btserial.BtSerialSessionManager.SessionState.Status.CONNECTED }) {
+                _navigateToTerminal.value = profile.id
+                return@launch
+            }
+            _connectingProfileId.value = profile.id
+            _error.value = null
+            val sessionId = btSerialSessionManager.registerSession(
+                profileId = profile.id,
+                label = profile.label,
+                deviceAddress = profile.btDeviceAddress,
+            )
+            try {
+                btSerialSessionManager.connectSession(sessionId) // opens RFCOMM (blocking, on IO)
+                repository.markConnected(profile.id)
+                connectionLogRepository.logEvent(profile.id, ConnectionLog.Status.CONNECTED)
+                startForegroundServiceIfNeeded()
+                _navigateToTerminal.value = profile.id
+            } catch (e: Exception) {
+                Log.e(TAG, "connectBtSerial failed: ${e.message}", e)
+                connectionLogRepository.logEvent(profile.id, ConnectionLog.Status.FAILED, details = e.message)
+                btSerialSessionManager.removeSession(sessionId)
+                _error.value = e.message ?: "Bluetooth serial connection failed"
             } finally {
                 _connectingProfileId.value = null
             }

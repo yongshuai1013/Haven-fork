@@ -120,6 +120,7 @@ class ConnectionsViewModelSessionTest {
             reticulum = reticulumSessionManager,
             mosh = moshSessionManager,
             et = etSessionManager,
+            btSerial = mockk(relaxed = true),
             smb = smbSessionManager,
             local = localSessionManager,
             rdp = rdpSessionManager,
@@ -141,6 +142,7 @@ class ConnectionsViewModelSessionTest {
             reticulumSessionManager = reticulumSessionManager,
             moshSessionManager = moshSessionManager,
             etSessionManager = etSessionManager,
+            btSerialSessionManager = mockk(relaxed = true),
             reticulumTransport = mockk(relaxed = true) {
                 every { discoveredDestinations } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
             },

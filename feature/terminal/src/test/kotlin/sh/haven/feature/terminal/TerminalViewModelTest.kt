@@ -51,6 +51,9 @@ class TerminalViewModelTest {
             reticulumSessionManager,
             moshSessionManager,
             etSessionManager,
+            mockk<sh.haven.core.btserial.BtSerialSessionManager>(relaxed = true) {
+                every { sessions } returns MutableStateFlow(emptyMap())
+            },
             localSessionManager,
             mockk(relaxed = true), // HostKeyVerifier
             mockk(relaxed = true), // FidoAuthenticator

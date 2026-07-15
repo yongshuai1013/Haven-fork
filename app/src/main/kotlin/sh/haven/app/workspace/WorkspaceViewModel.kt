@@ -199,7 +199,8 @@ data class CapturedDraft(
  * MAIL has no workspace Kind yet, so it's likewise skipped (null).
  */
 private fun Transport.toWorkspaceKind(): WorkspaceItem.Kind? = when (this) {
-    Transport.SSH, Transport.MOSH, Transport.ET, Transport.RETICULUM, Transport.LOCAL ->
+    Transport.SSH, Transport.MOSH, Transport.ET, Transport.RETICULUM, Transport.LOCAL,
+    Transport.BTSERIAL ->
         WorkspaceItem.Kind.TERMINAL
     Transport.SMB -> WorkspaceItem.Kind.FILE_BROWSER
     Transport.RDP -> WorkspaceItem.Kind.DESKTOP

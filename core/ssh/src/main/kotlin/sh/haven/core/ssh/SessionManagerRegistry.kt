@@ -1,5 +1,6 @@
 package sh.haven.core.ssh
 
+import sh.haven.core.btserial.BtSerialSessionManager
 import sh.haven.core.et.EtSessionManager
 import sh.haven.core.local.LocalSessionManager
 import sh.haven.core.mail.MailSessionManager
@@ -24,6 +25,7 @@ class SessionManagerRegistry @Inject constructor(
     private val reticulum: ReticulumSessionManager,
     private val mosh: MoshSessionManager,
     private val et: EtSessionManager,
+    private val btSerial: BtSerialSessionManager,
     private val smb: SmbSessionManager,
     private val local: LocalSessionManager,
     private val rdp: RdpSessionManager,
@@ -43,6 +45,7 @@ class SessionManagerRegistry @Inject constructor(
         reticulum.removeAllSessionsForProfile(profileId)
         mosh.removeAllSessionsForProfile(profileId)
         et.removeAllSessionsForProfile(profileId)
+        btSerial.removeAllSessionsForProfile(profileId)
         smb.removeAllSessionsForProfile(profileId)
         local.removeAllSessionsForProfile(profileId)
         rdp.removeAllSessionsForProfile(profileId)
@@ -65,6 +68,7 @@ class SessionManagerRegistry @Inject constructor(
         val errors = mutableListOf<String>()
         val attempts = listOf<(String, String) -> Unit>(
             ssh::sendInput, local::sendInput, mosh::sendInput, et::sendInput, reticulum::sendInput,
+            btSerial::sendInput,
         )
         for (attempt in attempts) {
             try {
@@ -94,6 +98,7 @@ class SessionManagerRegistry @Inject constructor(
             reticulum.activeSessions.isNotEmpty() ||
             mosh.activeSessions.isNotEmpty() ||
             et.activeSessions.isNotEmpty() ||
+            btSerial.activeSessions.isNotEmpty() ||
             local.activeSessions.isNotEmpty() ||
             rdp.activeSessions.isNotEmpty() ||
             smb.activeSessions.isNotEmpty() ||
@@ -110,6 +115,7 @@ class SessionManagerRegistry @Inject constructor(
             reticulum.sessions.value.values.map { it.toSession() } +
             mosh.sessions.value.values.map { it.toSession() } +
             et.sessions.value.values.map { it.toSession() } +
+            btSerial.sessions.value.values.map { it.toSession() } +
             smb.sessions.value.values.map { it.toSession() } +
             local.sessions.value.values.map { it.toSession() } +
             rdp.sessions.value.values.map { it.toSession() } +
@@ -145,6 +151,9 @@ private fun MoshSessionManager.SessionState.toSession() =
 
 private fun EtSessionManager.SessionState.toSession() =
     UnifiedSession(sessionId, profileId, label, mapStatus(status.name), Transport.ET)
+
+private fun BtSerialSessionManager.SessionState.toSession() =
+    UnifiedSession(sessionId, profileId, label, mapStatus(status.name), Transport.BTSERIAL)
 
 private fun ReticulumSessionManager.SessionState.toSession() =
     UnifiedSession(sessionId, profileId, label, mapStatus(status.name), Transport.RETICULUM)

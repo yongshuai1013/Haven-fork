@@ -319,6 +319,11 @@ internal class McpTools(
             inputSchema = emptyObjectSchema(),
         ) { _ -> listSessions() },
 
+        "list_bluetooth_devices" to ToolHandler(
+            description = "List Bluetooth Classic devices already paired (bonded) with the phone — { address, name } each. Use the address as `host` when creating a BTSERIAL (Bluetooth-serial console) profile with create_connection (#406). Only paired devices appear; pair a new BT-to-serial adapter in Android Settings → Bluetooth first. Returns an error hint if BLUETOOTH_CONNECT hasn't been granted (open the app's Bluetooth-serial connection editor once to grant it).",
+            inputSchema = emptyObjectSchema(),
+        ) { _ -> listBluetoothDevices() },
+
 
 
 
@@ -1417,10 +1422,10 @@ internal class McpTools(
         ) { args -> setProfileRouting(args) },
 
         "create_connection" to ToolHandler(
-            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
+            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. BTSERIAL (Bluetooth-serial console, #406): host = the paired device's Bluetooth MAC (from list_bluetooth_devices); no other fields. The device must already be paired in Android Settings. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
             inputSchema = objectSchema {
                 string("label", "User-facing label.", required = true)
-                string("connectionType", "SSH | SMB | VNC | RDP | SPICE | EMAIL.", required = true)
+                string("connectionType", "SSH | SMB | VNC | RDP | SPICE | EMAIL | BTSERIAL.", required = true)
                 string("host", "Target hostname or IP. For EMAIL this is the optional tunnel ingress/bastion (SPA/knock target), NOT the mail server — leave blank for a direct IMAP connection.", required = true)
                 integer("port", "TCP port. Defaults: SSH 22, SMB 445, VNC 5900, RDP 3389, SPICE 5900. Type-specific vncPort/rdpPort/spicePort override this.")
                 string("username", "Username for SSH/SMB.")
@@ -2015,6 +2020,27 @@ internal class McpTools(
             put("spaAllowMode", p.spaAllowMode)
             put("spaPort", p.spaPort)
         }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission") // permission checked before reading bondedDevices
+    private fun listBluetoothDevices(): JSONObject {
+        val needsPerm = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+        if (needsPerm && androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.BLUETOOTH_CONNECT,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            throw IllegalStateException(
+                "BLUETOOTH_CONNECT not granted — open a Bluetooth-serial connection in the app once to grant it, then retry.",
+            )
+        }
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE)
+            as? android.bluetooth.BluetoothManager)?.adapter
+            ?: throw IllegalStateException("This device has no Bluetooth adapter")
+        val devices = JSONArray()
+        adapter.bondedDevices.orEmpty().forEach { d ->
+            devices.put(JSONObject().put("address", d.address).put("name", d.name ?: d.address))
+        }
+        return JSONObject().put("devices", devices).put("count", devices.length())
     }
 
     private fun listSessions(): JSONObject {
@@ -5564,8 +5590,8 @@ internal class McpTools(
         val type = args.optString("connectionType").uppercase().ifBlank {
             throw IllegalArgumentException("connectionType required")
         }
-        if (type !in setOf("SSH", "SMB", "VNC", "RDP", "SPICE", "EMAIL")) {
-            throw IllegalArgumentException("connectionType must be SSH, SMB, VNC, RDP, SPICE, or EMAIL (use the UI for LOCAL / RCLONE / RETICULUM)")
+        if (type !in setOf("SSH", "SMB", "VNC", "RDP", "SPICE", "EMAIL", "BTSERIAL")) {
+            throw IllegalArgumentException("connectionType must be SSH, SMB, VNC, RDP, SPICE, EMAIL, or BTSERIAL (use the UI for LOCAL / RCLONE / RETICULUM)")
         }
         // EMAIL's host is the optional tunnel-ingress/bastion (SPA/knock target),
         // not the mail server — so it may be blank; every other type requires it.
@@ -5586,6 +5612,7 @@ internal class McpTools(
             "RDP" -> 3389
             "SPICE" -> 5900
             "EMAIL" -> 0
+            "BTSERIAL" -> 0
             else -> 22
         }
         // Honor the type-specific port field (vncPort/rdpPort/spicePort) the
@@ -5651,6 +5678,14 @@ internal class McpTools(
                 tunnelOnly = tunnelOnly,
                 portKnockSequence = knockSequence,
                 portKnockDelayMs = knockDelay,
+            )
+            "BTSERIAL" -> ConnectionProfile(
+                // host carries the paired device's Bluetooth MAC (#406).
+                label = label,
+                host = host,
+                port = 0,
+                username = "",
+                connectionType = "BTSERIAL",
             )
             "SMB" -> {
                 val share = args.optString("smbShare").ifBlank {

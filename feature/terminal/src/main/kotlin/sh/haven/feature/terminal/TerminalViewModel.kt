@@ -288,6 +288,7 @@ class TerminalViewModel @Inject constructor(
     private val reticulumSessionManager: ReticulumSessionManager,
     private val moshSessionManager: MoshSessionManager,
     private val etSessionManager: EtSessionManager,
+    private val btSerialSessionManager: sh.haven.core.btserial.BtSerialSessionManager,
     private val localSessionManager: sh.haven.core.local.LocalSessionManager,
     private val hostKeyVerifier: HostKeyVerifier,
     /**
@@ -457,6 +458,8 @@ class TerminalViewModel @Inject constructor(
                             when {
                                 profile.isLocal ->
                                     addLocalTabForProfile(profile.id, profile.label)
+                                profile.isBtSerial ->
+                                    addBtSerialTabForProfile(profile.id, profile.label)
                                 profile.isSsh ->
                                     // Adds a tab on an already-live SSH session
                                     // (reusing its connection); toasts and
@@ -503,6 +506,7 @@ class TerminalViewModel @Inject constructor(
                 "RETICULUM" -> reticulumSessionManager.detachTerminalSession(tab.sessionId)
                 "MOSH" -> moshSessionManager.detachTerminalSession(tab.sessionId)
                 "ET" -> etSessionManager.detachTerminalSession(tab.sessionId)
+                "BTSERIAL" -> btSerialSessionManager.detachTerminalSession(tab.sessionId)
                 "LOCAL" -> {
                     localSessionManager.detachTerminalSession(tab.sessionId)
                     // Drop the now-stale emulator from the singleton registry so a
@@ -933,6 +937,9 @@ class TerminalViewModel @Inject constructor(
             etSessionManager.sessions.collect { syncSessions() }
         }
         viewModelScope.launch {
+            btSerialSessionManager.sessions.collect { syncSessions() }
+        }
+        viewModelScope.launch {
             localSessionManager.sessions.collect { syncSessions() }
         }
     }
@@ -946,6 +953,7 @@ class TerminalViewModel @Inject constructor(
         val rnsSessions = reticulumSessionManager.sessions.value
         val moshSessions = moshSessionManager.sessions.value
         val etSessions = etSessionManager.sessions.value
+        val btSerialSessions = btSerialSessionManager.sessions.value
         val localSessions = localSessionManager.sessions.value
 
         // Resolve the display config (color scheme, alt-screen, color tag) for
@@ -959,6 +967,7 @@ class TerminalViewModel @Inject constructor(
                 rnsSessions.values.forEach { add(it.profileId) }
                 moshSessions.values.forEach { add(it.profileId) }
                 etSessions.values.forEach { add(it.profileId) }
+                btSerialSessions.values.forEach { add(it.profileId) }
                 localSessions.values.forEach { add(it.profileId) }
             }.associateWith { connectionRepository.getById(it) }
         }
@@ -996,6 +1005,14 @@ class TerminalViewModel @Inject constructor(
             .map { it.sessionId }
             .toSet()
 
+        // Find Bluetooth-serial sessions that are connected
+        val activeBtIds = btSerialSessions.values
+            .filter {
+                it.status == sh.haven.core.btserial.BtSerialSessionManager.SessionState.Status.CONNECTED
+            }
+            .map { it.sessionId }
+            .toSet()
+
         // Find Local sessions that are connected
         val activeLocalIds = localSessions.values
             .filter {
@@ -1004,7 +1021,7 @@ class TerminalViewModel @Inject constructor(
             .map { it.sessionId }
             .toSet()
 
-        val allActiveIds = activeSshIds + activeRnsIds + activeMoshIds + activeEtIds + activeLocalIds
+        val allActiveIds = activeSshIds + activeRnsIds + activeMoshIds + activeEtIds + activeBtIds + activeLocalIds
 
         val currentTabs = _tabs.value.toMutableList()
 
@@ -1169,6 +1186,84 @@ class TerminalViewModel @Inject constructor(
                     close = { rnsSession.close() },
                     colorScheme = rnsScheme,
                     backgroundOpacity = effectiveOpacity(rnsProfile),
+                )
+            )
+            trackedSessionIds.add(session.sessionId)
+        }
+
+        // Create tabs for new Bluetooth-serial sessions (#406). A raw serial link
+        // has no window-size channel, so resize is a no-op (the console's width is
+        // fixed on the far side).
+        for (sessionId in activeBtIds) {
+            if (sessionId in trackedSessionIds) continue
+            if (!btSerialSessionManager.isReadyForTerminal(sessionId)) continue
+
+            val session = btSerialSessions[sessionId] ?: continue
+            val btProfile = profilesById[session.profileId]
+            val tabLabel = generateTabLabel(session.label, session.profileId, currentTabs)
+
+            lateinit var emulator: TerminalEmulator
+            val btWriteBuffer = EmulatorWriteBuffer({ emulator }, createRecorderIfEnabled(sessionId))
+            val btMouseTracker = MouseModeTracker()
+            val btOscHandler = OscHandler()
+            val btCwdFlow = MutableStateFlow<String?>(null)
+            val btHyperlinkFlow = MutableStateFlow<String?>(null)
+            btOscHandler.onCwdChanged = { btCwdFlow.value = it }
+            btOscHandler.onHyperlink = { uri -> btHyperlinkFlow.value = uri }
+            val btFeedOutput: (ByteArray, Int, Int) -> Unit = { data, offset, length ->
+                synchronized(btOscHandler) {
+                    btOscHandler.process(data, offset, length)
+                    btMouseTracker.process(btOscHandler.outputBuf, 0, btOscHandler.outputLen)
+                    val len = btOscHandler.outputLen
+                    if (len > 0) {
+                        btWriteBuffer.append(btOscHandler.outputBuf, 0, len)
+                    }
+                }
+            }
+            val btSession = btSerialSessionManager.createTerminalSession(
+                sessionId = sessionId,
+                onDataReceived = { data, offset, length -> btFeedOutput(data, offset, length) },
+            ) ?: continue
+
+            val btCoalescer = InputCoalescer { data -> btSession.sendInput(data) }
+            val btScheme = effectiveColorScheme(btProfile)
+            val btInitialScheme = initialEmulatorScheme(btScheme)
+            emulator = TerminalEmulatorFactory.create(
+                autoDetectUrls = true,
+                initialRows = 24,
+                initialCols = 80,
+                defaultForeground = Color(btInitialScheme.foreground),
+                defaultBackground = Color(btInitialScheme.background),
+                enableAltScreen = btProfile?.disableAltScreen != true,
+                onKeyboardInput = { data -> btCoalescer.send(applyModifiers(data)) },
+                onResize = { /* raw serial: no resize channel */ },
+                maxScrollbackLines = terminalScrollbackRows.value,
+            )
+
+            currentTabs.add(
+                TerminalTab(
+                    sessionId = session.sessionId,
+                    profileId = session.profileId,
+                    colorTag = btProfile?.colorTag ?: 0,
+                    label = tabLabel,
+                    transportType = "BTSERIAL",
+                    emulator = emulator,
+                    mouseMode = btMouseTracker.mouseMode,
+                    activeMouseMode = btMouseTracker.activeMouseMode,
+                    bracketPasteMode = btMouseTracker.bracketPasteMode,
+                    altScreen = btMouseTracker.altScreen,
+                    cursorKeyAppMode = btMouseTracker.cursorKeyAppMode,
+                    oscHandler = btOscHandler,
+                    feedOutput = btFeedOutput,
+                    cwd = btCwdFlow,
+                    hyperlinkUri = btHyperlinkFlow,
+                    isReconnecting = MutableStateFlow(false),
+                    stallSeconds = NEVER_STALLS,
+                    sendInput = { data -> btSession.sendInput(data) },
+                    resize = { _, _ -> /* raw serial: no resize channel */ },
+                    close = { btSession.close() },
+                    colorScheme = btScheme,
+                    backgroundOpacity = effectiveOpacity(btProfile),
                 )
             )
             trackedSessionIds.add(session.sessionId)
@@ -2018,6 +2113,38 @@ class TerminalViewModel @Inject constructor(
                 selectTabBySessionId(sessionId)
             } catch (e: Exception) {
                 Log.e(TAG, "addLocalTabForProfile failed: ${e.message}", e)
+                _newTabMessage.value = appContext.getString(
+                    R.string.terminal_new_tab_connection_failed,
+                    e.message ?: e.javaClass.simpleName,
+                )
+            } finally {
+                _newTabLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Open a Bluetooth-serial terminal for a BTSERIAL profile (#406): register a
+     * session, open the RFCOMM link (blocking, on IO), then let [syncSessions]
+     * build the tab from the now-CONNECTED session. Mirrors [addLocalTabForProfile].
+     */
+    fun addBtSerialTabForProfile(profileId: String, label: String? = null) {
+        viewModelScope.launch {
+            _newTabLoading.value = true
+            try {
+                val profile = connectionRepository.getById(profileId)
+                    ?: throw IllegalStateException("profile $profileId not found")
+                val resolvedLabel = label ?: profile.label.ifBlank { profile.host }
+                val sessionId = btSerialSessionManager.registerSession(
+                    profileId = profileId,
+                    label = resolvedLabel,
+                    deviceAddress = profile.btDeviceAddress,
+                )
+                btSerialSessionManager.connectSession(sessionId) // opens RFCOMM (IO); throws on failure
+                syncSessions()
+                selectTabBySessionId(sessionId)
+            } catch (e: Exception) {
+                Log.e(TAG, "addBtSerialTabForProfile failed: ${e.message}", e)
                 _newTabMessage.value = appContext.getString(
                     R.string.terminal_new_tab_connection_failed,
                     e.message ?: e.javaClass.simpleName,
