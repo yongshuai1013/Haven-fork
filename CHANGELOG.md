@@ -5,6 +5,14 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.68.70
+
+🎨 **mutt and other full-screen terminal apps get their colours back** — since v5.51.0 Haven repainted the 16 standard ANSI colours to match your chosen scheme. That's fine for most prompts, but full-screen apps like mutt pick specific ANSI colours on purpose — so mutt's background turned an unreadable yellow and its headers lost contrast. Haven now leaves the 16 ANSI colours at their standard values by default, so those apps look the way they're meant to again. If you liked the theme-matched colours, a new **Settings → Appearance → "Apply scheme's ANSI palette"** toggle turns them back on. (#407, thanks for the version bisect that pinned it to v5.51.0)
+
+📟 **Bluetooth-serial console connections** — connect to a device's serial console over a paired Bluetooth (Classic SPP) adapter and get a full terminal, the same as SSH or Mosh. Add one from the connection editor and pick a paired device — handy for switches, routers and embedded boards with no network access. (#406)
+
+📡 **Following a hotspot-tethered device, third revision** — when your phone *is* the hotspot, Android hands it a fresh random subnet each session and never names that network to apps, so the previous re-discovery still searched the wrong place. Haven now enumerates the phone's own network interfaces to find the tethered device directly. (#367/#376, thanks ehoeve786 — still awaiting an on-device confirm)
+
 ## v5.68.69
 
 📡 **Following a moved device now works when your phone is the hotspot** — yesterday's fix got the re-discovery to actually run, but it then looked on the wrong network. It searched the phone's internet-facing network (your mobile data), when the device it's hunting for is on the *hotspot* the phone itself provides. It now also searches the network the device was last seen on — which, since an address change keeps a device on the same local network, is exactly where it still is. The everyday "everything on one Wi-Fi" case is unchanged. (#367/#376, thanks ehoeve786)

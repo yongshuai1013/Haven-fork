@@ -1,0 +1,5 @@
+• mutt and other full-screen terminal apps get their colours back. Since v5.51.0 Haven repainted the 16 standard ANSI colours to match your scheme — fine for most prompts, but full-screen apps like mutt choose specific ANSI colours on purpose, so mutt's background turned an unreadable yellow and its headers lost contrast. The 16 ANSI colours now stay at their standard values by default. A new Settings → Appearance → "Apply scheme's ANSI palette" toggle turns the theme-matched colours back on if you preferred them.
+
+• Bluetooth-serial console connections. Connect to a device's serial console over a paired Bluetooth (Classic SPP) adapter and get a full terminal, like SSH or Mosh. Add one from the connection editor and pick a paired device — handy for switches, routers and embedded boards with no network access.
+
+• Following a hotspot-tethered device, third revision. When the phone itself is the hotspot, Android assigns a fresh random subnet each session and never names that network to apps, so re-discovery still searched the wrong place. Haven now enumerates the phone's own interfaces to find the tethered device directly.
