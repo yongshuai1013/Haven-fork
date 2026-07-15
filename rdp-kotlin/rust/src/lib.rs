@@ -1212,6 +1212,26 @@ fn run_rdp_session(
                     }
                     Err(e) => {
                         let msg = format!("{:?}", e);
+                        // A server-redirection PDU (GNOME Remote Desktop, Windows
+                        // RDS load-balancers) reaches us as an "unexpected share
+                        // control PDU type" because IronRDP can't decode it.
+                        // Recognise it from the raw frame and surface a precise
+                        // reason instead of a silent black screen. Following the
+                        // redirect (reconnect with the routing token) is #117's
+                        // next phase — deferred until it can be verified against a
+                        // real GRD redirect capture.
+                        if let Some(info) = redirection::detect_server_redirect(&frame) {
+                            let target = info
+                                .target_host()
+                                .unwrap_or_else(|| "another session on the same host".to_string());
+                            let reason = format!(
+                                "Server requested a session redirection to {target}. Haven does \
+                                 not yet follow RDP server redirection (see #117), so the session \
+                                 cannot continue."
+                            );
+                            warn!("{reason} (redir_flags={:#06x})", info.redir_flags);
+                            return Err(reason);
+                        }
                         if msg.contains("unhandled") || msg.contains("unsupported") {
                             // Try to decode as slow-path bitmap update
                             if try_handle_slow_path_bitmap(&frame, state) {

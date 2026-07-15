@@ -13,10 +13,19 @@
 //! against FreeRDP `libfreerdp/core/redirection.c`. Flag values are the
 //! MS-RDPBCGR §2.2.13.1.1 `LB_*` constants.
 //!
-//! NOTE: this module parses the redirection *packet body* (from the `Flags`
-//! UINT16 onward) and is unit-tested in isolation. Locating the packet
-//! within a live Share Control frame, and the reconnect wiring, are pending
-//! end-to-end verification against a real GDM/GRD server (see #117).
+//! Scope: this module (a) parses the redirection *packet body* (from the
+//! `Flags` UINT16 onward — [`parse_redirection_packet`]) and (b) locates that
+//! body inside a live session frame, recognising the Enhanced Security Server
+//! Redirection PDU from raw X.224/MCS bytes ([`detect_server_redirect`]). Both
+//! are unit-tested, including a round-trip through IronRDP's real MCS decoder.
+//! The session loop uses (b) to report a redirect precisely instead of dying
+//! to a black screen.
+//!
+//! NOT yet done: *following* the redirect (reconnecting with the routing token
+//! replayed as the X.224 nego cookie). That step's wire details — how GRD
+//! frames `LoadBalanceInfo`, and whether a pad precedes the body — can't be
+//! pinned down without a real GRD redirect capture, so it's deferred rather
+//! than shipped on guessed framing (see #117).
 
 // RedirFlags (LB_*) — MS-RDPBCGR §2.2.13.1.1, little-endian UINT32 bitmask.
 const LB_TARGET_NET_ADDRESS: u32 = 0x0000_0001;
@@ -204,9 +213,88 @@ pub fn parse_redirection_packet(packet: &[u8]) -> Option<RedirectionInfo> {
     Some(info)
 }
 
+// --- Locating the redirection packet inside a live Share Control frame ---
+//
+// Over enhanced (TLS/CredSSP) security, GRD sends the redirection as an
+// *Enhanced Security Server Redirection PDU* (MS-RDPBCGR §2.2.13.3): an MCS
+// SendDataIndication whose Share Control Header carries
+// `pduType == PDUTYPE_SERVER_REDIR_PKT`, followed by the
+// `RDP_SERVER_REDIRECTION_PACKET` body. IronRDP has no redirect support, so
+// `ActiveStage::process` rejects it as "unexpected share control PDU type"
+// and the session dies to a black screen (#117). We recognise it from the raw
+// frame so the failure can be reported precisely.
+
+/// Share Control Header `pduType` low-nibble for a server-redirection PDU.
+const PDUTYPE_SERVER_REDIR_PKT: u16 = 0xa;
+/// Mask isolating the pduType from the version bits (matches IronRDP's
+/// `SHARE_CONTROL_HEADER_MASK`).
+const SHARE_CONTROL_TYPE_MASK: u16 = 0xf;
+/// `Flags` value that opens every `RDP_SERVER_REDIRECTION_PACKET` body.
+const SEC_REDIRECTION_PKT: u16 = 0x0400;
+
+/// Given the Share Control payload (an MCS SendDataIndication's user data,
+/// i.e. starting at the Share Control Header's `totalLength`), return
+/// `Some(info)` iff it is a server-redirection PDU.
+///
+/// The `pduType` nibble is the unambiguous, decisive signal ("this is a
+/// redirect"). The redirection body then sits either immediately after the
+/// 6-byte Share Control Header or after a 2-octet pad — layouts differ across
+/// servers and we can't yet device-verify which GRD emits (#117), so we locate
+/// the body by its `SEC_REDIRECTION_PKT` marker at either offset. If the type
+/// matched but the body doesn't parse, a bare `RedirectionInfo` is still
+/// returned so callers can report *that* a redirect happened even when the
+/// optional fields are unreadable.
+pub fn parse_share_control_redirect(user_data: &[u8]) -> Option<RedirectionInfo> {
+    // Share Control Header: totalLength(2) + pduType(2) + pduSource(2).
+    if user_data.len() < 6 {
+        return None;
+    }
+    let pdu_type = u16::from_le_bytes([user_data[2], user_data[3]]);
+    if pdu_type & SHARE_CONTROL_TYPE_MASK != PDUTYPE_SERVER_REDIR_PKT {
+        return None;
+    }
+
+    for start in [6usize, 8] {
+        if start + 2 <= user_data.len()
+            && u16::from_le_bytes([user_data[start], user_data[start + 1]]) == SEC_REDIRECTION_PKT
+        {
+            if let Some(info) = parse_redirection_packet(&user_data[start..]) {
+                return Some(info);
+            }
+        }
+    }
+
+    // Definitely a redirect (type nibble matched) but the body was where we
+    // didn't expect or didn't parse — surface a bare marker regardless.
+    Some(RedirectionInfo::default())
+}
+
+/// Recognise a server-redirection PDU straight from a raw session frame
+/// (post-TLS X.224/MCS bytes as read by the session loop). Peels the MCS
+/// SendDataIndication with IronRDP's decoder — the same one the working
+/// slow-path-bitmap handler uses — then defers to
+/// [`parse_share_control_redirect`]. Returns `None` for any non-redirect frame.
+pub fn detect_server_redirect(frame: &[u8]) -> Option<RedirectionInfo> {
+    let ctx = ironrdp_connector::legacy::decode_send_data_indication(frame).ok()?;
+    parse_share_control_redirect(ctx.user_data)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Wrap an already-encoded redirection body in a Share Control Header with
+    /// the given pduType nibble (`0xa` == server redirection).
+    fn share_control(pdu_type_nibble: u16, body: &[u8]) -> Vec<u8> {
+        const PROTOCOL_VERSION: u16 = 0x10; // IronRDP's TS_PROTOCOL_VERSION
+        let mut v = Vec::new();
+        let total = (6 + body.len()) as u16;
+        v.extend_from_slice(&total.to_le_bytes()); // totalLength
+        v.extend_from_slice(&(PROTOCOL_VERSION | pdu_type_nibble).to_le_bytes()); // pduType|version
+        v.extend_from_slice(&0x03eau16.to_le_bytes()); // pduSource (server channel)
+        v.extend_from_slice(body);
+        v
+    }
 
     /// Build a redirection packet body: Flags, Length(placeholder),
     /// SessionID, RedirFlags, then the already-encoded optional fields.
@@ -324,5 +412,97 @@ mod tests {
         let p = pkt(1, flags, &fields);
         let info = parse_redirection_packet(&p).expect("should parse");
         assert_eq!(info.load_balance_info.as_deref(), Some(&b"\xaa\xbb"[..]));
+    }
+
+    // --- parse_share_control_redirect ---
+
+    #[test]
+    fn share_control_redirect_body_immediately_after_header() {
+        // GRD same-host handover: routing token, no explicit target.
+        let token = b"Cookie: msts=12345.67890.0000\r\n";
+        let body = pkt(0x55, LB_LOAD_BALANCE_INFO, &len_blob(token));
+        let ud = share_control(PDUTYPE_SERVER_REDIR_PKT, &body);
+        let info = parse_share_control_redirect(&ud).expect("recognised as redirect");
+        assert_eq!(info.load_balance_info.as_deref(), Some(&token[..]));
+        assert!(info.target_host().is_none());
+    }
+
+    #[test]
+    fn share_control_redirect_body_after_two_octet_pad() {
+        // Some layouts insert a 2-octet pad before the redirection packet;
+        // the SEC_REDIRECTION_PKT marker scan must find it at offset 8.
+        let body = pkt(1, LB_TARGET_NET_ADDRESS, &len_blob(&utf16le_bytes("10.0.0.7")));
+        let mut padded = vec![0u8, 0u8];
+        padded.extend_from_slice(&body);
+        let ud = share_control(PDUTYPE_SERVER_REDIR_PKT, &padded);
+        let info = parse_share_control_redirect(&ud).expect("recognised as redirect");
+        assert_eq!(info.target_host().as_deref(), Some("10.0.0.7"));
+    }
+
+    #[test]
+    fn non_redirect_pdu_type_is_ignored() {
+        // A Data PDU (nibble 0x7) must not be mistaken for a redirect.
+        let ud = share_control(0x7, &[0u8; 16]);
+        assert!(parse_share_control_redirect(&ud).is_none());
+    }
+
+    #[test]
+    fn redirect_type_with_unparseable_body_still_flags_redirect() {
+        // pduType says redirect but there's no SEC_REDIRECTION_PKT marker:
+        // we still report *a* redirect (bare marker) so the caller can say so.
+        let ud = share_control(PDUTYPE_SERVER_REDIR_PKT, &[0xffu8; 12]);
+        let info = parse_share_control_redirect(&ud).expect("still a redirect");
+        assert_eq!(info, RedirectionInfo::default());
+        assert!(info.target_host().is_none());
+    }
+
+    #[test]
+    fn share_control_too_short_is_none() {
+        assert!(parse_share_control_redirect(&[0x01, 0x02, 0x1a]).is_none());
+        assert!(parse_share_control_redirect(&[]).is_none());
+    }
+
+    // --- detect_server_redirect: end-to-end through the real MCS decoder ---
+
+    /// Encode a genuine X.224/MCS SendDataIndication carrying `user_data`, so
+    /// the test exercises the same `decode_send_data_indication` path the live
+    /// session loop uses — not just the inner Share Control parse.
+    fn send_data_indication(user_data: &[u8]) -> Vec<u8> {
+        use ironrdp_core::encode_vec;
+        use ironrdp_pdu::mcs::SendDataIndication;
+        use ironrdp_pdu::x224::X224;
+        use std::borrow::Cow;
+        let sdi = SendDataIndication {
+            initiator_id: 1002,
+            channel_id: 1003,
+            user_data: Cow::Borrowed(user_data),
+        };
+        encode_vec(&X224(sdi)).expect("encode SendDataIndication")
+    }
+
+    #[test]
+    fn detect_from_real_mcs_frame_with_routing_token() {
+        let token = b"Cookie: msts=7.8.0\r\n";
+        let body = pkt(0x99, LB_LOAD_BALANCE_INFO, &len_blob(token));
+        let ud = share_control(PDUTYPE_SERVER_REDIR_PKT, &body);
+        let frame = send_data_indication(&ud);
+        let info = detect_server_redirect(&frame).expect("redirect detected from MCS frame");
+        assert_eq!(info.load_balance_info.as_deref(), Some(&token[..]));
+    }
+
+    #[test]
+    fn detect_ignores_non_redirect_mcs_frame() {
+        // A Data-PDU Share Control payload wrapped in a real MCS frame must
+        // not be flagged as a redirect.
+        let ud = share_control(0x7, &[0u8; 8]);
+        let frame = send_data_indication(&ud);
+        assert!(detect_server_redirect(&frame).is_none());
+    }
+
+    #[test]
+    fn detect_ignores_garbage_frame() {
+        // Random bytes aren't a valid MCS SendDataIndication → None, no panic.
+        assert!(detect_server_redirect(&[0xde, 0xad, 0xbe, 0xef]).is_none());
+        assert!(detect_server_redirect(&[]).is_none());
     }
 }
