@@ -164,6 +164,8 @@ class ConnectionsViewModel @Inject constructor(
     private val moshSessionManager: MoshSessionManager,
     private val etSessionManager: EtSessionManager,
     private val btSerialSessionManager: sh.haven.core.btserial.BtSerialSessionManager,
+    private val usbSerialSessionManager: sh.haven.core.usbserial.UsbSerialSessionManager,
+    private val usbBroker: sh.haven.core.usb.UsbBroker,
     private val reticulumTransport: ReticulumTransport,
     private val smbSessionManager: SmbSessionManager,
     private val rcloneSessionManager: RcloneSessionManager,
@@ -1423,6 +1425,9 @@ class ConnectionsViewModel @Inject constructor(
         // Connect only on explicit tap: a BT link is slow/blocking and needs the
         // adapter powered + the device in range (#406).
         profile.isBtSerial -> false
+        // Connect only on explicit tap: the device must be plugged in and the
+        // USB permission prompt answered (#408).
+        profile.isUsbSerial -> false
         profile.isVnc -> false
         profile.isRdp -> false
         profile.isSpice -> false
@@ -1777,6 +1782,10 @@ class ConnectionsViewModel @Inject constructor(
         }
         if (profile.isBtSerial) {
             connectBtSerial(profile)
+            return
+        }
+        if (profile.isUsbSerial) {
+            connectUsbSerial(profile)
             return
         }
         if (profile.isVnc) {
@@ -2666,6 +2675,83 @@ class ConnectionsViewModel @Inject constructor(
                 "the device is unreachable ($msg)"
             msg.contains("Bluetooth adapter", ignoreCase = true) ->
                 "no Bluetooth adapter on this phone"
+            else -> msg
+        }
+    }
+
+    /**
+     * Connect a USB-serial profile (#408): resolve the plugged-in device by its
+     * vendorId:productId, request USB permission (system dialog) if needed, open
+     * the serial port at the profile's baud, then navigate to the terminal —
+     * TerminalViewModel's session collector builds the tab. Mirrors
+     * [connectBtSerial]; USB is the boundary proot can't cross, so it's native.
+     */
+    private fun connectUsbSerial(profile: ConnectionProfile) {
+        viewModelScope.launch {
+            val existing = usbSerialSessionManager.getSessionsForProfile(profile.id)
+            if (existing.any { it.status == sh.haven.core.usbserial.UsbSerialSessionManager.SessionState.Status.CONNECTED }) {
+                _navigateToTerminal.value = profile.id
+                return@launch
+            }
+            _connectingProfileId.value = profile.id
+            _error.value = null
+            val key = profile.usbDeviceKey
+            val startedAt = System.currentTimeMillis()
+            val sessionId = usbSerialSessionManager.registerSession(
+                profileId = profile.id,
+                label = profile.label,
+                deviceKey = key,
+                params = sh.haven.core.usbserial.UsbSerialParams(baudRate = profile.usbBaudRate),
+            )
+            try {
+                // Resolve the attached device to get its deviceName, then request
+                // USB permission BEFORE opening — the port open fails without it.
+                // UsbBroker only grants permission here; the serial port opens it.
+                val info = usbBroker.listDevices().firstOrNull {
+                    "%04x:%04x".format(it.vendorId, it.productId) == key
+                } ?: throw IllegalStateException("USB device $key is not plugged in")
+                if (!usbBroker.requestPermission(info.deviceName)) {
+                    throw IllegalStateException("USB permission denied")
+                }
+                usbSerialSessionManager.connectSession(sessionId) // opens the port (IO)
+                repository.markConnected(profile.id)
+                connectionLogRepository.logEvent(
+                    profile.id,
+                    ConnectionLog.Status.CONNECTED,
+                    durationMs = System.currentTimeMillis() - startedAt,
+                    details = "USB serial ${info.productName ?: key} up at ${profile.usbBaudRate} baud",
+                )
+                startForegroundServiceIfNeeded()
+                _navigateToTerminal.value = profile.id
+            } catch (e: Exception) {
+                val reason = usbSerialFailureHint(e)
+                Log.e(TAG, "connectUsbSerial failed: $reason", e)
+                connectionLogRepository.logEvent(
+                    profile.id,
+                    ConnectionLog.Status.FAILED,
+                    durationMs = System.currentTimeMillis() - startedAt,
+                    details = "USB serial connect to $key failed: $reason",
+                )
+                usbSerialSessionManager.removeSession(sessionId)
+                _error.value = reason
+                userMessageBus.error("${profile.label}: $reason")
+            } finally {
+                _connectingProfileId.value = null
+            }
+        }
+    }
+
+    private fun usbSerialFailureHint(e: Exception): String {
+        val msg = e.message ?: e.javaClass.simpleName
+        return when {
+            msg.contains("not plugged in", ignoreCase = true) ->
+                "the device isn't plugged in — connect it, then allow the USB prompt"
+            msg.contains("permission", ignoreCase = true) ->
+                "USB permission was denied — reconnect and tap Allow on the prompt"
+            msg.contains("No serial driver", ignoreCase = true) ->
+                "not a recognised USB-serial adapter (CDC-ACM / CH34x / FTDI / CP21xx) ($msg)"
+            msg.contains("no ports", ignoreCase = true) ->
+                "the adapter exposes no serial port ($msg)"
             else -> msg
         }
     }
