@@ -27,6 +27,9 @@ dependencyResolutionManagement {
                 // so JitPack publishes children under com.github.adaptech-cz.*
                 // as well as the parent group itself.
                 includeGroupByRegex("com\\.github\\.adaptech-cz.*")
+                // mik3y/usb-serial-for-android — the USB-serial terminal driver
+                // (CDC-ACM + CH34x/FTDI/CP21xx). JitPack-only, not on Central.
+                includeGroup("com.github.mik3y")
             }
         }
     }
@@ -125,6 +128,7 @@ include(":core:reticulum")
 include(":core:mosh")
 include(":core:et")
 include(":core:btserial")
+include(":core:usbserial")
 include(":core:vnc")
 include(":core:rdp")
 include(":core:spice")
