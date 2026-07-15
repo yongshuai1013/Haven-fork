@@ -136,6 +136,7 @@ dependencies {
     implementation("network.reticulum:rns-interfaces:0.1.0-SNAPSHOT")
     implementation(project(":core:mosh"))
     implementation(project(":core:et"))
+    implementation(project(":core:btserial"))
     implementation(project(":core:vnc"))
     implementation(project(":core:rdp"))
     implementation(project(":core:spice"))
