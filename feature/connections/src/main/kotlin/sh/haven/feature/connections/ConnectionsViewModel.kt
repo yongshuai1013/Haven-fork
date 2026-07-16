@@ -2701,7 +2701,10 @@ class ConnectionsViewModel @Inject constructor(
                 profileId = profile.id,
                 label = profile.label,
                 deviceKey = key,
-                params = sh.haven.core.usbserial.UsbSerialParams(baudRate = profile.usbBaudRate),
+                params = sh.haven.core.usbserial.UsbSerialParams.fromConfigString(
+                    profile.usbBaudRate,
+                    profile.usbSerialConfig,
+                ),
             )
             try {
                 // Resolve the attached device to get its deviceName, then request

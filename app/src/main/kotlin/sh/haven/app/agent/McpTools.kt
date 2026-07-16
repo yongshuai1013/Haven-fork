@@ -1422,7 +1422,7 @@ internal class McpTools(
         ) { args -> setProfileRouting(args) },
 
         "create_connection" to ToolHandler(
-            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. BTSERIAL (Bluetooth-serial console, #406): host = the paired device's Bluetooth MAC (from list_bluetooth_devices); no other fields. The device must already be paired in Android Settings. USBSERIAL (USB-serial console, #408 — Arduino / Duet3D G-code / ESP32 / USB-TTL): host = the device's vendorId:productId hex, e.g. 1a86:7523, from list_usb_devices; usbBaudRate = baud (default 115200, 8N1). Plug the adapter in first; connect_profile pops the Android USB-permission prompt. Chipsets: CDC-ACM, CH34x, FTDI, CP21xx, Prolific. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
+            description = "Create a saved connection profile. Supports connectionType=SSH, SMB, VNC, RDP, SPICE, EMAIL. SSH-family fields: username (required), password (optional, stored), keyId (optional — references list_ssh_keys), ignoreSavedKeys (force password-only auth, never offer saved keys), useMosh (turn an SSH profile into a Mosh profile), sessionManager (optional: TMUX | ZELLIJ | SCREEN | BYOBU — attach through that multiplexer; omit for a plain shell). SMB: smbShare (required), username + password, smbDomain. VNC: vncUsername, vncPassword, vncPort, and vncSshForward + vncSshProfileId to tunnel VNC through a saved SSH profile. RDP: rdpUsername (required), rdpPassword, rdpDomain, rdpPort. SPICE: spicePassword (optional ticket — no username/domain), spicePort (default 5900), and spiceSshForward + spiceSshProfileId to tunnel SPICE through a saved SSH profile. EMAIL: emailProvider (\"imap\" default, or \"proton\"); username = the email address; password = the account/app-password; for IMAP set emailServer (required) + emailPort (993) + emailSmtpPort (465) + emailTls (true), plus emailSmtpServer when the SMTP host differs (e.g. smtp.gmail.com); for Proton add emailMailboxPassword if two-password mode. EMAIL host is optional (the tunnel-ingress/bastion SPA/knock guards), not the mail server. BTSERIAL (Bluetooth-serial console, #406): host = the paired device's Bluetooth MAC (from list_bluetooth_devices); no other fields. The device must already be paired in Android Settings. USBSERIAL (USB-serial console, #408 — Arduino / Duet3D G-code / ESP32 / USB-TTL): host = the device's vendorId:productId hex, e.g. 1a86:7523, from list_usb_devices; usbBaudRate = baud (default 115200); usbDataBits/usbParity/usbStopBits/usbFlowControl set the rest of the line format (default 8N1, no flow control). Plug the adapter in first; connect_profile pops the Android USB-permission prompt. Chipsets: CDC-ACM, CH34x, FTDI, CP21xx, Prolific. The new profile id is returned for follow-up calls (set_profile_routing, connect_profile). For Reticulum / rclone / local create the profile in the UI — those paths need OAuth / destination-hash flows the agent can't drive.",
             inputSchema = objectSchema {
                 string("label", "User-facing label.", required = true)
                 string("connectionType", "SSH | SMB | VNC | RDP | SPICE | EMAIL | BTSERIAL | USBSERIAL.", required = true)
@@ -1461,6 +1461,10 @@ internal class McpTools(
                 string("portKnockSequence", "Optional port-knock sequence fired before the real connect. Format: whitespace/comma-separated 'port[/proto]' tokens — e.g. '7000 8000 9000' (all TCP) or '7000/tcp 8000/udp 9000/tcp'. Empty = disabled.")
                 integer("portKnockDelayMs", "Inter-knock delay in ms (default 100). Ignored when portKnockSequence is empty.")
                 integer("usbBaudRate", "USBSERIAL only: serial baud rate (default 115200). Stored in `port`.")
+                integer("usbDataBits", "USBSERIAL only: data bits 5-8 (default 8).")
+                string("usbParity", "USBSERIAL only: parity N|O|E|M|S (none/odd/even/mark/space, default N).")
+                string("usbStopBits", "USBSERIAL only: stop bits 1|1.5|2 (default 1).")
+                string("usbFlowControl", "USBSERIAL only: flow control none|rtscts|xonxoff (default none).")
             },
             consentLevel = ConsentLevel.EVERY_CALL,
             summarise = { args ->
@@ -5692,10 +5696,24 @@ internal class McpTools(
             )
             "USBSERIAL" -> ConnectionProfile(
                 // host carries the vendorId:productId hex (e.g. 1a86:7523), port
-                // carries the baud rate (#408). Line format defaults to 8N1.
+                // carries the baud rate; the rest of the line format is packed
+                // into sshOptions (#408). All default to 8N1, no flow control.
                 label = label,
                 host = host,
                 port = port,
+                // Packed line format "<dataBits>,<parity>,<stopBits>,<flow>" —
+                // the canonical form UsbSerialParams reads back. Validated here
+                // so app needn't depend on :core:usbserial.
+                sshOptions = run {
+                    val db = args.optInt("usbDataBits", 8).coerceIn(5, 8)
+                    val par = args.optString("usbParity", "N").uppercase()
+                        .takeIf { it in setOf("N", "O", "E", "M", "S") } ?: "N"
+                    val sb = args.optString("usbStopBits", "1")
+                        .takeIf { it in setOf("1", "1.5", "2") } ?: "1"
+                    val fl = args.optString("usbFlowControl", "none").lowercase()
+                        .takeIf { it in setOf("none", "rtscts", "xonxoff") } ?: "none"
+                    "$db,$par,$sb,$fl"
+                },
                 username = "",
                 connectionType = "USBSERIAL",
             )

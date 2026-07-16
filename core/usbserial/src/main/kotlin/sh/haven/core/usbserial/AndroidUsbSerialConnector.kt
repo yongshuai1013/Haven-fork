@@ -41,15 +41,19 @@ class AndroidUsbSerialConnector(private val usbManager: UsbManager) {
                 stopBitsConst(params.stopBits),
                 parityConst(params.parity),
             )
-            // Assert DTR (and RTS) on open, exactly as a hardware terminal
-            // (PuTTY, screen, minicom) does. Many CDC-ACM devices gate ALL data
-            // flow on DTR: the nRF USB-CDC stack returns NRF_ERROR_INVALID_STATE
-            // from its write until DTR is set, and Arduino `while (!Serial)`
-            // sketches never start. Without this the port opens but no bytes
-            // move in either direction. Best-effort — some drivers/chipsets do
+            // Flow control (best-effort — not every chipset implements it).
+            runCatching { port.setFlowControl(flowControlConst(params.flowControl)) }
+            // Assert DTR — and RTS unless RTS/CTS flow control owns it — on open,
+            // exactly as a hardware terminal (PuTTY, screen, minicom) does. Many
+            // CDC-ACM devices gate ALL data flow on DTR: the nRF USB-CDC stack
+            // returns NRF_ERROR_INVALID_STATE from its write until DTR is set,
+            // and Arduino `while (!Serial)` sketches never start. Without this
+            // the port opens but no bytes move. Best-effort — some drivers do
             // not implement modem-control lines and throw here.
             runCatching { port.setDTR(true) }
-            runCatching { port.setRTS(true) }
+            if (params.flowControl != UsbSerialParams.FlowControl.RTS_CTS) {
+                runCatching { port.setRTS(true) }
+            }
         } catch (e: Exception) {
             runCatching { port.close() }
             runCatching { connection.close() }
@@ -74,6 +78,12 @@ class AndroidUsbSerialConnector(private val usbManager: UsbManager) {
             UsbSerialParams.Parity.EVEN -> UsbSerialPort.PARITY_EVEN
             UsbSerialParams.Parity.MARK -> UsbSerialPort.PARITY_MARK
             UsbSerialParams.Parity.SPACE -> UsbSerialPort.PARITY_SPACE
+        }
+
+        fun flowControlConst(f: UsbSerialParams.FlowControl) = when (f) {
+            UsbSerialParams.FlowControl.NONE -> UsbSerialPort.FlowControl.NONE
+            UsbSerialParams.FlowControl.RTS_CTS -> UsbSerialPort.FlowControl.RTS_CTS
+            UsbSerialParams.FlowControl.XON_XOFF -> UsbSerialPort.FlowControl.XON_XOFF
         }
     }
 }

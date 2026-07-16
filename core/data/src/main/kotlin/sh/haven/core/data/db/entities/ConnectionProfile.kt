@@ -484,6 +484,14 @@ data class ConnectionProfile(
     val usbDeviceKey: String get() = host
     /** Serial baud rate; 115200 when unset. */
     val usbBaudRate: Int get() = if (port > 0) port else 115200
+    /**
+     * USB-serial line format (data bits, parity, stop bits, flow control) packed
+     * into the otherwise-unused [sshOptions] column — no schema bump, mirroring
+     * how [host]/[port] are repurposed for USB. Format is
+     * `UsbSerialParams.toConfigString()`; null on a legacy profile that stored
+     * only a baud rate → the parser falls back to 8N1, no flow control.
+     */
+    val usbSerialConfig: String? get() = sshOptions
 
     val isDesktop: Boolean get() = isVnc || isRdp || isSpice
     val isTerminal: Boolean get() = !isDesktop && !isSmb && !isRclone && !isEmail

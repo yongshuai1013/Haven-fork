@@ -2283,7 +2283,10 @@ class TerminalViewModel @Inject constructor(
                     profileId = profileId,
                     label = resolvedLabel,
                     deviceKey = key,
-                    params = sh.haven.core.usbserial.UsbSerialParams(baudRate = profile.usbBaudRate),
+                    params = sh.haven.core.usbserial.UsbSerialParams.fromConfigString(
+                        profile.usbBaudRate,
+                        profile.usbSerialConfig,
+                    ),
                 )
                 usbSerialSessionManager.connectSession(sessionId) // opens the port (IO); throws on failure
                 syncSessions()

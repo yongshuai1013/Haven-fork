@@ -235,6 +235,15 @@ fun ConnectionEditDialog(
     // USB-serial selected device vid:pid and baud (#408); reuse `host`/`port` on save.
     var usbDevice by rememberSaveable { mutableStateOf(seed?.takeIf { it.isUsbSerial }?.host ?: "") }
     var usbBaud by rememberSaveable { mutableStateOf((seed?.takeIf { it.isUsbSerial }?.usbBaudRate ?: 115200).toString()) }
+    // USB-serial line format — seeded from the profile's packed config (sshOptions),
+    // held as enum names, re-encoded into sshOptions on save. No schema bump.
+    val usbSeed = seed?.takeIf { it.isUsbSerial }?.let {
+        sh.haven.core.usbserial.UsbSerialParams.fromConfigString(it.usbBaudRate, it.usbSerialConfig)
+    } ?: sh.haven.core.usbserial.UsbSerialParams()
+    var usbDataBits by rememberSaveable { mutableStateOf(usbSeed.dataBits.toString()) }
+    var usbParity by rememberSaveable { mutableStateOf(usbSeed.parity.name) }
+    var usbStopBits by rememberSaveable { mutableStateOf(usbSeed.stopBits.name) }
+    var usbFlow by rememberSaveable { mutableStateOf(usbSeed.flowControl.name) }
     var port by rememberSaveable {
         mutableStateOf(
             when {
@@ -1273,11 +1282,19 @@ fun ConnectionEditDialog(
                     UsbSerialDeviceField(
                         selectedKey = usbDevice,
                         baud = usbBaud,
+                        dataBits = usbDataBits,
+                        parity = usbParity,
+                        stopBits = usbStopBits,
+                        flowControl = usbFlow,
                         onSelectDevice = { key, name ->
                             usbDevice = key
                             if (label.isBlank()) label = name
                         },
                         onBaudChange = { usbBaud = it },
+                        onDataBitsChange = { usbDataBits = it },
+                        onParityChange = { usbParity = it },
+                        onStopBitsChange = { usbStopBits = it },
+                        onFlowControlChange = { usbFlow = it },
                     )
                 } else if (connectionType == "RCLONE") {
                     ConnectionSection(stringResource(R.string.connections_section_cloud_storage))
@@ -3202,7 +3219,15 @@ fun ConnectionEditDialog(
                             identityId = identityId,
                         )
                     } else if (connectionType == "USBSERIAL") {
-                        // vid:pid lives in `host`, baud in `port` (no new column). #408
+                        // vid:pid → `host`, baud → `port`, the rest of the line
+                        // format (data/parity/stop/flow) → `sshOptions`. No new
+                        // column, mirroring how host/port are repurposed. #408
+                        val usbLineConfig = sh.haven.core.usbserial.UsbSerialParams(
+                            dataBits = usbDataBits.toIntOrNull() ?: 8,
+                            parity = sh.haven.core.usbserial.UsbSerialParams.Parity.valueOf(usbParity),
+                            stopBits = sh.haven.core.usbserial.UsbSerialParams.StopBits.valueOf(usbStopBits),
+                            flowControl = sh.haven.core.usbserial.UsbSerialParams.FlowControl.valueOf(usbFlow),
+                        ).toConfigString()
                         (existing ?: ConnectionProfile(
                             label = label,
                             host = usbDevice,
@@ -3211,6 +3236,7 @@ fun ConnectionEditDialog(
                             label = label.ifBlank { "USB: $usbDevice" },
                             host = usbDevice,
                             port = usbBaud.toIntOrNull() ?: 115200,
+                            sshOptions = usbLineConfig,
                             username = "",
                             connectionType = "USBSERIAL",
                             colorTag = colorTag,
@@ -4190,8 +4216,16 @@ private fun BtSerialDeviceField(
 private fun UsbSerialDeviceField(
     selectedKey: String,
     baud: String,
+    dataBits: String,
+    parity: String,
+    stopBits: String,
+    flowControl: String,
     onSelectDevice: (key: String, name: String) -> Unit,
     onBaudChange: (String) -> Unit,
+    onDataBitsChange: (String) -> Unit,
+    onParityChange: (String) -> Unit,
+    onStopBitsChange: (String) -> Unit,
+    onFlowControlChange: (String) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -4260,4 +4294,82 @@ private fun UsbSerialDeviceField(
         ),
         modifier = Modifier.fillMaxWidth(),
     )
+    Spacer(Modifier.height(8.dp))
+    SerialOptionDropdown(
+        label = stringResource(R.string.connections_usbserial_databits),
+        options = listOf("5" to "5", "6" to "6", "7" to "7", "8" to "8"),
+        selectedValue = dataBits,
+        onSelect = onDataBitsChange,
+    )
+    Spacer(Modifier.height(8.dp))
+    SerialOptionDropdown(
+        label = stringResource(R.string.connections_usbserial_parity),
+        options = listOf(
+            "NONE" to stringResource(R.string.connections_usbserial_none),
+            "ODD" to stringResource(R.string.connections_usbserial_parity_odd),
+            "EVEN" to stringResource(R.string.connections_usbserial_parity_even),
+            "MARK" to stringResource(R.string.connections_usbserial_parity_mark),
+            "SPACE" to stringResource(R.string.connections_usbserial_parity_space),
+        ),
+        selectedValue = parity,
+        onSelect = onParityChange,
+    )
+    Spacer(Modifier.height(8.dp))
+    SerialOptionDropdown(
+        label = stringResource(R.string.connections_usbserial_stopbits),
+        options = listOf("ONE" to "1", "ONE_POINT_FIVE" to "1.5", "TWO" to "2"),
+        selectedValue = stopBits,
+        onSelect = onStopBitsChange,
+    )
+    Spacer(Modifier.height(8.dp))
+    SerialOptionDropdown(
+        label = stringResource(R.string.connections_usbserial_flowcontrol),
+        options = listOf(
+            "NONE" to stringResource(R.string.connections_usbserial_none),
+            "RTS_CTS" to stringResource(R.string.connections_usbserial_flow_rtscts),
+            "XON_XOFF" to stringResource(R.string.connections_usbserial_flow_xonxoff),
+        ),
+        selectedValue = flowControl,
+        onSelect = onFlowControlChange,
+    )
+}
+
+/**
+ * A compact labelled dropdown for one serial line-format option. [options] maps
+ * a stored value (enum name / number) to its display label; [selectedValue] is
+ * the stored value, [onSelect] reports the newly chosen stored value.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SerialOptionDropdown(
+    label: String,
+    options: List<Pair<String, String>>,
+    selectedValue: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == selectedValue }?.second ?: selectedValue
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (value, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }

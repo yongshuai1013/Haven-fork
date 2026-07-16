@@ -403,6 +403,17 @@
     <string name="connections_usbserial_device">USB device</string>
     <string name="connections_usbserial_no_devices">No USB-serial adapter detected. Plug one in, then reopen this.</string>
     <string name="connections_usbserial_baud">Baud rate</string>
+    <string name="connections_usbserial_databits">Data bits</string>
+    <string name="connections_usbserial_parity">Parity</string>
+    <string name="connections_usbserial_stopbits">Stop bits</string>
+    <string name="connections_usbserial_flowcontrol">Flow control</string>
+    <string name="connections_usbserial_none">None</string>
+    <string name="connections_usbserial_parity_odd">Odd</string>
+    <string name="connections_usbserial_parity_even">Even</string>
+    <string name="connections_usbserial_parity_mark">Mark</string>
+    <string name="connections_usbserial_parity_space">Space</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
     <string name="connections_section_cloud_storage">Cloud storage</string>
     <!-- Import rclone.conf (#251) -->
     <string name="rclone_import_title">Import rclone remotes</string>

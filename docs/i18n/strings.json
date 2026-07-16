@@ -12505,6 +12505,83 @@
      }
     },
     {
+     "name": "connections_usbserial_databits",
+     "en": "Data bits",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_parity",
+     "en": "Parity",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_stopbits",
+     "en": "Stop bits",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_flowcontrol",
+     "en": "Flow control",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_none",
+     "en": "None",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_parity_odd",
+     "en": "Odd",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_parity_even",
+     "en": "Even",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_parity_mark",
+     "en": "Mark",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_parity_space",
+     "en": "Space",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_flow_rtscts",
+     "en": "RTS/CTS",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "connections_usbserial_flow_xonxoff",
+     "en": "XON/XOFF",
+     "comment": "Bluetooth serial (#406)",
+     "args": [],
+     "t": {}
+    },
+    {
      "name": "connections_section_cloud_storage",
      "en": "Cloud storage",
      "comment": "Bluetooth serial (#406)",
