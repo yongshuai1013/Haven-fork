@@ -213,6 +213,10 @@ class McpServer @Inject constructor(
     private val presentationManager: sh.haven.core.data.agent.AgentPresentationManager,
     private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
     private val mcpTunnelManager: McpTunnelManager,
+    // Serial session managers for the serial↔TCP bridge (bridge_serial_to_tcp).
+    private val btSerialSessionManager: sh.haven.core.btserial.BtSerialSessionManager,
+    private val bleSerialSessionManager: sh.haven.core.bleserial.BleSerialSessionManager,
+    private val usbSerialSessionManager: sh.haven.core.usbserial.UsbSerialSessionManager,
     // Capture + drive Haven's OWN rendered UI (self-hosting loop, §1a).
     // Registered with the foreground activity by MainActivity.onResume.
     private val havenUiBridge: HavenUiBridge,
@@ -476,6 +480,9 @@ class McpServer @Inject constructor(
         standingPolicyRepository = standingPolicyRepository,
         mcpTunnelManager = mcpTunnelManager,
         mcpStatusHolder = mcpStatusHolder,
+        btSerialSessionManager = btSerialSessionManager,
+        bleSerialSessionManager = bleSerialSessionManager,
+        usbSerialSessionManager = usbSerialSessionManager,
         headlessSshExec = headlessSshExec,
         pendingAuthPromptHolder = pendingAuthPromptHolder,
         sessionSelectionHolder = sessionSelectionHolder,

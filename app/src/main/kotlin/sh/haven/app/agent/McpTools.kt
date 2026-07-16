@@ -115,6 +115,12 @@ internal class McpTools(
     private val standingPolicyRepository: sh.haven.core.data.repository.StandingPolicyRepository,
     private val mcpTunnelManager: McpTunnelManager,
     private val mcpStatusHolder: sh.haven.core.data.agent.McpStatusHolder,
+    // Serial session managers for the serial↔TCP bridge (bridge_serial_to_tcp).
+    // Nullable + defaulted so the many manual McpTools test constructions compile
+    // unchanged; McpServer passes the real Hilt singletons.
+    private val btSerialSessionManager: sh.haven.core.btserial.BtSerialSessionManager? = null,
+    private val bleSerialSessionManager: sh.haven.core.bleserial.BleSerialSessionManager? = null,
+    private val usbSerialSessionManager: sh.haven.core.usbserial.UsbSerialSessionManager? = null,
     // One-shot exec on a saved SSH profile (run_command, #367). Nullable +
     // defaulted so the many manual McpTools constructions in unit tests that
     // don't exercise it compile unchanged; McpServer always passes the real
@@ -276,6 +282,11 @@ internal class McpTools(
         connectionRepository = connectionRepository,
         agentUiCommandBus = agentUiCommandBus,
     )
+    private val serialBridgeProvider = SerialBridgeToolProvider(
+        btSerial = btSerialSessionManager,
+        bleSerial = bleSerialSessionManager,
+        usbSerial = usbSerialSessionManager,
+    )
 
     /** Tool registry: name → handler. */
     // The not-yet-extracted tools are split across several builder methods
@@ -287,7 +298,7 @@ internal class McpTools(
         toolsPart1() + toolsPart2() + toolsPart3() + toolsPart4() +
             keyStoreProvider.tools() + tunnelProvider.tools() + sshKeyProvider.tools() +
             hostKeyProvider.tools() + stepCaProvider.tools() + rcloneProvider.tools() + usbProvider.tools() +
-            desktopProvider.tools() + mailProvider.tools()
+            desktopProvider.tools() + mailProvider.tools() + serialBridgeProvider.tools()
 
     private fun toolsPart1(): Map<String, ToolHandler> = linkedMapOf(
         "get_app_info" to ToolHandler(
@@ -5711,8 +5722,8 @@ internal class McpTools(
                 host = host,
                 port = port,
                 // Packed line format "<dataBits>,<parity>,<stopBits>,<flow>" —
-                // the canonical form UsbSerialParams reads back. Validated here
-                // so app needn't depend on :core:usbserial.
+                // the canonical form UsbSerialParams reads back. Validated
+                // inline (string constants) rather than via the typed enum.
                 sshOptions = run {
                     val db = args.optInt("usbDataBits", 8).coerceIn(5, 8)
                     val par = args.optString("usbParity", "N").uppercase()

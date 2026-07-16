@@ -42,8 +42,8 @@ expand one for its description and arguments. The tag after each name is its
 consent level:
 
 - **asks every call** — side-effectful or sensitive; a consent sheet describing the specific action on every call (67 tools).
-- **asks once per session** — reversible actions and screen-reading; prompts the first time each session, then proceeds (47 tools).
-- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (81 tools).
+- **asks once per session** — reversible actions and screen-reading; prompts the first time each session, then proceeds (49 tools).
+- **no per-call prompt** — read-only queries and tap-equivalent UI actions; still behind the endpoint being enabled and the client paired (82 tools).
 
 ## Sections
 
@@ -53,7 +53,7 @@ consent level:
 - [**Cloud storage (rclone)**](#sec-rclone) — 15 tools
 - [**Email**](#sec-email) — 15 tools
 - [**Linux guest (proot) & desktops**](#sec-linux) — 44 tools
-- [**Networking — tunnels & port forwarding**](#sec-networking) — 11 tools
+- [**Networking — tunnels & port forwarding**](#sec-networking) — 14 tools
 - [**USB & host-device brokers**](#sec-usb) — 17 tools
 - [**Security — SSH keys, host keys, TOTP & age**](#sec-security) — 14 tools
 - [**Agent ↔ you (attention & self-drive)**](#sec-agent-you) — 12 tools
@@ -1443,9 +1443,9 @@ Write a file into the ACTIVE proot guest. Supply `content` (UTF-8 text); for bin
 
 <a id="sec-networking"></a>
 
-## Networking — tunnels & port forwarding (11)
+## Networking — tunnels & port forwarding (14)
 
-SSH tunnels, port forwards, and the port-knock / single-packet-auth gates.
+SSH tunnels, port forwards, the serial↔TCP bridge, and the port-knock / single-packet-auth gates.
 
 <details markdown="1">
 <summary><code>add_port_forward</code> · asks once per session</summary>
@@ -1458,6 +1458,16 @@ Save a port-forward rule on an SSH profile. If the profile is currently connecte
 - `bindAddress` (string) — Bind address. Default 127.0.0.1.
 - `targetHost` (string) — Target host (LOCAL/REMOTE only). Ignored for DYNAMIC.
 - `targetPort` (integer) — Target port (LOCAL/REMOTE only). Ignored for DYNAMIC.
+
+</details>
+
+<details markdown="1">
+<summary><code>bridge_serial_to_tcp</code> · asks once per session</summary>
+
+Expose a live serial terminal session (BTSERIAL / BLESERIAL / USBSERIAL — sessionId from list_sessions) as a raw-byte TCP server on 127.0.0.1, and return the bound port. Feed that port to add_port_forward (a remote-forward) or a tunnel to reach the device off-phone — this is how a serial device joins Haven's routing fabric. The terminal tab keeps working; the bridge taps the same stream. Bytes are raw with no framing: every connected client sees the device output and any client can write back to it. Pass an explicit `port`, or omit for an OS-assigned free port. Idempotent — a second call for the same session returns the existing port. Open the device's terminal first (connect_profile / a serial tab); a session with no open terminal has nothing to bridge.
+
+- `sessionId` (string, required) — The live serial session to expose (from list_sessions).
+- `port` (integer) — Loopback TCP port to bind (1024–65535). Omit for an OS-assigned free port.
 
 </details>
 
@@ -1492,6 +1502,13 @@ Delete a saved tunnel config by id. Profiles that referenced it via tunnelConfig
 <summary><code>list_live_tunnels</code> · no per-call prompt</summary>
 
 Return the live-tunnel snapshot from TunnelManager — every tunnel currently up, paired with the set of profile ids holding it. Useful for verifying refcount semantics in #149 integration tests: confirm the tunnel stays open while a sibling transport keeps it acquired, and that it tears down on the last release.
+
+</details>
+
+<details markdown="1">
+<summary><code>list_serial_bridges</code> · no per-call prompt</summary>
+
+List active serial↔TCP bridges: sessionId, bound loopback host/port, and connected-client count. Read-only. Bridges whose serial session has died (device unplugged / out of range) are pruned here.
 
 </details>
 
@@ -1552,6 +1569,15 @@ Configure fwknop Single Packet Authorization (SPA) on an existing profile — th
 - `spaHmacKeyBase64` (boolean) — True if spaHmacKey is base64 (fwknop --key-base64-hmac).
 - `spaKeyBase64` (boolean) — True if spaKey is base64 (fwknop --key-base64-rijndael).
 - `spaPort` (integer) — Destination UDP port (default 62201).
+
+</details>
+
+<details markdown="1">
+<summary><code>stop_serial_bridge</code> · asks once per session</summary>
+
+Tear down a serial↔TCP bridge started by bridge_serial_to_tcp, closing its listen port and every connected client. The underlying serial session and its terminal tab are unaffected.
+
+- `sessionId` (string, required) — The bridged session id (from list_serial_bridges).
 
 </details>
 

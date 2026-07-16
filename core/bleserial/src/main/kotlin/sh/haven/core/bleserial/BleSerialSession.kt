@@ -26,11 +26,25 @@ class BleSerialSession(
 
     @Volatile
     private var callback: ((ByteArray, Int, Int) -> Unit)? = onDataReceived
+
+    /**
+     * Optional read-only output tap (the serial↔TCP bridge). Fires alongside the
+     * terminal [callback] on every inbound chunk; unlike [callback] it survives
+     * [detach] (a bridge outlives a tab remount) and is dropped only by [setTap]
+     * or [close]. Write to sinks synchronously — see SerialTcpBridge.
+     */
+    @Volatile
+    private var tap: ((ByteArray, Int, Int) -> Unit)? = null
     private val closed = AtomicBoolean(false)
+
+    fun setTap(t: ((ByteArray, Int, Int) -> Unit)?) { tap = t }
 
     fun start() {
         link.start(
-            onData = { bytes -> callback?.invoke(bytes, 0, bytes.size) },
+            onData = { bytes ->
+                callback?.invoke(bytes, 0, bytes.size)
+                tap?.invoke(bytes, 0, bytes.size)
+            },
             onError = {
                 if (closed.compareAndSet(false, true)) {
                     runCatching { link.close() }
@@ -68,6 +82,7 @@ class BleSerialSession(
     override fun close() {
         if (closed.compareAndSet(false, true)) {
             callback = null
+            tap = null
             runCatching { link.close() }
         }
     }

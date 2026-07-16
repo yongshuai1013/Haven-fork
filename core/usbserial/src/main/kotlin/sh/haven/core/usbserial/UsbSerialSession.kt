@@ -26,11 +26,26 @@ class UsbSerialSession(
 
     @Volatile
     private var callback: ((ByteArray, Int, Int) -> Unit)? = onDataReceived
+
+    /**
+     * Optional read-only output tap (the serial↔TCP bridge). Fires alongside the
+     * terminal [callback]; unlike [callback] it survives [detach] and is dropped
+     * only by [setTap] or [close]. Write to sinks synchronously — see SerialTcpBridge.
+     */
+    @Volatile
+    private var tap: ((ByteArray, Int, Int) -> Unit)? = null
     private val closed = AtomicBoolean(false)
+
+    fun setTap(t: ((ByteArray, Int, Int) -> Unit)?) { tap = t }
 
     fun start() {
         link.start(
-            onData = { buf -> if (!closed.get()) callback?.invoke(buf, 0, buf.size) },
+            onData = { buf ->
+                if (!closed.get()) {
+                    callback?.invoke(buf, 0, buf.size)
+                    tap?.invoke(buf, 0, buf.size)
+                }
+            },
             onError = { e ->
                 // The link died on its own (cable pulled, adapter error). Report
                 // the drop once; an explicit close() already set `closed`, so this
@@ -72,6 +87,7 @@ class UsbSerialSession(
     override fun close() {
         if (closed.compareAndSet(false, true)) {
             callback = null
+            tap = null
             runCatching { link.close() }
         }
     }

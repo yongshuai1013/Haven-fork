@@ -144,6 +144,8 @@ class McpToolsConsentTest {
             // permission to observe a prompt would deadlock (#355). It
             // reveals only requests the agent itself caused.
             "get_pending_consent",
+            // Enumerating active serial↔TCP bridges is read-only.
+            "list_serial_bridges",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")
@@ -181,6 +183,10 @@ class McpToolsConsentTest {
             // so a tester session grants once and isn't re-prompted across
             // the before/after captures that a single review needs.
             "read_logcat",
+            // bridge_serial_to_tcp exposes a serial device on a loopback port;
+            // stop tears it down. Session-scoped like add/remove_port_forward.
+            "bridge_serial_to_tcp",
+            "stop_serial_bridge",
         )) {
             val c = tools.consentFor(name)
                 ?: error("$name not registered")
@@ -513,13 +519,15 @@ class McpToolsConsentTest {
                 "The on-device Linux distros, their desktop environments and windows, guest services, the audio bridge, and guest-file access.",
                 listOf("proot", "distro", "desktop", "guest", "system_vm", "audio_bridge", "gl_smoke", "custom_binds", "app_window", "launch_app_in_desktop", "inspect_proot")),
             Section("networking", "Networking — tunnels & port forwarding", 5,
-                "SSH tunnels, port forwards, and the port-knock / single-packet-auth gates.",
-                listOf("tunnel", "port_forward", "_forward", "port_knock", "knock", "_spa", "profile_routing")),
+                "SSH tunnels, port forwards, the serial↔TCP bridge, and the port-knock / single-packet-auth gates.",
+                listOf("tunnel", "port_forward", "_forward", "port_knock", "knock", "_spa", "profile_routing", "serial")),
             // Priority 1 (ahead of Linux guest) so usb_attach_to_guest files
             // here by its usb_ prefix, not under "guest".
             Section("usb", "USB & host-device brokers", 1,
                 "USB devices and drives, USB/IP export, and the adb-over-VPN bridge.",
-                listOf("usb", "adb", "bridges")),
+                // "list_bridges" (not "bridges") so the serial↔TCP bridge tools
+                // file under Networking, not here.
+                listOf("usb", "adb", "list_bridges")),
             Section("security", "Security — SSH keys, host keys, TOTP & age", 6,
                 "The SSH key store, pinned host keys (TOFU), trusted host CAs, TOTP secrets, and age encryption identities.",
                 listOf("ssh_key", "known_host", "forget_known_host", "trusted_host_ca", "totp", "age_identit")),

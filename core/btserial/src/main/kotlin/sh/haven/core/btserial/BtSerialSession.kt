@@ -31,7 +31,19 @@ class BtSerialSession(
 
     @Volatile
     private var callback: ((ByteArray, Int, Int) -> Unit)? = onDataReceived
+
+    /**
+     * Optional read-only output tap (the serial↔TCP bridge). Fires alongside the
+     * terminal [callback]; unlike [callback] it survives [detach] and is dropped
+     * only by [setTap] or [close]. The tap MUST consume `buf` synchronously — the
+     * reader below reuses one buffer, so the tap can't hand the array off to
+     * another thread. SerialTcpBridge writes to its sockets inline, so it's safe.
+     */
+    @Volatile
+    private var tap: ((ByteArray, Int, Int) -> Unit)? = null
     private val closed = AtomicBoolean(false)
+
+    fun setTap(t: ((ByteArray, Int, Int) -> Unit)?) { tap = t }
 
     private val reader = Thread({
         val buf = ByteArray(4096)
@@ -39,7 +51,10 @@ class BtSerialSession(
             while (!closed.get()) {
                 val n = input.read(buf)
                 if (n < 0) break // EOF — remote closed the link
-                if (n > 0) callback?.invoke(buf, 0, n)
+                if (n > 0) {
+                    callback?.invoke(buf, 0, n)
+                    tap?.invoke(buf, 0, n)
+                }
             }
         } catch (e: Exception) {
             if (!closed.get()) Log.d(TAG, "read loop ended for $sessionId: ${e.message}")
@@ -86,6 +101,7 @@ class BtSerialSession(
     override fun close() {
         if (closed.compareAndSet(false, true)) {
             callback = null
+            tap = null
             runCatching { transport.close() }
         }
     }
