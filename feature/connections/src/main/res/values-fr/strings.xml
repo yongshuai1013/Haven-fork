@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">Appareil USB</string>
     <string name="connections_usbserial_no_devices">Aucun adaptateur USB-série détecté. Branchez-en un, puis rouvrez ceci.</string>
     <string name="connections_usbserial_baud">Débit en bauds</string>
+    <string name="connections_section_bleserial">Série Bluetooth LE</string>
+    <string name="connections_bleserial_desc">Se connecter à un périphérique UART Bluetooth-LE — un appareil Nordic UART Service, un module HM-10 ou un adaptateur RS232 BLE. Il n\'a pas besoin d\'être appairé.</string>
+    <string name="connections_bleserial_device">Appareil BLE</string>
+    <string name="connections_bleserial_no_devices">Aucun appareil BLE trouvé. Assurez-vous que le périphérique est allumé et émet un signal, puis relancez la recherche.</string>
+    <string name="connections_bleserial_permission">Accorder l\'autorisation Bluetooth (recherche) pour trouver des appareils BLE</string>
+    <string name="connections_bleserial_scan">Rechercher des appareils BLE</string>
+    <string name="connections_bleserial_scanning">Recherche en cours…</string>
+    <string name="connections_usbserial_databits">Bits de données</string>
+    <string name="connections_usbserial_parity">Parité</string>
+    <string name="connections_usbserial_stopbits">Bits d\'arrêt</string>
+    <string name="connections_usbserial_flowcontrol">Contrôle de flux</string>
+    <string name="connections_usbserial_none">Aucun</string>
+    <string name="connections_usbserial_parity_odd">Impair</string>
+    <string name="connections_usbserial_parity_even">Pair</string>
+    <string name="connections_usbserial_parity_mark">Marque</string>
+    <string name="connections_usbserial_parity_space">Espace</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

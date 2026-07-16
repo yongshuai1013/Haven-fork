@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">USB-устройство</string>
     <string name="connections_usbserial_no_devices">USB-последовательный адаптер не обнаружен. Подключите его и откройте это снова.</string>
     <string name="connections_usbserial_baud">Скорость (бод)</string>
+    <string name="connections_section_bleserial">Последовательный порт Bluetooth LE</string>
+    <string name="connections_bleserial_desc">Подключение к периферийному устройству UART по Bluetooth-LE — устройству Nordic UART Service, модулю HM-10 или адаптеру BLE RS232. Сопряжение не требуется.</string>
+    <string name="connections_bleserial_device">Устройство BLE</string>
+    <string name="connections_bleserial_no_devices">Устройства BLE не найдены. Убедитесь, что периферийное устройство включено и передаёт сигнал, затем повторите поиск.</string>
+    <string name="connections_bleserial_permission">Предоставьте разрешение Bluetooth (поиск), чтобы находить устройства BLE</string>
+    <string name="connections_bleserial_scan">Поиск устройств BLE</string>
+    <string name="connections_bleserial_scanning">Поиск…</string>
+    <string name="connections_usbserial_databits">Биты данных</string>
+    <string name="connections_usbserial_parity">Чётность</string>
+    <string name="connections_usbserial_stopbits">Стоп-биты</string>
+    <string name="connections_usbserial_flowcontrol">Управление потоком</string>
+    <string name="connections_usbserial_none">Нет</string>
+    <string name="connections_usbserial_parity_odd">Нечётная</string>
+    <string name="connections_usbserial_parity_even">Чётная</string>
+    <string name="connections_usbserial_parity_mark">Маркер</string>
+    <string name="connections_usbserial_parity_space">Пробел</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

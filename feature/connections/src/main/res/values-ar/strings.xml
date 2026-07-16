@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">جهاز USB</string>
     <string name="connections_usbserial_no_devices">لم يتم اكتشاف محوّل USB تسلسلي. وصّل واحدًا ثم أعد فتح هذا.</string>
     <string name="connections_usbserial_baud">معدل الباود</string>
+    <string name="connections_section_bleserial">منفذ Bluetooth LE التسلسلي</string>
+    <string name="connections_bleserial_desc">الاتصال بجهاز طرفي UART عبر Bluetooth-LE — جهاز Nordic UART Service أو وحدة HM-10 أو محوّل BLE RS232. لا حاجة إلى إقرانه.</string>
+    <string name="connections_bleserial_device">جهاز BLE</string>
+    <string name="connections_bleserial_no_devices">لم يتم العثور على أجهزة BLE. تأكد من تشغيل الجهاز الطرفي وأنه يبثّ الإعلانات، ثم أعد الفحص.</string>
+    <string name="connections_bleserial_permission">امنح إذن Bluetooth (الفحص) للعثور على أجهزة BLE</string>
+    <string name="connections_bleserial_scan">فحص أجهزة BLE</string>
+    <string name="connections_bleserial_scanning">جارٍ الفحص…</string>
+    <string name="connections_usbserial_databits">بتات البيانات</string>
+    <string name="connections_usbserial_parity">التكافؤ</string>
+    <string name="connections_usbserial_stopbits">بتات التوقف</string>
+    <string name="connections_usbserial_flowcontrol">التحكم في التدفق</string>
+    <string name="connections_usbserial_none">بلا</string>
+    <string name="connections_usbserial_parity_odd">فردي</string>
+    <string name="connections_usbserial_parity_even">زوجي</string>
+    <string name="connections_usbserial_parity_mark">علامة</string>
+    <string name="connections_usbserial_parity_space">فراغ</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">USB ডিভাইস</string>
     <string name="connections_usbserial_no_devices">কোনো USB-সিরিয়াল অ্যাডাপ্টার শনাক্ত হয়নি। একটি প্লাগ ইন করুন, তারপর এটি আবার খুলুন।</string>
     <string name="connections_usbserial_baud">বড রেট</string>
+    <string name="connections_section_bleserial">Bluetooth LE সিরিয়াল</string>
+    <string name="connections_bleserial_desc">একটি Bluetooth-LE UART পেরিফেরালের সাথে সংযোগ করুন — একটি Nordic UART Service ডিভাইস, একটি HM-10 মডিউল, বা একটি BLE RS232 অ্যাডাপ্টার। এটি পেয়ার করার প্রয়োজন নেই।</string>
+    <string name="connections_bleserial_device">BLE ডিভাইস</string>
+    <string name="connections_bleserial_no_devices">কোনো BLE ডিভাইস পাওয়া যায়নি। নিশ্চিত করুন যে পেরিফেরালটি চালু আছে এবং অ্যাডভার্টাইজ করছে, তারপর আবার স্ক্যান করুন।</string>
+    <string name="connections_bleserial_permission">BLE ডিভাইস খুঁজতে Bluetooth (স্ক্যান) অনুমতি দিন</string>
+    <string name="connections_bleserial_scan">BLE ডিভাইস স্ক্যান করুন</string>
+    <string name="connections_bleserial_scanning">স্ক্যান করা হচ্ছে…</string>
+    <string name="connections_usbserial_databits">ডেটা বিট</string>
+    <string name="connections_usbserial_parity">প্যারিটি</string>
+    <string name="connections_usbserial_stopbits">স্টপ বিট</string>
+    <string name="connections_usbserial_flowcontrol">ফ্লো কন্ট্রোল</string>
+    <string name="connections_usbserial_none">কোনোটি নয়</string>
+    <string name="connections_usbserial_parity_odd">বিজোড়</string>
+    <string name="connections_usbserial_parity_even">জোড়</string>
+    <string name="connections_usbserial_parity_mark">মার্ক</string>
+    <string name="connections_usbserial_parity_space">স্পেস</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

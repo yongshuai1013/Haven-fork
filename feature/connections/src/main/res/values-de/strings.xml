@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">USB-Gerät</string>
     <string name="connections_usbserial_no_devices">Kein USB-Seriell-Adapter erkannt. Schließen Sie einen an und öffnen Sie dies erneut.</string>
     <string name="connections_usbserial_baud">Baudrate</string>
+    <string name="connections_section_bleserial">Bluetooth-LE-Seriell</string>
+    <string name="connections_bleserial_desc">Mit einem Bluetooth-LE-UART-Peripheriegerät verbinden – einem Nordic UART Service-Gerät, einem HM-10-Modul oder einem BLE-RS232-Adapter. Es muss nicht gekoppelt sein.</string>
+    <string name="connections_bleserial_device">BLE-Gerät</string>
+    <string name="connections_bleserial_no_devices">Keine BLE-Geräte gefunden. Stellen Sie sicher, dass das Peripheriegerät eingeschaltet ist und Advertising sendet, und scannen Sie dann erneut.</string>
+    <string name="connections_bleserial_permission">Bluetooth-Berechtigung (Scannen) erteilen, um BLE-Geräte zu finden</string>
+    <string name="connections_bleserial_scan">Nach BLE-Geräten suchen</string>
+    <string name="connections_bleserial_scanning">Suche läuft…</string>
+    <string name="connections_usbserial_databits">Datenbits</string>
+    <string name="connections_usbserial_parity">Parität</string>
+    <string name="connections_usbserial_stopbits">Stoppbits</string>
+    <string name="connections_usbserial_flowcontrol">Flusssteuerung</string>
+    <string name="connections_usbserial_none">Keine</string>
+    <string name="connections_usbserial_parity_odd">Ungerade</string>
+    <string name="connections_usbserial_parity_even">Gerade</string>
+    <string name="connections_usbserial_parity_mark">Mark</string>
+    <string name="connections_usbserial_parity_space">Space</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

@@ -532,4 +532,22 @@
     <string name="connections_usbserial_device">USB 设备</string>
     <string name="connections_usbserial_no_devices">未检测到 USB 串口适配器。请插入一个，然后重新打开此界面。</string>
     <string name="connections_usbserial_baud">波特率</string>
+    <string name="connections_section_bleserial">Bluetooth LE 串口</string>
+    <string name="connections_bleserial_desc">连接到 Bluetooth-LE UART 外设——Nordic UART Service 设备、HM-10 模块或 BLE RS232 适配器。无需配对。</string>
+    <string name="connections_bleserial_device">BLE 设备</string>
+    <string name="connections_bleserial_no_devices">未找到 BLE 设备。请确认外设已开机并正在广播，然后重新扫描。</string>
+    <string name="connections_bleserial_permission">授予 Bluetooth（扫描）权限以查找 BLE 设备</string>
+    <string name="connections_bleserial_scan">扫描 BLE 设备</string>
+    <string name="connections_bleserial_scanning">正在扫描…</string>
+    <string name="connections_usbserial_databits">数据位</string>
+    <string name="connections_usbserial_parity">校验位</string>
+    <string name="connections_usbserial_stopbits">停止位</string>
+    <string name="connections_usbserial_flowcontrol">流控制</string>
+    <string name="connections_usbserial_none">无</string>
+    <string name="connections_usbserial_parity_odd">奇校验</string>
+    <string name="connections_usbserial_parity_even">偶校验</string>
+    <string name="connections_usbserial_parity_mark">标记</string>
+    <string name="connections_usbserial_parity_space">空格</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

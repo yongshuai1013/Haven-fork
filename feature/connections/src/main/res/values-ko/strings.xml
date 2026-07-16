@@ -526,4 +526,22 @@
     <string name="connections_usbserial_device">USB 기기</string>
     <string name="connections_usbserial_no_devices">USB 시리얼 어댑터가 감지되지 않았습니다. 하나 연결한 후 이 화면을 다시 여세요.</string>
     <string name="connections_usbserial_baud">보드레이트</string>
+    <string name="connections_section_bleserial">Bluetooth LE 시리얼</string>
+    <string name="connections_bleserial_desc">Bluetooth-LE UART 주변 장치에 연결합니다. Nordic UART Service 장치, HM-10 모듈 또는 BLE RS232 어댑터입니다. 페어링할 필요는 없습니다.</string>
+    <string name="connections_bleserial_device">BLE 장치</string>
+    <string name="connections_bleserial_no_devices">BLE 장치를 찾을 수 없습니다. 주변 장치의 전원이 켜져 있고 광고 중인지 확인한 후 다시 검색하세요.</string>
+    <string name="connections_bleserial_permission">BLE 장치를 찾으려면 Bluetooth(검색) 권한을 허용하세요</string>
+    <string name="connections_bleserial_scan">BLE 장치 검색</string>
+    <string name="connections_bleserial_scanning">검색 중…</string>
+    <string name="connections_usbserial_databits">데이터 비트</string>
+    <string name="connections_usbserial_parity">패리티</string>
+    <string name="connections_usbserial_stopbits">정지 비트</string>
+    <string name="connections_usbserial_flowcontrol">흐름 제어</string>
+    <string name="connections_usbserial_none">없음</string>
+    <string name="connections_usbserial_parity_odd">홀수</string>
+    <string name="connections_usbserial_parity_even">짝수</string>
+    <string name="connections_usbserial_parity_mark">마크</string>
+    <string name="connections_usbserial_parity_space">스페이스</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

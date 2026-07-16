@@ -534,4 +534,22 @@
     <string name="connections_usbserial_device">USBデバイス</string>
     <string name="connections_usbserial_no_devices">USBシリアルアダプターが検出されませんでした。接続してから、これを開き直してください。</string>
     <string name="connections_usbserial_baud">ボーレート</string>
+    <string name="connections_section_bleserial">Bluetooth LE シリアル</string>
+    <string name="connections_bleserial_desc">Bluetooth-LE UART 周辺機器に接続します。Nordic UART Service デバイス、HM-10 モジュール、または BLE RS232 アダプターです。ペアリングは不要です。</string>
+    <string name="connections_bleserial_device">BLE デバイス</string>
+    <string name="connections_bleserial_no_devices">BLE デバイスが見つかりません。周辺機器の電源が入り、アドバタイズしていることを確認してから、もう一度スキャンしてください。</string>
+    <string name="connections_bleserial_permission">BLE デバイスを検出するには Bluetooth（スキャン）の権限を許可してください</string>
+    <string name="connections_bleserial_scan">BLE デバイスをスキャン</string>
+    <string name="connections_bleserial_scanning">スキャン中…</string>
+    <string name="connections_usbserial_databits">データビット</string>
+    <string name="connections_usbserial_parity">パリティ</string>
+    <string name="connections_usbserial_stopbits">ストップビット</string>
+    <string name="connections_usbserial_flowcontrol">フロー制御</string>
+    <string name="connections_usbserial_none">なし</string>
+    <string name="connections_usbserial_parity_odd">奇数</string>
+    <string name="connections_usbserial_parity_even">偶数</string>
+    <string name="connections_usbserial_parity_mark">マーク</string>
+    <string name="connections_usbserial_parity_space">スペース</string>
+    <string name="connections_usbserial_flow_rtscts">RTS/CTS</string>
+    <string name="connections_usbserial_flow_xonxoff">XON/XOFF</string>
 </resources>

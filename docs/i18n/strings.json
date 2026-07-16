@@ -12414,49 +12414,133 @@
      "en": "Bluetooth LE serial",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "منفذ Bluetooth LE التسلسلي",
+      "bn": "Bluetooth LE সিরিয়াল",
+      "de": "Bluetooth-LE-Seriell",
+      "es": "Serie Bluetooth LE",
+      "fr": "Série Bluetooth LE",
+      "hi": "Bluetooth LE सीरियल",
+      "ja": "Bluetooth LE シリアル",
+      "ko": "Bluetooth LE 시리얼",
+      "pt": "Serial Bluetooth LE",
+      "ru": "Последовательный порт Bluetooth LE",
+      "zh": "Bluetooth LE 串口"
+     }
     },
     {
      "name": "connections_bleserial_desc",
      "en": "Connect to a Bluetooth-LE UART peripheral — a Nordic UART Service device, an HM-10 module, or a BLE RS232 adapter. It doesn\\'t need to be paired.",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الاتصال بجهاز طرفي UART عبر Bluetooth-LE — جهاز Nordic UART Service أو وحدة HM-10 أو محوّل BLE RS232. لا حاجة إلى إقرانه.",
+      "bn": "একটি Bluetooth-LE UART পেরিফেরালের সাথে সংযোগ করুন — একটি Nordic UART Service ডিভাইস, একটি HM-10 মডিউল, বা একটি BLE RS232 অ্যাডাপ্টার। এটি পেয়ার করার প্রয়োজন নেই।",
+      "de": "Mit einem Bluetooth-LE-UART-Peripheriegerät verbinden – einem Nordic UART Service-Gerät, einem HM-10-Modul oder einem BLE-RS232-Adapter. Es muss nicht gekoppelt sein.",
+      "es": "Conéctate a un periférico UART Bluetooth-LE: un dispositivo Nordic UART Service, un módulo HM-10 o un adaptador RS232 BLE. No hace falta emparejarlo.",
+      "fr": "Se connecter à un périphérique UART Bluetooth-LE — un appareil Nordic UART Service, un module HM-10 ou un adaptateur RS232 BLE. Il n\\'a pas besoin d\\'être appairé.",
+      "hi": "किसी Bluetooth-LE UART परिधीय से कनेक्ट करें — एक Nordic UART Service डिवाइस, एक HM-10 मॉड्यूल, या एक BLE RS232 अडैप्टर। इसे पेयर करने की ज़रूरत नहीं है।",
+      "ja": "Bluetooth-LE UART 周辺機器に接続します。Nordic UART Service デバイス、HM-10 モジュール、または BLE RS232 アダプターです。ペアリングは不要です。",
+      "ko": "Bluetooth-LE UART 주변 장치에 연결합니다. Nordic UART Service 장치, HM-10 모듈 또는 BLE RS232 어댑터입니다. 페어링할 필요는 없습니다.",
+      "pt": "Conecte-se a um periférico UART Bluetooth-LE — um dispositivo Nordic UART Service, um módulo HM-10 ou um adaptador RS232 BLE. Não precisa estar emparelhado.",
+      "ru": "Подключение к периферийному устройству UART по Bluetooth-LE — устройству Nordic UART Service, модулю HM-10 или адаптеру BLE RS232. Сопряжение не требуется.",
+      "zh": "连接到 Bluetooth-LE UART 外设——Nordic UART Service 设备、HM-10 模块或 BLE RS232 适配器。无需配对。"
+     }
     },
     {
      "name": "connections_bleserial_device",
      "en": "BLE device",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "جهاز BLE",
+      "bn": "BLE ডিভাইস",
+      "de": "BLE-Gerät",
+      "es": "Dispositivo BLE",
+      "fr": "Appareil BLE",
+      "hi": "BLE डिवाइस",
+      "ja": "BLE デバイス",
+      "ko": "BLE 장치",
+      "pt": "Dispositivo BLE",
+      "ru": "Устройство BLE",
+      "zh": "BLE 设备"
+     }
     },
     {
      "name": "connections_bleserial_no_devices",
      "en": "No BLE devices found. Make sure the peripheral is powered on and advertising, then scan again.",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لم يتم العثور على أجهزة BLE. تأكد من تشغيل الجهاز الطرفي وأنه يبثّ الإعلانات، ثم أعد الفحص.",
+      "bn": "কোনো BLE ডিভাইস পাওয়া যায়নি। নিশ্চিত করুন যে পেরিফেরালটি চালু আছে এবং অ্যাডভার্টাইজ করছে, তারপর আবার স্ক্যান করুন।",
+      "de": "Keine BLE-Geräte gefunden. Stellen Sie sicher, dass das Peripheriegerät eingeschaltet ist und Advertising sendet, und scannen Sie dann erneut.",
+      "es": "No se encontraron dispositivos BLE. Asegúrate de que el periférico esté encendido y anunciándose, y vuelve a escanear.",
+      "fr": "Aucun appareil BLE trouvé. Assurez-vous que le périphérique est allumé et émet un signal, puis relancez la recherche.",
+      "hi": "कोई BLE डिवाइस नहीं मिला। सुनिश्चित करें कि परिधीय चालू है और विज्ञापन कर रहा है, फिर दोबारा स्कैन करें।",
+      "ja": "BLE デバイスが見つかりません。周辺機器の電源が入り、アドバタイズしていることを確認してから、もう一度スキャンしてください。",
+      "ko": "BLE 장치를 찾을 수 없습니다. 주변 장치의 전원이 켜져 있고 광고 중인지 확인한 후 다시 검색하세요.",
+      "pt": "Nenhum dispositivo BLE encontrado. Verifique se o periférico está ligado e anunciando, depois busque novamente.",
+      "ru": "Устройства BLE не найдены. Убедитесь, что периферийное устройство включено и передаёт сигнал, затем повторите поиск.",
+      "zh": "未找到 BLE 设备。请确认外设已开机并正在广播，然后重新扫描。"
+     }
     },
     {
      "name": "connections_bleserial_permission",
      "en": "Grant Bluetooth (scan) permission to find BLE devices",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "امنح إذن Bluetooth (الفحص) للعثور على أجهزة BLE",
+      "bn": "BLE ডিভাইস খুঁজতে Bluetooth (স্ক্যান) অনুমতি দিন",
+      "de": "Bluetooth-Berechtigung (Scannen) erteilen, um BLE-Geräte zu finden",
+      "es": "Concede permiso de Bluetooth (escaneo) para encontrar dispositivos BLE",
+      "fr": "Accorder l\\'autorisation Bluetooth (recherche) pour trouver des appareils BLE",
+      "hi": "BLE डिवाइस खोजने के लिए Bluetooth (स्कैन) अनुमति दें",
+      "ja": "BLE デバイスを検出するには Bluetooth（スキャン）の権限を許可してください",
+      "ko": "BLE 장치를 찾으려면 Bluetooth(검색) 권한을 허용하세요",
+      "pt": "Conceda permissão de Bluetooth (busca) para encontrar dispositivos BLE",
+      "ru": "Предоставьте разрешение Bluetooth (поиск), чтобы находить устройства BLE",
+      "zh": "授予 Bluetooth（扫描）权限以查找 BLE 设备"
+     }
     },
     {
      "name": "connections_bleserial_scan",
      "en": "Scan for BLE devices",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فحص أجهزة BLE",
+      "bn": "BLE ডিভাইস স্ক্যান করুন",
+      "de": "Nach BLE-Geräten suchen",
+      "es": "Buscar dispositivos BLE",
+      "fr": "Rechercher des appareils BLE",
+      "hi": "BLE डिवाइस के लिए स्कैन करें",
+      "ja": "BLE デバイスをスキャン",
+      "ko": "BLE 장치 검색",
+      "pt": "Buscar dispositivos BLE",
+      "ru": "Поиск устройств BLE",
+      "zh": "扫描 BLE 设备"
+     }
     },
     {
      "name": "connections_bleserial_scanning",
      "en": "Scanning…",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "جارٍ الفحص…",
+      "bn": "স্ক্যান করা হচ্ছে…",
+      "de": "Suche läuft…",
+      "es": "Buscando…",
+      "fr": "Recherche en cours…",
+      "hi": "स्कैन हो रहा है…",
+      "ja": "スキャン中…",
+      "ko": "검색 중…",
+      "pt": "Buscando…",
+      "ru": "Поиск…",
+      "zh": "正在扫描…"
+     }
     },
     {
      "name": "connections_section_usbserial",
@@ -12558,77 +12642,209 @@
      "en": "Data bits",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "بتات البيانات",
+      "bn": "ডেটা বিট",
+      "de": "Datenbits",
+      "es": "Bits de datos",
+      "fr": "Bits de données",
+      "hi": "डेटा बिट्स",
+      "ja": "データビット",
+      "ko": "데이터 비트",
+      "pt": "Bits de dados",
+      "ru": "Биты данных",
+      "zh": "数据位"
+     }
     },
     {
      "name": "connections_usbserial_parity",
      "en": "Parity",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التكافؤ",
+      "bn": "প্যারিটি",
+      "de": "Parität",
+      "es": "Paridad",
+      "fr": "Parité",
+      "hi": "पैरिटी",
+      "ja": "パリティ",
+      "ko": "패리티",
+      "pt": "Paridade",
+      "ru": "Чётность",
+      "zh": "校验位"
+     }
     },
     {
      "name": "connections_usbserial_stopbits",
      "en": "Stop bits",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "بتات التوقف",
+      "bn": "স্টপ বিট",
+      "de": "Stoppbits",
+      "es": "Bits de parada",
+      "fr": "Bits d\\'arrêt",
+      "hi": "स्टॉप बिट्स",
+      "ja": "ストップビット",
+      "ko": "정지 비트",
+      "pt": "Bits de parada",
+      "ru": "Стоп-биты",
+      "zh": "停止位"
+     }
     },
     {
      "name": "connections_usbserial_flowcontrol",
      "en": "Flow control",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "التحكم في التدفق",
+      "bn": "ফ্লো কন্ট্রোল",
+      "de": "Flusssteuerung",
+      "es": "Control de flujo",
+      "fr": "Contrôle de flux",
+      "hi": "फ़्लो कंट्रोल",
+      "ja": "フロー制御",
+      "ko": "흐름 제어",
+      "pt": "Controle de fluxo",
+      "ru": "Управление потоком",
+      "zh": "流控制"
+     }
     },
     {
      "name": "connections_usbserial_none",
      "en": "None",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "بلا",
+      "bn": "কোনোটি নয়",
+      "de": "Keine",
+      "es": "Ninguno",
+      "fr": "Aucun",
+      "hi": "कोई नहीं",
+      "ja": "なし",
+      "ko": "없음",
+      "pt": "Nenhum",
+      "ru": "Нет",
+      "zh": "无"
+     }
     },
     {
      "name": "connections_usbserial_parity_odd",
      "en": "Odd",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فردي",
+      "bn": "বিজোড়",
+      "de": "Ungerade",
+      "es": "Impar",
+      "fr": "Impair",
+      "hi": "विषम",
+      "ja": "奇数",
+      "ko": "홀수",
+      "pt": "Ímpar",
+      "ru": "Нечётная",
+      "zh": "奇校验"
+     }
     },
     {
      "name": "connections_usbserial_parity_even",
      "en": "Even",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "زوجي",
+      "bn": "জোড়",
+      "de": "Gerade",
+      "es": "Par",
+      "fr": "Pair",
+      "hi": "सम",
+      "ja": "偶数",
+      "ko": "짝수",
+      "pt": "Par",
+      "ru": "Чётная",
+      "zh": "偶校验"
+     }
     },
     {
      "name": "connections_usbserial_parity_mark",
      "en": "Mark",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "علامة",
+      "bn": "মার্ক",
+      "de": "Mark",
+      "es": "Marca",
+      "fr": "Marque",
+      "hi": "मार्क",
+      "ja": "マーク",
+      "ko": "마크",
+      "pt": "Marca",
+      "ru": "Маркер",
+      "zh": "标记"
+     }
     },
     {
      "name": "connections_usbserial_parity_space",
      "en": "Space",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "فراغ",
+      "bn": "স্পেস",
+      "de": "Space",
+      "es": "Espacio",
+      "fr": "Espace",
+      "hi": "स्पेस",
+      "ja": "スペース",
+      "ko": "스페이스",
+      "pt": "Espaço",
+      "ru": "Пробел",
+      "zh": "空格"
+     }
     },
     {
      "name": "connections_usbserial_flow_rtscts",
      "en": "RTS/CTS",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "RTS/CTS",
+      "bn": "RTS/CTS",
+      "de": "RTS/CTS",
+      "es": "RTS/CTS",
+      "fr": "RTS/CTS",
+      "hi": "RTS/CTS",
+      "ja": "RTS/CTS",
+      "ko": "RTS/CTS",
+      "pt": "RTS/CTS",
+      "ru": "RTS/CTS",
+      "zh": "RTS/CTS"
+     }
     },
     {
      "name": "connections_usbserial_flow_xonxoff",
      "en": "XON/XOFF",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "XON/XOFF",
+      "bn": "XON/XOFF",
+      "de": "XON/XOFF",
+      "es": "XON/XOFF",
+      "fr": "XON/XOFF",
+      "hi": "XON/XOFF",
+      "ja": "XON/XOFF",
+      "ko": "XON/XOFF",
+      "pt": "XON/XOFF",
+      "ru": "XON/XOFF",
+      "zh": "XON/XOFF"
+     }
     },
     {
      "name": "connections_section_cloud_storage",
