@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">একটি লিংক %1$s-এ সংযোগ করতে চায়।</string>
     <string name="connections_deeplink_confirm_session">একটি লিংক %1$s-এ সংযোগ করে সেশন “%2$s” সংযুক্ত করতে চায়।</string>
     <string name="connections_deeplink_confirm_connect">সংযোগ</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">ব্লুটুথ সিরিয়াল</string>
+    <string name="connections_btserial_desc">একটি পেয়ার করা ব্লুটুথ-থেকে-সিরিয়াল অ্যাডাপ্টারে (যেমন কোনো সুইচ বা রাউটারের কনসোল পোর্ট) সংযোগ করুন।</string>
+    <string name="connections_btserial_device">পেয়ার করা ডিভাইস</string>
+    <string name="connections_btserial_no_devices">কোনো পেয়ার করা ব্লুটুথ ডিভাইস নেই। প্রথমে Android সেটিংস → ব্লুটুথ-এ অ্যাডাপ্টারটি পেয়ার করুন, তারপর এটি আবার খুলুন।</string>
+    <string name="connections_btserial_permission">পেয়ার করা ডিভাইস তালিকাভুক্ত করতে ব্লুটুথ অনুমতি দিন</string>
+    <string name="connections_section_usbserial">USB সিরিয়াল</string>
+    <string name="connections_usbserial_desc">একটি প্লাগ-ইন করা USB-সিরিয়াল অ্যাডাপ্টারে সংযোগ করুন — একটি Arduino, একটি Duet3D G-code বোর্ড, একটি ESP32 বা একটি USB-থেকে-TTL কেবল।</string>
+    <string name="connections_usbserial_device">USB ডিভাইস</string>
+    <string name="connections_usbserial_no_devices">কোনো USB-সিরিয়াল অ্যাডাপ্টার শনাক্ত হয়নি। একটি প্লাগ ইন করুন, তারপর এটি আবার খুলুন।</string>
+    <string name="connections_usbserial_baud">বড রেট</string>
 </resources>

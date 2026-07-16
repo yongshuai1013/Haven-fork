@@ -521,4 +521,15 @@
     <string name="connections_deeplink_confirm_message">一个链接请求连接到 %1$s。</string>
     <string name="connections_deeplink_confirm_session">一个链接请求连接到 %1$s 并附加会话“%2$s”。</string>
     <string name="connections_deeplink_confirm_connect">连接</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">蓝牙串口</string>
+    <string name="connections_btserial_desc">连接到已配对的蓝牙转串口适配器（例如交换机或路由器的控制台端口）。</string>
+    <string name="connections_btserial_device">已配对设备</string>
+    <string name="connections_btserial_no_devices">没有已配对的蓝牙设备。请先在 Android 设置 → 蓝牙中配对适配器，然后重新打开此界面。</string>
+    <string name="connections_btserial_permission">授予蓝牙权限以列出已配对设备</string>
+    <string name="connections_section_usbserial">USB 串口</string>
+    <string name="connections_usbserial_desc">连接到已插入的 USB 串口适配器——Arduino、Duet3D G-code 主板、ESP32 或 USB 转 TTL 线。</string>
+    <string name="connections_usbserial_device">USB 设备</string>
+    <string name="connections_usbserial_no_devices">未检测到 USB 串口适配器。请插入一个，然后重新打开此界面。</string>
+    <string name="connections_usbserial_baud">波特率</string>
 </resources>

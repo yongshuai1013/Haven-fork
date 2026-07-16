@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">Um link quer se conectar a %1$s.</string>
     <string name="connections_deeplink_confirm_session">Um link quer se conectar a %1$s e anexar a sessão “%2$s”.</string>
     <string name="connections_deeplink_confirm_connect">Conectar</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">Serial Bluetooth</string>
+    <string name="connections_btserial_desc">Conecte-se a um adaptador Bluetooth-para-serial emparelhado (p. ex. a porta de console de um switch ou roteador).</string>
+    <string name="connections_btserial_device">Dispositivo emparelhado</string>
+    <string name="connections_btserial_no_devices">Nenhum dispositivo Bluetooth emparelhado. Emparelhe primeiro o adaptador em Configurações do Android → Bluetooth e reabra isto.</string>
+    <string name="connections_btserial_permission">Conceda permissão de Bluetooth para listar os dispositivos emparelhados</string>
+    <string name="connections_section_usbserial">Serial USB</string>
+    <string name="connections_usbserial_desc">Conecte-se a um adaptador USB-serial conectado — um Arduino, uma placa Duet3D de G-code, um ESP32 ou um cabo USB-para-TTL.</string>
+    <string name="connections_usbserial_device">Dispositivo USB</string>
+    <string name="connections_usbserial_no_devices">Nenhum adaptador USB-serial detectado. Conecte um e reabra isto.</string>
+    <string name="connections_usbserial_baud">Taxa de transmissão (baud)</string>
 </resources>

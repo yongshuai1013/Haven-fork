@@ -12319,70 +12319,190 @@
      "en": "Bluetooth serial",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تسلسلي بلوتوث",
+      "bn": "ব্লুটুথ সিরিয়াল",
+      "de": "Bluetooth-Seriell",
+      "es": "Serie Bluetooth",
+      "fr": "Série Bluetooth",
+      "hi": "ब्लूटूथ सीरियल",
+      "ja": "Bluetoothシリアル",
+      "ko": "블루투스 시리얼",
+      "pt": "Serial Bluetooth",
+      "ru": "Bluetooth-последовательный",
+      "zh": "蓝牙串口"
+     }
     },
     {
      "name": "connections_btserial_desc",
      "en": "Connect to a paired Bluetooth-to-serial adapter (e.g. a switch or router console port).",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الاتصال بمحوّل بلوتوث-إلى-تسلسلي مقترن (مثل منفذ وحدة تحكم مبدّل أو موجّه).",
+      "bn": "একটি পেয়ার করা ব্লুটুথ-থেকে-সিরিয়াল অ্যাডাপ্টারে (যেমন কোনো সুইচ বা রাউটারের কনসোল পোর্ট) সংযোগ করুন।",
+      "de": "Mit einem gekoppelten Bluetooth-zu-Seriell-Adapter verbinden (z. B. dem Konsolenport eines Switches oder Routers).",
+      "es": "Conéctate a un adaptador Bluetooth-a-serie emparejado (p. ej. el puerto de consola de un switch o router).",
+      "fr": "Se connecter à un adaptateur Bluetooth-vers-série appairé (p. ex. le port console d\\'un switch ou d\\'un routeur).",
+      "hi": "किसी युग्मित ब्लूटूथ-से-सीरियल अडैप्टर (जैसे किसी स्विच या राउटर का कंसोल पोर्ट) से कनेक्ट करें।",
+      "ja": "ペアリング済みのBluetooth-シリアル変換アダプター（スイッチやルーターのコンソールポートなど）に接続します。",
+      "ko": "페어링된 블루투스-시리얼 어댑터(예: 스위치나 라우터의 콘솔 포트)에 연결합니다.",
+      "pt": "Conecte-se a um adaptador Bluetooth-para-serial emparelhado (p. ex. a porta de console de um switch ou roteador).",
+      "ru": "Подключение к сопряжённому адаптеру Bluetooth-последовательный (например, к консольному порту коммутатора или маршрутизатора).",
+      "zh": "连接到已配对的蓝牙转串口适配器（例如交换机或路由器的控制台端口）。"
+     }
     },
     {
      "name": "connections_btserial_device",
      "en": "Paired device",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "جهاز مقترن",
+      "bn": "পেয়ার করা ডিভাইস",
+      "de": "Gekoppeltes Gerät",
+      "es": "Dispositivo emparejado",
+      "fr": "Appareil appairé",
+      "hi": "युग्मित डिवाइस",
+      "ja": "ペアリング済みデバイス",
+      "ko": "페어링된 기기",
+      "pt": "Dispositivo emparelhado",
+      "ru": "Сопряжённое устройство",
+      "zh": "已配对设备"
+     }
     },
     {
      "name": "connections_btserial_no_devices",
      "en": "No paired Bluetooth devices. Pair the adapter in Android Settings → Bluetooth first, then reopen this.",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لا توجد أجهزة بلوتوث مقترنة. اقترن المحوّل أولاً من إعدادات Android ثم بلوتوث، ثم أعد فتح هذا.",
+      "bn": "কোনো পেয়ার করা ব্লুটুথ ডিভাইস নেই। প্রথমে Android সেটিংস → ব্লুটুথ-এ অ্যাডাপ্টারটি পেয়ার করুন, তারপর এটি আবার খুলুন।",
+      "de": "Keine gekoppelten Bluetooth-Geräte. Koppeln Sie den Adapter zuerst in den Android-Einstellungen → Bluetooth und öffnen Sie dies dann erneut.",
+      "es": "No hay dispositivos Bluetooth emparejados. Empareja primero el adaptador en Ajustes de Android → Bluetooth y vuelve a abrir esto.",
+      "fr": "Aucun appareil Bluetooth appairé. Appairez d\\'abord l\\'adaptateur dans Paramètres Android → Bluetooth, puis rouvrez ceci.",
+      "hi": "कोई युग्मित ब्लूटूथ डिवाइस नहीं। पहले Android सेटिंग्स → ब्लूटूथ में अडैप्टर को युग्मित करें, फिर इसे दोबारा खोलें।",
+      "ja": "ペアリング済みのBluetoothデバイスがありません。まずAndroidの設定 → Bluetoothでアダプターをペアリングしてから、これを開き直してください。",
+      "ko": "페어링된 블루투스 기기가 없습니다. 먼저 Android 설정 → 블루투스에서 어댑터를 페어링한 후 이 화면을 다시 여세요.",
+      "pt": "Nenhum dispositivo Bluetooth emparelhado. Emparelhe primeiro o adaptador em Configurações do Android → Bluetooth e reabra isto.",
+      "ru": "Нет сопряжённых Bluetooth-устройств. Сначала выполните сопряжение адаптера в Настройках Android → Bluetooth, затем откройте это снова.",
+      "zh": "没有已配对的蓝牙设备。请先在 Android 设置 → 蓝牙中配对适配器，然后重新打开此界面。"
+     }
     },
     {
      "name": "connections_btserial_permission",
      "en": "Grant Bluetooth permission to list paired devices",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "امنح إذن بلوتوث لعرض الأجهزة المقترنة",
+      "bn": "পেয়ার করা ডিভাইস তালিকাভুক্ত করতে ব্লুটুথ অনুমতি দিন",
+      "de": "Bluetooth-Berechtigung erteilen, um gekoppelte Geräte aufzulisten",
+      "es": "Concede permiso de Bluetooth para listar los dispositivos emparejados",
+      "fr": "Accorder l\\'autorisation Bluetooth pour lister les appareils appairés",
+      "hi": "युग्मित डिवाइस सूचीबद्ध करने के लिए ब्लूटूथ अनुमति दें",
+      "ja": "ペアリング済みデバイスを一覧表示するにはBluetooth権限を許可してください",
+      "ko": "페어링된 기기를 나열하려면 블루투스 권한을 허용하세요",
+      "pt": "Conceda permissão de Bluetooth para listar os dispositivos emparelhados",
+      "ru": "Предоставьте разрешение Bluetooth для списка сопряжённых устройств",
+      "zh": "授予蓝牙权限以列出已配对设备"
+     }
     },
     {
      "name": "connections_section_usbserial",
      "en": "USB serial",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "تسلسلي USB",
+      "bn": "USB সিরিয়াল",
+      "de": "USB-Seriell",
+      "es": "Serie USB",
+      "fr": "Série USB",
+      "hi": "USB सीरियल",
+      "ja": "USBシリアル",
+      "ko": "USB 시리얼",
+      "pt": "Serial USB",
+      "ru": "USB-последовательный",
+      "zh": "USB 串口"
+     }
     },
     {
      "name": "connections_usbserial_desc",
      "en": "Connect to a plugged-in USB-serial adapter — an Arduino, a Duet3D G-code board, an ESP32 or a USB-to-TTL cable.",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "الاتصال بمحوّل USB تسلسلي موصَّل — جهاز Arduino أو لوحة Duet3D لـ G-code أو ESP32 أو كبل USB إلى TTL.",
+      "bn": "একটি প্লাগ-ইন করা USB-সিরিয়াল অ্যাডাপ্টারে সংযোগ করুন — একটি Arduino, একটি Duet3D G-code বোর্ড, একটি ESP32 বা একটি USB-থেকে-TTL কেবল।",
+      "de": "Mit einem angeschlossenen USB-Seriell-Adapter verbinden – einem Arduino, einem Duet3D-G-code-Board, einem ESP32 oder einem USB-zu-TTL-Kabel.",
+      "es": "Conéctate a un adaptador USB-serie conectado: un Arduino, una placa Duet3D de G-code, un ESP32 o un cable USB-a-TTL.",
+      "fr": "Se connecter à un adaptateur USB-série branché — un Arduino, une carte G-code Duet3D, un ESP32 ou un câble USB-vers-TTL.",
+      "hi": "किसी प्लग-इन USB-सीरियल अडैप्टर से कनेक्ट करें — Arduino, Duet3D G-code बोर्ड, ESP32 या USB-से-TTL केबल।",
+      "ja": "接続されたUSBシリアルアダプター（Arduino、Duet3DのG-codeボード、ESP32、USB-TTLケーブルなど）に接続します。",
+      "ko": "연결된 USB 시리얼 어댑터(Arduino, Duet3D G-code 보드, ESP32 또는 USB-TTL 케이블)에 연결합니다.",
+      "pt": "Conecte-se a um adaptador USB-serial conectado — um Arduino, uma placa Duet3D de G-code, um ESP32 ou um cabo USB-para-TTL.",
+      "ru": "Подключение к подключённому USB-последовательному адаптеру — Arduino, плате Duet3D G-code, ESP32 или кабелю USB-TTL.",
+      "zh": "连接到已插入的 USB 串口适配器——Arduino、Duet3D G-code 主板、ESP32 或 USB 转 TTL 线。"
+     }
     },
     {
      "name": "connections_usbserial_device",
      "en": "USB device",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "جهاز USB",
+      "bn": "USB ডিভাইস",
+      "de": "USB-Gerät",
+      "es": "Dispositivo USB",
+      "fr": "Appareil USB",
+      "hi": "USB डिवाइस",
+      "ja": "USBデバイス",
+      "ko": "USB 기기",
+      "pt": "Dispositivo USB",
+      "ru": "USB-устройство",
+      "zh": "USB 设备"
+     }
     },
     {
      "name": "connections_usbserial_no_devices",
      "en": "No USB-serial adapter detected. Plug one in, then reopen this.",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "لم يتم اكتشاف محوّل USB تسلسلي. وصّل واحدًا ثم أعد فتح هذا.",
+      "bn": "কোনো USB-সিরিয়াল অ্যাডাপ্টার শনাক্ত হয়নি। একটি প্লাগ ইন করুন, তারপর এটি আবার খুলুন।",
+      "de": "Kein USB-Seriell-Adapter erkannt. Schließen Sie einen an und öffnen Sie dies erneut.",
+      "es": "No se detectó ningún adaptador USB-serie. Conecta uno y vuelve a abrir esto.",
+      "fr": "Aucun adaptateur USB-série détecté. Branchez-en un, puis rouvrez ceci.",
+      "hi": "कोई USB-सीरियल अडैप्टर नहीं मिला। एक प्लग इन करें, फिर इसे दोबारा खोलें।",
+      "ja": "USBシリアルアダプターが検出されませんでした。接続してから、これを開き直してください。",
+      "ko": "USB 시리얼 어댑터가 감지되지 않았습니다. 하나 연결한 후 이 화면을 다시 여세요.",
+      "pt": "Nenhum adaptador USB-serial detectado. Conecte um e reabra isto.",
+      "ru": "USB-последовательный адаптер не обнаружен. Подключите его и откройте это снова.",
+      "zh": "未检测到 USB 串口适配器。请插入一个，然后重新打开此界面。"
+     }
     },
     {
      "name": "connections_usbserial_baud",
      "en": "Baud rate",
      "comment": "Bluetooth serial (#406)",
      "args": [],
-     "t": {}
+     "t": {
+      "ar": "معدل الباود",
+      "bn": "বড রেট",
+      "de": "Baudrate",
+      "es": "Velocidad en baudios",
+      "fr": "Débit en bauds",
+      "hi": "बॉड दर",
+      "ja": "ボーレート",
+      "ko": "보드레이트",
+      "pt": "Taxa de transmissão (baud)",
+      "ru": "Скорость (бод)",
+      "zh": "波特率"
+     }
     },
     {
      "name": "connections_section_cloud_storage",

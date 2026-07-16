@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">Ссылка запрашивает подключение к %1$s.</string>
     <string name="connections_deeplink_confirm_session">Ссылка запрашивает подключение к %1$s и присоединение к сессии «%2$s».</string>
     <string name="connections_deeplink_confirm_connect">Подключиться</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">Bluetooth-последовательный</string>
+    <string name="connections_btserial_desc">Подключение к сопряжённому адаптеру Bluetooth-последовательный (например, к консольному порту коммутатора или маршрутизатора).</string>
+    <string name="connections_btserial_device">Сопряжённое устройство</string>
+    <string name="connections_btserial_no_devices">Нет сопряжённых Bluetooth-устройств. Сначала выполните сопряжение адаптера в Настройках Android → Bluetooth, затем откройте это снова.</string>
+    <string name="connections_btserial_permission">Предоставьте разрешение Bluetooth для списка сопряжённых устройств</string>
+    <string name="connections_section_usbserial">USB-последовательный</string>
+    <string name="connections_usbserial_desc">Подключение к подключённому USB-последовательному адаптеру — Arduino, плате Duet3D G-code, ESP32 или кабелю USB-TTL.</string>
+    <string name="connections_usbserial_device">USB-устройство</string>
+    <string name="connections_usbserial_no_devices">USB-последовательный адаптер не обнаружен. Подключите его и откройте это снова.</string>
+    <string name="connections_usbserial_baud">Скорость (бод)</string>
 </resources>

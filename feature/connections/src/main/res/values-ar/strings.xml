@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">يطلب رابط الاتصال بـ %1$s.</string>
     <string name="connections_deeplink_confirm_session">يطلب رابط الاتصال بـ %1$s وإرفاق الجلسة “%2$s”.</string>
     <string name="connections_deeplink_confirm_connect">اتصال</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">تسلسلي بلوتوث</string>
+    <string name="connections_btserial_desc">الاتصال بمحوّل بلوتوث-إلى-تسلسلي مقترن (مثل منفذ وحدة تحكم مبدّل أو موجّه).</string>
+    <string name="connections_btserial_device">جهاز مقترن</string>
+    <string name="connections_btserial_no_devices">لا توجد أجهزة بلوتوث مقترنة. اقترن المحوّل أولاً من إعدادات Android ثم بلوتوث، ثم أعد فتح هذا.</string>
+    <string name="connections_btserial_permission">امنح إذن بلوتوث لعرض الأجهزة المقترنة</string>
+    <string name="connections_section_usbserial">تسلسلي USB</string>
+    <string name="connections_usbserial_desc">الاتصال بمحوّل USB تسلسلي موصَّل — جهاز Arduino أو لوحة Duet3D لـ G-code أو ESP32 أو كبل USB إلى TTL.</string>
+    <string name="connections_usbserial_device">جهاز USB</string>
+    <string name="connections_usbserial_no_devices">لم يتم اكتشاف محوّل USB تسلسلي. وصّل واحدًا ثم أعد فتح هذا.</string>
+    <string name="connections_usbserial_baud">معدل الباود</string>
 </resources>

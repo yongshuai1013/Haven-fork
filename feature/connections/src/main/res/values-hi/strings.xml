@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">एक लिंक %1$s से कनेक्ट करना चाहता है।</string>
     <string name="connections_deeplink_confirm_session">एक लिंक %1$s से कनेक्ट होकर सत्र “%2$s” अटैच करना चाहता है।</string>
     <string name="connections_deeplink_confirm_connect">कनेक्ट करें</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">ब्लूटूथ सीरियल</string>
+    <string name="connections_btserial_desc">किसी युग्मित ब्लूटूथ-से-सीरियल अडैप्टर (जैसे किसी स्विच या राउटर का कंसोल पोर्ट) से कनेक्ट करें।</string>
+    <string name="connections_btserial_device">युग्मित डिवाइस</string>
+    <string name="connections_btserial_no_devices">कोई युग्मित ब्लूटूथ डिवाइस नहीं। पहले Android सेटिंग्स → ब्लूटूथ में अडैप्टर को युग्मित करें, फिर इसे दोबारा खोलें।</string>
+    <string name="connections_btserial_permission">युग्मित डिवाइस सूचीबद्ध करने के लिए ब्लूटूथ अनुमति दें</string>
+    <string name="connections_section_usbserial">USB सीरियल</string>
+    <string name="connections_usbserial_desc">किसी प्लग-इन USB-सीरियल अडैप्टर से कनेक्ट करें — Arduino, Duet3D G-code बोर्ड, ESP32 या USB-से-TTL केबल।</string>
+    <string name="connections_usbserial_device">USB डिवाइस</string>
+    <string name="connections_usbserial_no_devices">कोई USB-सीरियल अडैप्टर नहीं मिला। एक प्लग इन करें, फिर इसे दोबारा खोलें।</string>
+    <string name="connections_usbserial_baud">बॉड दर</string>
 </resources>

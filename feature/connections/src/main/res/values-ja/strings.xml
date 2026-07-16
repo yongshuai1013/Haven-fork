@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">リンクが %1$s への接続を要求しています。</string>
     <string name="connections_deeplink_confirm_session">リンクが %1$s に接続し、セッション「%2$s」にアタッチしようとしています。</string>
     <string name="connections_deeplink_confirm_connect">接続</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">Bluetoothシリアル</string>
+    <string name="connections_btserial_desc">ペアリング済みのBluetooth-シリアル変換アダプター（スイッチやルーターのコンソールポートなど）に接続します。</string>
+    <string name="connections_btserial_device">ペアリング済みデバイス</string>
+    <string name="connections_btserial_no_devices">ペアリング済みのBluetoothデバイスがありません。まずAndroidの設定 → Bluetoothでアダプターをペアリングしてから、これを開き直してください。</string>
+    <string name="connections_btserial_permission">ペアリング済みデバイスを一覧表示するにはBluetooth権限を許可してください</string>
+    <string name="connections_section_usbserial">USBシリアル</string>
+    <string name="connections_usbserial_desc">接続されたUSBシリアルアダプター（Arduino、Duet3DのG-codeボード、ESP32、USB-TTLケーブルなど）に接続します。</string>
+    <string name="connections_usbserial_device">USBデバイス</string>
+    <string name="connections_usbserial_no_devices">USBシリアルアダプターが検出されませんでした。接続してから、これを開き直してください。</string>
+    <string name="connections_usbserial_baud">ボーレート</string>
 </resources>

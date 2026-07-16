@@ -523,4 +523,15 @@
     <string name="connections_deeplink_confirm_message">Ein Link möchte sich mit %1$s verbinden.</string>
     <string name="connections_deeplink_confirm_session">Ein Link möchte sich mit %1$s verbinden und die Sitzung „%2$s“ anhängen.</string>
     <string name="connections_deeplink_confirm_connect">Verbinden</string>
+    <!-- Serial-connection strings (#406 BTSERIAL, #408 USBSERIAL) -->
+    <string name="connections_section_btserial">Bluetooth-Seriell</string>
+    <string name="connections_btserial_desc">Mit einem gekoppelten Bluetooth-zu-Seriell-Adapter verbinden (z. B. dem Konsolenport eines Switches oder Routers).</string>
+    <string name="connections_btserial_device">Gekoppeltes Gerät</string>
+    <string name="connections_btserial_no_devices">Keine gekoppelten Bluetooth-Geräte. Koppeln Sie den Adapter zuerst in den Android-Einstellungen → Bluetooth und öffnen Sie dies dann erneut.</string>
+    <string name="connections_btserial_permission">Bluetooth-Berechtigung erteilen, um gekoppelte Geräte aufzulisten</string>
+    <string name="connections_section_usbserial">USB-Seriell</string>
+    <string name="connections_usbserial_desc">Mit einem angeschlossenen USB-Seriell-Adapter verbinden – einem Arduino, einem Duet3D-G-code-Board, einem ESP32 oder einem USB-zu-TTL-Kabel.</string>
+    <string name="connections_usbserial_device">USB-Gerät</string>
+    <string name="connections_usbserial_no_devices">Kein USB-Seriell-Adapter erkannt. Schließen Sie einen an und öffnen Sie dies erneut.</string>
+    <string name="connections_usbserial_baud">Baudrate</string>
 </resources>
