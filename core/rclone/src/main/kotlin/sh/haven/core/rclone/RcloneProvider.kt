@@ -48,6 +48,13 @@ data class RcloneFileEntry(
     val mimeType: String,
     val modTime: String,
     val isDir: Boolean,
+    /**
+     * Unix permission bits parsed from rclone's per-file `Metadata.mode`
+     * (octal), or null when the backend exposes no unix mode (most cloud
+     * remotes). Only the low 12 bits (rwx + setuid/setgid/sticky) are
+     * meaningful; the type is taken from [isDir].
+     */
+    val mode: Int? = null,
 )
 
 /** Space usage information for a remote. */

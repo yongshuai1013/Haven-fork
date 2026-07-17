@@ -153,6 +153,10 @@ class RcloneClient @Inject constructor(
         val params = JSONObject()
         params.put("fs", "$remote:")
         params.put("remote", path.trimStart('/'))
+        // Request per-file metadata so backends that carry a unix mode (sftp,
+        // local) report real permissions instead of a generic default (#413).
+        // Backends without metadata simply omit it; we fall back accordingly.
+        params.put("opt", JSONObject().put("metadata", true))
         val result = rpc("operations/list", params)
         val list = result.optJSONArray("list") ?: return emptyList()
         return (0 until list.length()).map { i ->
@@ -164,6 +168,12 @@ class RcloneClient @Inject constructor(
                 mimeType = item.optString("MimeType", ""),
                 modTime = item.optString("ModTime", ""),
                 isDir = item.optBoolean("IsDir", false),
+                // rclone renders the mode as an octal string (e.g. "100644").
+                // Only the low bits matter; the type char comes from IsDir.
+                mode = item.optJSONObject("Metadata")
+                    ?.optString("mode", "")
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.toIntOrNull(8),
             )
         }
     }

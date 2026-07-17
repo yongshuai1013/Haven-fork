@@ -45,7 +45,8 @@ class RcloneFileBackend(
                 isDirectory = entry.isDir,
                 size = entry.size,
                 modifiedTime = modTime,
-                permissions = if (entry.isDir) "drwxr-xr-x" else "-rw-r--r--",
+                permissions = entry.mode?.let { rcloneModeToPermissions(it, entry.isDir) }
+                    ?: if (entry.isDir) "drwxr-xr-x" else "-rw-r--r--",
                 mimeType = entry.mimeType,
             )
         }
@@ -177,4 +178,33 @@ class RcloneFileBackend(
             false
         }
     }
+}
+
+/**
+ * Render an `ls -l`-style permission string (e.g. `-rw-r--r--`) from a unix
+ * [mode]'s low 12 bits. The type char comes from [isDir] rather than the
+ * mode's type bits, since rclone's `Metadata.mode` type encoding varies by
+ * backend while [isDir] is always reliable. Handles setuid/setgid (`s`/`S`)
+ * and sticky (`t`/`T`). Symlinks are not distinguished — rclone follows them
+ * by default, so a listed entry is the target.
+ */
+internal fun rcloneModeToPermissions(mode: Int, isDir: Boolean): String =
+    buildString(10) {
+        append(if (isDir) 'd' else '-')
+        append(if (mode and 0x100 != 0) 'r' else '-')
+        append(if (mode and 0x080 != 0) 'w' else '-')
+        append(specialExecChar(special = mode and 0x800 != 0, exec = mode and 0x040 != 0, s = 's'))
+        append(if (mode and 0x020 != 0) 'r' else '-')
+        append(if (mode and 0x010 != 0) 'w' else '-')
+        append(specialExecChar(special = mode and 0x400 != 0, exec = mode and 0x008 != 0, s = 's'))
+        append(if (mode and 0x004 != 0) 'r' else '-')
+        append(if (mode and 0x002 != 0) 'w' else '-')
+        append(specialExecChar(special = mode and 0x200 != 0, exec = mode and 0x001 != 0, s = 't'))
+    }
+
+private fun specialExecChar(special: Boolean, exec: Boolean, s: Char): Char = when {
+    special && exec -> s
+    special -> s.uppercaseChar()
+    exec -> 'x'
+    else -> '-'
 }
