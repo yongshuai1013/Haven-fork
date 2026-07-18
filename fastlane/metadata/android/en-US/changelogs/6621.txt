@@ -1,0 +1,4 @@
+v5.79.1
+
+SFTP
+Fixes "inputstream is closed" errors when listing folders on some servers (notably local VM SSH servers). Haven now resets the SFTP channel and retries the listing once instead of failing. (#412)

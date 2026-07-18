@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.79.1
+
+🗂️ **SFTP: recover from an "inputstream is closed" glitch when listing folders** — some servers (notably local VM SSH servers) could trip JSch's `inputstream is closed` error partway through a directory listing, and the browser would just fail. Haven now resets the SFTP channel and retries the listing once instead of surfacing the error. (#412, thanks mintleaf84)
+
 ## v5.79.0
 
 🔌 **Tasker / MacroDroid plugin: run a command on a Haven server** — a native automation action. Pick one of your saved SSH connections, type a shell command (your Tasker/MacroDroid variables are substituted into it before it runs), and optionally wait for it to finish or watch it run live in a terminal. Add it as a plugin action in Tasker or MacroDroid — or drive it with a plain Send-Intent. (#367, thanks ehoeve786)
