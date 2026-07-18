@@ -1,12 +1,15 @@
 package sh.haven.app.tasker
 
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.BroadcastReceiver.PendingResult
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -71,12 +74,14 @@ class TaskerFireReceiver : BroadcastReceiver() {
             try {
                 if (!block) {
                     // Fire-and-forget: let the macro continue immediately, run
-                    // on the app-process scope so we survive the receiver.
+                    // on the app-process scope so we survive the receiver. No
+                    // variable passback — the host has already moved on.
                     pending.finish()
-                    runAndNotify(appContext, profileId, label, command)
+                    runAndNotify(appContext, profileId, label, command, passbackTo = null)
                 } else {
-                    // Hold the ordered broadcast until the command finishes.
-                    runAndNotify(appContext, profileId, label, command)
+                    // Hold the ordered broadcast until the command finishes, and
+                    // return its output to the host as variables.
+                    runAndNotify(appContext, profileId, label, command, passbackTo = pending)
                     pending.finish()
                 }
             } catch (e: Exception) {
@@ -91,10 +96,12 @@ class TaskerFireReceiver : BroadcastReceiver() {
         profileId: String,
         label: String,
         command: String,
+        passbackTo: PendingResult?,
     ) {
         val (title, text) = try {
             val outcome = headlessSshExec.run(profileId, command, TIMEOUT_MS)
             val r = outcome.exec
+            passbackTo?.let { setPassback(it, r.stdout, r.stderr, r.exitStatus) }
             val snippet = r.stdout.ifBlank { r.stderr }.trim().take(SNIPPET_CHARS)
             val head = if (r.timedOut) {
                 context.getString(R.string.tasker_result_timed_out, label)
@@ -103,9 +110,29 @@ class TaskerFireReceiver : BroadcastReceiver() {
             }
             head to snippet
         } catch (e: Exception) {
+            passbackTo?.let { setPassback(it, "", e.message ?: "", -1) }
             context.getString(R.string.tasker_result_failed, label) to (e.message ?: "")
         }
         notify(context, title, text)
+    }
+
+    /**
+     * Return the command's output to Tasker/MacroDroid as local variables on
+     * the ordered-broadcast result (%hstdout / %hstderr / %hexit). Only has an
+     * effect when the host waits for the result (our "wait until finished"
+     * mode) — a fire-and-forget host has already continued.
+     */
+    private fun setPassback(pending: PendingResult, stdout: String, stderr: String, exit: Int) {
+        val vars = Bundle().apply {
+            putString(TaskerPlugin.VAR_STDOUT, stdout)
+            putString(TaskerPlugin.VAR_STDERR, stderr)
+            putString(TaskerPlugin.VAR_EXIT, exit.toString())
+        }
+        val extras = pending.getResultExtras(true) ?: Bundle()
+        extras.putBundle(TaskerPlugin.EXTRA_VARIABLES_BUNDLE, vars)
+        pending.setResultExtras(extras)
+        pending.setResultCode(Activity.RESULT_OK) // TaskerPlugin RESULT_CODE_OK
+        Log.i(TAG, "passback set: %hexit=$exit stdout=${stdout.length}b stderr=${stderr.length}b")
     }
 
     private fun notify(context: Context, title: String, text: String) {

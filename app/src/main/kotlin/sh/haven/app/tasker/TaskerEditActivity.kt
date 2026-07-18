@@ -88,6 +88,12 @@ class TaskerEditActivity : ComponentActivity() {
                             Intent().apply {
                                 putExtra(TaskerPlugin.EXTRA_BUNDLE, bundle)
                                 putExtra(TaskerPlugin.EXTRA_BLURB, blurb)
+                                // Declare the variables this action sets (%hstdout /
+                                // %hstderr / %hexit) so the host lists them (#367).
+                                putExtra(
+                                    TaskerPlugin.BUNDLE_KEY_RELEVANT_VARIABLES,
+                                    TaskerPlugin.RELEVANT_VARIABLES,
+                                )
                             },
                         )
                         finish()

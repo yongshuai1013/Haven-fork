@@ -33,6 +33,18 @@ object TaskerPlugin {
     /** Short human summary of the action (≤ ~60 chars), edit → host only. */
     const val EXTRA_BLURB = "com.twofortyfouram.locale.intent.extra.BLURB"
 
+    // Tasker/Locale variable passback (net.dinglisch.android.tasker.TaskerPlugin).
+    // In "wait until finished" mode the fire receiver returns the command's
+    // output to the host as local variables the macro can use downstream.
+    /** Result-extras key holding the returned-variables Bundle. */
+    const val EXTRA_VARIABLES_BUNDLE = "net.dinglisch.android.tasker.extras.VARIABLES"
+    /** EDIT-result extra (String[]) declaring which variables this action sets. */
+    const val BUNDLE_KEY_RELEVANT_VARIABLES = "net.dinglisch.android.tasker.RELEVANT_VARIABLES"
+    const val VAR_STDOUT = "%hstdout"
+    const val VAR_STDERR = "%hstderr"
+    const val VAR_EXIT = "%hexit"
+    val RELEVANT_VARIABLES = arrayOf(VAR_STDOUT, VAR_STDERR, VAR_EXIT)
+
     const val BUNDLE_PROFILE_ID = "sh.haven.tasker.PROFILE_ID"
     const val BUNDLE_PROFILE_LABEL = "sh.haven.tasker.PROFILE_LABEL"
     const val BUNDLE_COMMAND = "sh.haven.tasker.COMMAND"
