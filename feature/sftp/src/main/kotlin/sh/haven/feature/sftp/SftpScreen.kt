@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
@@ -138,6 +139,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import sh.haven.core.data.db.entities.ConnectionProfile
 import kotlinx.coroutines.launch
 import sh.haven.core.rclone.SyncConfig
 import sh.haven.core.rclone.SyncFilters
@@ -245,6 +247,9 @@ fun SftpScreen(
 
     var showRenameDialog by remember { mutableStateOf<SftpEntry?>(null) }
     var showEncryptSheet by remember { mutableStateOf<SftpEntry?>(null) }
+    // #415: the SAF "local folder" location pending removal (long-press-free — removed
+    // from the top bar's unlink action), confirmed via a dialog.
+    var safToRemove by remember { mutableStateOf<ConnectionProfile?>(null) }
 
     LaunchedEffect(pendingSmbProfileId) {
         pendingSmbProfileId?.let { viewModel.setPendingSmbProfile(it) }
@@ -344,6 +349,16 @@ fun SftpScreen(
     ) { uri ->
         if (uri != null) {
             viewModel.uploadFolder(uri)
+        }
+    }
+
+    // "Add folder location" picker (#415): grant a SAF tree once, keep it as a
+    // persistent Files tab. The grant is persisted inside addSafFolder().
+    val addFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.addSafFolder(uri)
         }
     }
 
@@ -589,6 +604,15 @@ fun SftpScreen(
                         IconButton(onClick = { viewModel.refresh() }) {
                             Icon(Icons.Filled.Refresh, stringResource(R.string.sftp_refresh))
                         }
+                        // #415: remove the active SAF "local folder" location (release the
+                        // grant + drop the tab). Only a SAF tab has a location to remove.
+                        if (connectedProfiles.find { it.id == activeProfileId }?.isSaf == true) {
+                            IconButton(onClick = {
+                                safToRemove = connectedProfiles.find { it.id == activeProfileId }
+                            }) {
+                                Icon(Icons.Filled.LinkOff, stringResource(R.string.sftp_remove_folder_location))
+                            }
+                        }
                     }
                 },
             )
@@ -609,6 +633,14 @@ fun SftpScreen(
                                 showNewFolderDialog = true
                             }) {
                                 Icon(Icons.Filled.CreateNewFolder, stringResource(R.string.sftp_new_folder))
+                            }
+                            // #415: pick a SAF tree (Termux home, USB, Downloads…) and keep
+                            // it as a persistent Files tab you can browse and edit in place.
+                            SmallFloatingActionButton(onClick = {
+                                fabExpanded = false
+                                addFolderLauncher.launch(null)
+                            }) {
+                                Icon(Icons.Filled.FolderOpen, stringResource(R.string.sftp_add_folder_location))
                             }
                             SmallFloatingActionButton(onClick = {
                                 fabExpanded = false
@@ -988,6 +1020,12 @@ fun SftpScreen(
                                                 contentDescription = null,
                                                 modifier = Modifier.size(14.dp),
                                             )
+                                        } else if (profile.isSaf) {
+                                            Icon(
+                                                Icons.Filled.FolderOpen,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp),
+                                            )
                                         } else if (profile.isRclone) {
                                             Icon(
                                                 Icons.Filled.Cloud,
@@ -1174,6 +1212,13 @@ fun SftpScreen(
                                                 snackbarHostState.showSnackbar(context.getString(R.string.sftp_no_app_to_open))
                                             }
                                         }
+                                    } else if (isLikelyTextFile(entry.name)) {
+                                        // #415: plain-text / extensionless files (common in Termux
+                                        // and other SAF/SSH trees) have no TextMate grammar, so a tap
+                                        // fell through to nothing. Open them in the editor — same as
+                                        // the long-press "Open in editor". Local files are handled
+                                        // above (system app); this covers SAF/SFTP/SMB/rclone.
+                                        viewModel.openInEditor(entry)
                                     }
                                 },
                                 onDownload = {
@@ -1404,6 +1449,26 @@ fun SftpScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRenameDialog = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+
+    // #415: confirm removing a SAF "local folder" location. Only Haven's access to
+    // the folder is dropped — the files themselves are untouched.
+    safToRemove?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { safToRemove = null },
+            icon = { Icon(Icons.Filled.LinkOff, contentDescription = null) },
+            title = { Text(stringResource(R.string.sftp_remove_folder_title)) },
+            text = { Text(stringResource(R.string.sftp_remove_folder_message, profile.label)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeSafFolder(profile.id)
+                    safToRemove = null
+                }) { Text(stringResource(R.string.sftp_remove_folder_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { safToRemove = null }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -3173,4 +3238,21 @@ private val IMAGE_EXTENSIONS = setOf(
 private fun isImageFile(fileName: String): Boolean {
     val ext = fileName.substringAfterLast('.', "").lowercase()
     return ext in IMAGE_EXTENSIONS
+}
+
+/**
+ * #415: files a tap should open in the built-in editor when they lack a TextMate
+ * grammar (which handles the recognised source extensions). Covers extensionless
+ * files — dotfiles, scripts, READMEs without a suffix, very common in a Termux
+ * home — and a small set of plain-text suffixes TextMate doesn't claim.
+ */
+private val PLAIN_TEXT_EXTENSIONS = setOf(
+    "txt", "text", "log", "conf", "cfg", "ini", "env", "list", "rc", "cnf", "example",
+)
+
+private fun isLikelyTextFile(fileName: String): Boolean {
+    // Leading dot = a dotfile with no real extension (.bashrc, .profile) — treat as text.
+    val ext = fileName.substringAfterLast('.', "")
+    val hasRealExtension = ext.isNotEmpty() && fileName.substringBeforeLast('.', "").isNotEmpty()
+    return !hasRealExtension || ext.lowercase() in PLAIN_TEXT_EXTENSIONS
 }

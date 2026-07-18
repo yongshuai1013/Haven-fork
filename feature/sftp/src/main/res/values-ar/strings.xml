@@ -295,4 +295,10 @@
     <string name="sftp_age_no_identity">لا توجد هوية age. أنشئ واحدة في تبويب المفاتيح، أو الصق مستلمًا.</string>
     <string name="sftp_age_failed">فشلت عملية age — مفتاح خاطئ أو ملف تالف</string>
     <string name="sftp_open_usb_drive">فتح قرص USB…</string>
+    <string name="sftp_add_folder_location">إضافة موقع مجلد</string>
+    <string name="sftp_saf_grant_failed">تعذّر الاحتفاظ بالوصول إلى ذلك المجلد</string>
+    <string name="sftp_remove_folder_location">إزالة موقع المجلد</string>
+    <string name="sftp_remove_folder_title">إزالة موقع المجلد؟</string>
+    <string name="sftp_remove_folder_message">ستتم إزالة %1$s من الملفات. لن تُحذف ملفاتك — فقط وصول Haven إلى هذا المجلد.</string>
+    <string name="sftp_remove_folder_confirm">إزالة</string>
 </resources>

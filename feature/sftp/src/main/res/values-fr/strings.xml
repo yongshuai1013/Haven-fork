@@ -296,4 +296,10 @@
     <string name="sftp_age_no_identity">Aucune identité age. Créez-en une dans l\'onglet Clés, ou collez un destinataire.</string>
     <string name="sftp_age_failed">Échec de l\'opération age — mauvaise clé ou fichier corrompu</string>
     <string name="sftp_open_usb_drive">Ouvrir un lecteur USB…</string>
+    <string name="sftp_add_folder_location">Ajouter un emplacement de dossier</string>
+    <string name="sftp_saf_grant_failed">Impossible de conserver l\'accès à ce dossier</string>
+    <string name="sftp_remove_folder_location">Supprimer l\'emplacement du dossier</string>
+    <string name="sftp_remove_folder_title">Supprimer l\'emplacement du dossier ?</string>
+    <string name="sftp_remove_folder_message">%1$s sera supprimé de Fichiers. Vos fichiers ne sont pas supprimés — seul l\'accès de Haven à ce dossier.</string>
+    <string name="sftp_remove_folder_confirm">Supprimer</string>
 </resources>

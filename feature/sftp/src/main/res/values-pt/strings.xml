@@ -296,4 +296,10 @@
     <string name="sftp_age_no_identity">Nenhuma identidade age. Crie uma na aba Chaves ou cole um destinatário.</string>
     <string name="sftp_age_failed">Falha na operação age — chave errada ou arquivo corrompido</string>
     <string name="sftp_open_usb_drive">Abrir uma unidade USB…</string>
+    <string name="sftp_add_folder_location">Adicionar local de pasta</string>
+    <string name="sftp_saf_grant_failed">Não foi possível manter o acesso a essa pasta</string>
+    <string name="sftp_remove_folder_location">Remover local de pasta</string>
+    <string name="sftp_remove_folder_title">Remover local de pasta?</string>
+    <string name="sftp_remove_folder_message">%1$s será removido de Arquivos. Seus arquivos não são excluídos — apenas o acesso do Haven a esta pasta.</string>
+    <string name="sftp_remove_folder_confirm">Remover</string>
 </resources>

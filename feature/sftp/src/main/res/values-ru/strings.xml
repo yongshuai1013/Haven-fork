@@ -296,4 +296,10 @@
     <string name="sftp_age_no_identity">Нет идентификатора age. Создайте его на вкладке «Ключи» или вставьте получателя.</string>
     <string name="sftp_age_failed">Операция age не удалась — неверный ключ или повреждённый файл</string>
     <string name="sftp_open_usb_drive">Открыть USB-накопитель…</string>
+    <string name="sftp_add_folder_location">Добавить расположение папки</string>
+    <string name="sftp_saf_grant_failed">Не удалось сохранить доступ к этой папке</string>
+    <string name="sftp_remove_folder_location">Удалить расположение папки</string>
+    <string name="sftp_remove_folder_title">Удалить расположение папки?</string>
+    <string name="sftp_remove_folder_message">%1$s будет удалён из «Файлов». Ваши файлы не удаляются — только доступ Haven к этой папке.</string>
+    <string name="sftp_remove_folder_confirm">Удалить</string>
 </resources>

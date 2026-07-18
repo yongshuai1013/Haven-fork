@@ -31157,6 +31157,122 @@
      }
     },
     {
+     "name": "sftp_add_folder_location",
+     "en": "Add folder location",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "إضافة موقع مجلد",
+      "bn": "ফোল্ডার অবস্থান যোগ করুন",
+      "de": "Ordnerspeicherort hinzufügen",
+      "es": "Añadir ubicación de carpeta",
+      "fr": "Ajouter un emplacement de dossier",
+      "hi": "फ़ोल्डर स्थान जोड़ें",
+      "ja": "フォルダーの場所を追加",
+      "ko": "폴더 위치 추가",
+      "pt": "Adicionar local de pasta",
+      "ru": "Добавить расположение папки",
+      "zh": "添加文件夹位置"
+     }
+    },
+    {
+     "name": "sftp_saf_grant_failed",
+     "en": "Couldn\\'t keep access to that folder",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "تعذّر الاحتفاظ بالوصول إلى ذلك المجلد",
+      "bn": "সেই ফোল্ডারে অ্যাক্সেস রাখা যায়নি",
+      "de": "Zugriff auf diesen Ordner konnte nicht behalten werden",
+      "es": "No se pudo mantener el acceso a esa carpeta",
+      "fr": "Impossible de conserver l\\'accès à ce dossier",
+      "hi": "उस फ़ोल्डर तक पहुँच बनाए नहीं रखी जा सकी",
+      "ja": "そのフォルダーへのアクセスを保持できませんでした",
+      "ko": "해당 폴더에 대한 액세스를 유지할 수 없습니다",
+      "pt": "Não foi possível manter o acesso a essa pasta",
+      "ru": "Не удалось сохранить доступ к этой папке",
+      "zh": "无法保留对该文件夹的访问权限"
+     }
+    },
+    {
+     "name": "sftp_remove_folder_location",
+     "en": "Remove folder location",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "إزالة موقع المجلد",
+      "bn": "ফোল্ডার অবস্থান সরান",
+      "de": "Ordnerspeicherort entfernen",
+      "es": "Quitar ubicación de carpeta",
+      "fr": "Supprimer l\\'emplacement du dossier",
+      "hi": "फ़ोल्डर स्थान हटाएँ",
+      "ja": "フォルダーの場所を削除",
+      "ko": "폴더 위치 제거",
+      "pt": "Remover local de pasta",
+      "ru": "Удалить расположение папки",
+      "zh": "移除文件夹位置"
+     }
+    },
+    {
+     "name": "sftp_remove_folder_title",
+     "en": "Remove folder location?",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "إزالة موقع المجلد؟",
+      "bn": "ফোল্ডার অবস্থান সরাবেন?",
+      "de": "Ordnerspeicherort entfernen?",
+      "es": "¿Quitar ubicación de carpeta?",
+      "fr": "Supprimer l\\'emplacement du dossier ?",
+      "hi": "फ़ोल्डर स्थान हटाएँ?",
+      "ja": "フォルダーの場所を削除しますか？",
+      "ko": "폴더 위치를 제거할까요?",
+      "pt": "Remover local de pasta?",
+      "ru": "Удалить расположение папки?",
+      "zh": "移除文件夹位置？"
+     }
+    },
+    {
+     "name": "sftp_remove_folder_message",
+     "en": "%1$s will be removed from Files. Your files aren\\'t deleted — only Haven\\'s access to this folder.",
+     "comment": "FAB actions",
+     "args": [
+      "%1$s"
+     ],
+     "t": {
+      "ar": "ستتم إزالة %1$s من الملفات. لن تُحذف ملفاتك — فقط وصول Haven إلى هذا المجلد.",
+      "bn": "%1$s ফাইল থেকে সরানো হবে। আপনার ফাইল মুছে ফেলা হবে না — শুধু এই ফোল্ডারে Haven-এর অ্যাক্সেস।",
+      "de": "%1$s wird aus Dateien entfernt. Deine Dateien werden nicht gelöscht — nur Havens Zugriff auf diesen Ordner.",
+      "es": "%1$s se quitará de Archivos. Tus archivos no se eliminan — solo el acceso de Haven a esta carpeta.",
+      "fr": "%1$s sera supprimé de Fichiers. Vos fichiers ne sont pas supprimés — seul l\\'accès de Haven à ce dossier.",
+      "hi": "%1$s को फ़ाइलें से हटा दिया जाएगा। आपकी फ़ाइलें नहीं हटतीं — केवल इस फ़ोल्डर तक Haven की पहुँच।",
+      "ja": "%1$s は「ファイル」から削除されます。ファイル自体は削除されず、このフォルダーへの Haven のアクセスのみが解除されます。",
+      "ko": "%1$s이(가) 파일에서 제거됩니다. 파일은 삭제되지 않으며, 이 폴더에 대한 Haven의 접근 권한만 해제됩니다.",
+      "pt": "%1$s será removido de Arquivos. Seus arquivos não são excluídos — apenas o acesso do Haven a esta pasta.",
+      "ru": "%1$s будет удалён из «Файлов». Ваши файлы не удаляются — только доступ Haven к этой папке.",
+      "zh": "%1$s 将从「文件」中移除。不会删除你的文件——仅移除 Haven 对此文件夹的访问权限。"
+     }
+    },
+    {
+     "name": "sftp_remove_folder_confirm",
+     "en": "Remove",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "إزالة",
+      "bn": "সরান",
+      "de": "Entfernen",
+      "es": "Quitar",
+      "fr": "Supprimer",
+      "hi": "हटाएँ",
+      "ja": "削除",
+      "ko": "제거",
+      "pt": "Remover",
+      "ru": "Удалить",
+      "zh": "移除"
+     }
+    },
+    {
      "name": "sftp_upload_file",
      "en": "Upload file",
      "comment": "FAB actions",

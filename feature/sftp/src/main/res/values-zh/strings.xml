@@ -295,4 +295,10 @@
     <string name="sftp_age_no_identity">没有 age 身份。请在“密钥”标签页创建一个，或粘贴接收者。</string>
     <string name="sftp_age_failed">age 操作失败——密钥错误或文件损坏</string>
     <string name="sftp_open_usb_drive">打开 USB 驱动器…</string>
+    <string name="sftp_add_folder_location">添加文件夹位置</string>
+    <string name="sftp_saf_grant_failed">无法保留对该文件夹的访问权限</string>
+    <string name="sftp_remove_folder_location">移除文件夹位置</string>
+    <string name="sftp_remove_folder_title">移除文件夹位置？</string>
+    <string name="sftp_remove_folder_message">%1$s 将从「文件」中移除。不会删除你的文件——仅移除 Haven 对此文件夹的访问权限。</string>
+    <string name="sftp_remove_folder_confirm">移除</string>
 </resources>

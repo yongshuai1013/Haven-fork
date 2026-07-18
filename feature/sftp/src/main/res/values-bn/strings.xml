@@ -295,5 +295,11 @@
     <string name="sftp_age_no_identity">কোনো age পরিচয় নেই। কী ট্যাবে একটি তৈরি করুন, বা একজন প্রাপক পেস্ট করুন।</string>
     <string name="sftp_age_failed">age অপারেশন ব্যর্থ — ভুল কী বা নষ্ট ফাইল</string>
     <string name="sftp_open_usb_drive">একটি USB ড্রাইভ খুলুন…</string>
+    <string name="sftp_add_folder_location">ফোল্ডার অবস্থান যোগ করুন</string>
+    <string name="sftp_saf_grant_failed">সেই ফোল্ডারে অ্যাক্সেস রাখা যায়নি</string>
+    <string name="sftp_remove_folder_location">ফোল্ডার অবস্থান সরান</string>
+    <string name="sftp_remove_folder_title">ফোল্ডার অবস্থান সরাবেন?</string>
+    <string name="sftp_remove_folder_message">%1$s ফাইল থেকে সরানো হবে। আপনার ফাইল মুছে ফেলা হবে না — শুধু এই ফোল্ডারে Haven-এর অ্যাক্সেস।</string>
+    <string name="sftp_remove_folder_confirm">সরান</string>
 </resources>
 

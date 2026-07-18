@@ -46,6 +46,14 @@ data class ConnectionProfile(
     val lastConnected: Long? = null,
     val sortOrder: Int = 0,
     val connectionType: String = "SSH",
+    /**
+     * For SAF "local folder" profiles (#415, `connectionType == "SAF"`): the
+     * persisted `DocumentsProvider` tree Uri the user granted via
+     * `OpenDocumentTree`. Null for every other type. The grant itself is held
+     * by `takePersistableUriPermission`; this only records which tree the
+     * profile browses so [SafFileBackend] can be rebuilt after a restart.
+     */
+    val safTreeUri: String? = null,
     val destinationHash: String? = null,
     val reticulumHost: String = "127.0.0.1",
     val reticulumPort: Int = 37428,
@@ -467,6 +475,9 @@ data class ConnectionProfile(
     val isRclone: Boolean get() = connectionType == "RCLONE"
     val isEmail: Boolean get() = connectionType == "EMAIL"
 
+    /** SAF-backed "local folder" file location (#415) — browses a persisted [safTreeUri] tree. */
+    val isSaf: Boolean get() = connectionType == "SAF"
+
     // Bluetooth-serial (SPP/RFCOMM) console (#406). The paired device's MAC is
     // stored in [host] — no new column, so no Room schema bump. A byte-stream
     // terminal, so isTerminal below already covers it.
@@ -499,5 +510,5 @@ data class ConnectionProfile(
     val usbSerialConfig: String? get() = sshOptions
 
     val isDesktop: Boolean get() = isVnc || isRdp || isSpice
-    val isTerminal: Boolean get() = !isDesktop && !isSmb && !isRclone && !isEmail
+    val isTerminal: Boolean get() = !isDesktop && !isSmb && !isRclone && !isEmail && !isSaf
 }

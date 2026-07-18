@@ -295,4 +295,10 @@
     <string name="sftp_age_no_identity">age アイデンティティがありません。「鍵」タブで作成するか、受信者を貼り付けてください。</string>
     <string name="sftp_age_failed">age の操作に失敗しました — 鍵が違うかファイルが破損しています</string>
     <string name="sftp_open_usb_drive">USB ドライブを開く…</string>
+    <string name="sftp_add_folder_location">フォルダーの場所を追加</string>
+    <string name="sftp_saf_grant_failed">そのフォルダーへのアクセスを保持できませんでした</string>
+    <string name="sftp_remove_folder_location">フォルダーの場所を削除</string>
+    <string name="sftp_remove_folder_title">フォルダーの場所を削除しますか？</string>
+    <string name="sftp_remove_folder_message">%1$s は「ファイル」から削除されます。ファイル自体は削除されず、このフォルダーへの Haven のアクセスのみが解除されます。</string>
+    <string name="sftp_remove_folder_confirm">削除</string>
 </resources>

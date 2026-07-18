@@ -354,7 +354,13 @@ class ConnectionsViewModel @Inject constructor(
 
     }
 
+    // SAF "local folder" locations (#415) are Files-tab constructs, not real
+    // connections — they carry no host and nothing to connect. Keep them out of
+    // the Connections screen (and its group-launch/auto-connect sweeps, which
+    // would otherwise misroute a host-less profile to the SSH path); they're
+    // created, browsed and managed entirely from the Files tab.
     val connections: StateFlow<List<ConnectionProfile>> = repository.observeAll()
+        .map { profiles -> profiles.filterNot { it.isSaf } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val groups: StateFlow<List<sh.haven.core.data.db.entities.ConnectionGroup>> =
@@ -1461,6 +1467,7 @@ class ConnectionsViewModel @Inject constructor(
         profile.isRdp -> false
         profile.isSpice -> false
         profile.isSmb -> false
+        profile.isSaf -> false
         else -> !profile.sshPassword.isNullOrBlank() || keys.isNotEmpty()
     }
 
@@ -1807,6 +1814,12 @@ class ConnectionsViewModel @Inject constructor(
     ) {
         if (profile.isLocal) {
             connectLocal(profile)
+            return
+        }
+        if (profile.isSaf) {
+            // SAF "local folder" locations (#415) have no connection to open — they're
+            // browsed straight from the Files tab. No-op so a connect-by-id path (MCP
+            // connect_profile, a deep link) can't misroute this host-less profile to SSH.
             return
         }
         if (profile.isBtSerial) {

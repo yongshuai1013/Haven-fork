@@ -1,6 +1,7 @@
 package sh.haven.feature.sftp
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
@@ -1166,6 +1167,14 @@ class SftpViewModel @Inject constructor(
     /** Tracks whether the active profile is the local filesystem. */
     private val _isLocalProfile = MutableStateFlow(false)
 
+    /**
+     * Tracks whether the active profile is a SAF "local folder" location (#415).
+     * Like [_isLocalProfile] its backend is resolved on demand via
+     * [TransportSelector] (from the persisted tree Uri), so there's no session to
+     * open — listing and the editor go straight through `currentFileBackend()`.
+     */
+    private val _isSafProfile = MutableStateFlow(false)
+
     /** Synthetic profile for the always-present "Local" tab. */
     private val localProfile = ConnectionProfile(
         id = "local",
@@ -1257,8 +1266,11 @@ class SftpViewModel @Inject constructor(
 
             val profiles = withContext(Dispatchers.IO) { repository.getAll() }
             val remoteProfiles = profiles.filter { it.id in connectedProfileIds }
-            // Always include "Local" as the first tab
-            _connectedProfiles.value = listOf(localProfile) + remoteProfiles
+            // SAF "local folder" locations (#415) are always available — the grant
+            // is persisted, there's no session to connect — so they show as tabs
+            // unconditionally, right after the synthetic "Local" tab.
+            val safProfiles = profiles.filter { it.isSaf }
+            _connectedProfiles.value = listOf(localProfile) + safProfiles + remoteProfiles
 
             if (connectedProfileIds.isEmpty() && _activeProfileId.value == null) {
                 // No remote connections — auto-select local
@@ -1282,8 +1294,16 @@ class SftpViewModel @Inject constructor(
                 return@launch
             }
 
-            // Auto-select first connected profile if none selected
-            if (_activeProfileId.value == null || _activeProfileId.value !in connectedProfileIds) {
+            // Auto-select first connected profile if none selected. SAF "local
+            // folder" profiles (#415) and the synthetic "local" tab are valid
+            // active selections even though they're never in connectedProfileIds
+            // (no session to connect). Without them here, this sweep silently
+            // deselects an active SAF tab back to "local" — and because the tab's
+            // entries stay on screen, the next file op then misroutes to
+            // LocalFileBackend (opening the tree-relative path against the real
+            // filesystem root: EROFS/ENOENT). Device-verified regression.
+            val selectableIds = connectedProfileIds + safProfiles.map { it.id } + "local"
+            if (_activeProfileId.value == null || _activeProfileId.value !in selectableIds) {
                 _connectedProfiles.value.firstOrNull()?.let { selectProfile(it.id) }
             }
         }
@@ -1295,6 +1315,70 @@ class SftpViewModel @Inject constructor(
 
     fun setPendingRcloneProfile(profileId: String) {
         _pendingRcloneProfileId.value = profileId
+    }
+
+    /**
+     * Register a SAF-picked folder (#415) as a persistent "local folder" Files
+     * location. Persists the tree grant with `takePersistableUriPermission` so it
+     * survives app restarts, saves a SAF [ConnectionProfile], and selects the new
+     * tab. The tab list is updated synchronously here (not just via the async
+     * [syncConnectedProfiles]) because [selectProfile] reads it to detect the SAF
+     * type; a later sync re-sorts it into place.
+     */
+    fun addSafFolder(treeUri: Uri) {
+        viewModelScope.launch {
+            try {
+                appContext.contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Could not persist SAF grant for $treeUri", e)
+                _error.value = appContext.getString(R.string.sftp_saf_grant_failed)
+                return@launch
+            }
+            val name = DocumentFile.fromTreeUri(appContext, treeUri)?.name
+                ?: treeUri.lastPathSegment?.substringAfterLast('/')
+                ?: "Folder"
+            val profile = ConnectionProfile(
+                id = java.util.UUID.randomUUID().toString(),
+                label = name,
+                host = "",
+                username = "",
+                connectionType = "SAF",
+                safTreeUri = treeUri.toString(),
+            )
+            withContext(Dispatchers.IO) { repository.save(profile) }
+            _connectedProfiles.value = _connectedProfiles.value + profile
+            selectProfile(profile.id)
+        }
+    }
+
+    /**
+     * Remove a SAF "local folder" location (#415): release the persisted tree
+     * grant, delete the profile, drop its tab, and fall back to Local if it was
+     * active. Releasing the grant is best-effort — a since-revoked permission
+     * throws, which is fine, the row still goes.
+     */
+    fun removeSafFolder(profileId: String) {
+        viewModelScope.launch {
+            val profile = _connectedProfiles.value.find { it.id == profileId } ?: return@launch
+            if (!profile.isSaf) return@launch
+            profile.safTreeUri?.let { uriStr ->
+                try {
+                    appContext.contentResolver.releasePersistableUriPermission(
+                        Uri.parse(uriStr),
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not release SAF grant for $uriStr", e)
+                }
+            }
+            withContext(Dispatchers.IO) { repository.delete(profileId) }
+            _connectedProfiles.value = _connectedProfiles.value.filterNot { it.id == profileId }
+            profileStateCache.remove(profileId)
+            if (_activeProfileId.value == profileId) selectProfile("local")
+        }
     }
 
     fun selectProfile(profileId: String, initialPath: String? = null) {
@@ -1309,10 +1393,12 @@ class SftpViewModel @Inject constructor(
         }
 
         val isLocal = profileId == "local"
+        val isSaf = !isLocal && _connectedProfiles.value.find { it.id == profileId }?.isSaf == true
         val isSmb = !isLocal && smbSessionManager.isProfileConnected(profileId)
         val isRclone = !isLocal && rcloneSessionManager.isProfileConnected(profileId)
         val isReticulum = !isLocal && reticulumSessionManager.isProfileConnected(profileId)
         _isLocalProfile.value = isLocal
+        _isSafProfile.value = isSaf
         _isSmbProfile.value = isSmb
         _isRcloneProfile.value = isRclone
         _isReticulumProfile.value = isReticulum
@@ -1337,6 +1423,7 @@ class SftpViewModel @Inject constructor(
             // Still need to re-establish the backend connection
             when {
                 isLocal -> { /* no connection needed */ }
+                isSaf -> { /* backend resolved on demand from the persisted tree Uri */ }
                 isRclone -> {
                     val remoteName = rcloneSessionManager.getRemoteNameForProfile(profileId)
                     activeRcloneRemote = remoteName
@@ -1364,6 +1451,7 @@ class SftpViewModel @Inject constructor(
             _entries.value = emptyList()
             when {
                 isLocal -> loadDirectoryEntries(landing)
+                isSaf -> loadDirectoryEntries(landing)
                 isRclone -> openRcloneAndList(profileId)
                 isSmb -> openSmbAndList(profileId)
                 isReticulum -> loadDirectoryEntries(landing)

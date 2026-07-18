@@ -54,7 +54,7 @@ import sh.haven.core.data.db.entities.WorkspaceProfile
         AgeIdentityEntity::class,
         SshIdentity::class,
     ],
-    version = 78,
+    version = 79,
     exportSchema = true,
 )
 abstract class HavenDatabase : RoomDatabase() {
@@ -1267,6 +1267,16 @@ abstract class HavenDatabase : RoomDatabase() {
                 )) {
                     dropColumnIfPresent(db, "connection_profiles", col)
                 }
+            }
+        }
+
+        /**
+         * #415: SAF "local folder" file locations. Adds the persisted
+         * `DocumentsProvider` tree Uri column; null for every existing profile.
+         */
+        val MIGRATION_78_79 = object : Migration(78, 79) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "connection_profiles", "safTreeUri", "TEXT DEFAULT NULL")
             }
         }
 

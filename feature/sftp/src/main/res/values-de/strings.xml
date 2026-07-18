@@ -296,4 +296,10 @@
     <string name="sftp_age_no_identity">Keine age-Identität. Erstelle eine im Tab „Schlüssel“ oder füge einen Empfänger ein.</string>
     <string name="sftp_age_failed">age-Vorgang fehlgeschlagen — falscher Schlüssel oder beschädigte Datei</string>
     <string name="sftp_open_usb_drive">USB-Laufwerk öffnen…</string>
+    <string name="sftp_add_folder_location">Ordnerspeicherort hinzufügen</string>
+    <string name="sftp_saf_grant_failed">Zugriff auf diesen Ordner konnte nicht behalten werden</string>
+    <string name="sftp_remove_folder_location">Ordnerspeicherort entfernen</string>
+    <string name="sftp_remove_folder_title">Ordnerspeicherort entfernen?</string>
+    <string name="sftp_remove_folder_message">%1$s wird aus Dateien entfernt. Deine Dateien werden nicht gelöscht — nur Havens Zugriff auf diesen Ordner.</string>
+    <string name="sftp_remove_folder_confirm">Entfernen</string>
 </resources>
