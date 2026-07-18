@@ -5,6 +5,14 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.78.0
+
+🔐 **rclone remotes now show real file permissions** — an SFTP (or any) connection set up through rclone used to display a generic `-rw-r--r--` for every file and `drwxr-xr-x` for every directory, regardless of the actual mode, because Haven's rclone listing dropped the per-file metadata that carries permissions. Haven now reads the real Unix mode from rclone's metadata for backends that expose it (SFTP, local); cloud backends without Unix permissions (Drive, S3, …) keep a sensible default. (#413, thanks dkoppenh)
+
+✋ **Tap a file's permissions to change them** — the permissions editor (octal or read/write/execute checkboxes, single file or multi-selection) has been here since v5.13.0 but was only reachable by long-press. Now the `rwxr-xr-x` text on each row is a tappable link that opens the editor directly; the long-press menu still works. (#414, thanks dkoppenh)
+
+🧱 **Dependency refresh** — Kotlin 2.4.10, rclone 1.74.4, jsch 2.28.4, sshd-core 2.19, tink-android 1.23, x509-cert 0.3, rustls 0.23.42, zxing 3.5.4, and a batch of other library updates.
+
 ## v5.77.0
 
 🗂️ **Files: the show-hidden toggle now applies to the tab you switch to** — the eye / show-hidden button is a single global toggle, but switching between Files tabs (Local, an SFTP server, …) used to restore each tab's list exactly as it was last filtered. So turning show-hidden on in one tab and switching to another left the second tab still hiding dotfiles while the eye icon said they were showing. Each tab now re-applies the current show-hidden (and name-filter) state when you switch to it, so the list always matches the icon. Device-verified on two tabs (Local + an SFTP host): dotfiles appear and disappear on the tab you switch to, in step with the toggle.
