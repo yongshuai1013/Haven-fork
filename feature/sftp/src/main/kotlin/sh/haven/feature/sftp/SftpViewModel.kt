@@ -1211,11 +1211,16 @@ class SftpViewModel @Inject constructor(
                 .map { it.profileId }
                 .toSet()
 
-            // Collect profile IDs from mosh sessions that have a live SSH client
+            // Collect profile IDs from mosh sessions whose bootstrap SSH client
+            // is still CONNECTED — mosh's own UDP transport can't carry SFTP, so
+            // file browsing rides the SSH client kept alive from bootstrap. A
+            // non-null-but-dropped client (server closed SSH after mosh-server
+            // handed off) would otherwise show an empty Files tab (#414-adjacent
+            // report: mosh tab appears but never lists).
             val moshProfileIds = moshSessionManager.sessions.value.values
                 .filter {
                     it.status == MoshSessionManager.SessionState.Status.CONNECTED &&
-                        it.sshClient != null
+                        (it.sshClient as? SshClient)?.isConnected == true
                 }
                 .map { it.profileId }
                 .toSet()
