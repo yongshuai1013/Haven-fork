@@ -2,6 +2,7 @@ package sh.haven.app.tasker
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -52,20 +53,18 @@ class TaskerFireReceiver : BroadcastReceiver() {
         val block = bundle.getBoolean(TaskerPlugin.BUNDLE_BLOCK, false)
 
         if (overlay) {
-            // Interim (#367 Phase 1): bring Haven to the front so the user is in
-            // the app while the command runs. The true live-terminal overlay —
-            // streaming the command into a visible terminal tab — is a follow-up
-            // (Phase 2). The command still runs headless below either way.
-            runCatching {
-                context.startActivity(
-                    Intent(context, sh.haven.app.MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
+            // #367 Phase 2: run the command in a VISIBLE terminal the user can
+            // watch. Android's background-activity-launch (BAL) rules forbid a
+            // broadcast receiver from foregrounding an activity, so we can't
+            // just bring Haven up. Instead post a tap-to-watch notification —
+            // the user's tap carries the activity-start privilege, foregrounds
+            // MainActivity, and MainActivity drives the connect + command.
+            postWatchNotification(context.applicationContext, profileId, label, command)
+            return
         }
 
-        // goAsync keeps us alive; whether the host actually waits is decided by
-        // whether we finish() before or after the command.
+        // Headless mode. goAsync keeps us alive; whether the host actually waits
+        // is decided by whether we finish() before or after the command.
         val pending = goAsync()
         val appContext = context.applicationContext
         scope.launch {
@@ -110,18 +109,7 @@ class TaskerFireReceiver : BroadcastReceiver() {
     }
 
     private fun notify(context: Context, title: String, text: String) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            nm.getNotificationChannel(CHANNEL_ID) == null
-        ) {
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.tasker_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ),
-            )
-        }
+        ensureChannel(context, CHANNEL_ID, NotificationManager.IMPORTANCE_LOW)
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle(title)
@@ -129,19 +117,70 @@ class TaskerFireReceiver : BroadcastReceiver() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
             .build()
-        // NOTIFY is best-effort: on API 33+ without POST_NOTIFICATIONS this is
-        // a no-op, which is fine — the command still ran.
+        post(context, NOTIF_ID, n)
+    }
+
+    /**
+     * Overlay mode's BAL-safe entry point: a heads-up tap-to-watch notification
+     * whose [PendingIntent] foregrounds [sh.haven.app.MainActivity] with the
+     * profile + command. The user's tap carries the activity-start privilege
+     * BAL denies us, so MainActivity (now foreground) can connect and stream
+     * the command into a visible terminal.
+     */
+    private fun postWatchNotification(context: Context, profileId: String, label: String, command: String) {
+        ensureChannel(context, WATCH_CHANNEL_ID, NotificationManager.IMPORTANCE_HIGH)
+        val tapIntent = Intent(context, sh.haven.app.MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(EXTRA_RUN_PROFILE_ID, profileId)
+            putExtra(EXTRA_RUN_COMMAND, command)
+        }
+        val pi = PendingIntent.getActivity(
+            context,
+            profileId.hashCode(),
+            tapIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val text = context.getString(R.string.tasker_watch_text, command)
+        val n = NotificationCompat.Builder(context, WATCH_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentTitle(context.getString(R.string.tasker_watch_title, label))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+        post(context, WATCH_NOTIF_ID, n)
+    }
+
+    private fun ensureChannel(context: Context, id: String, importance: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (nm.getNotificationChannel(id) == null) {
+            nm.createNotificationChannel(
+                NotificationChannel(id, context.getString(R.string.tasker_channel_name), importance),
+            )
+        }
+    }
+
+    /** Best-effort post — a no-op on API 33+ without POST_NOTIFICATIONS. */
+    private fun post(context: Context, id: Int, n: android.app.Notification) {
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            runCatching { NotificationManagerCompat.from(context).notify(NOTIF_ID, n) }
+            runCatching { NotificationManagerCompat.from(context).notify(id, n) }
         }
     }
 
     companion object {
         private const val TAG = "TaskerFire"
         private const val CHANNEL_ID = "tasker_result"
+        private const val WATCH_CHANNEL_ID = "tasker_watch"
         private const val NOTIF_ID = 0x7A5C
+        private const val WATCH_NOTIF_ID = 0x7A5D
         private const val TIMEOUT_MS = 120_000L
         private const val SNIPPET_CHARS = 400
+
+        /** MainActivity reads these on the tap-to-watch launch. */
+        const val EXTRA_RUN_PROFILE_ID = "sh.haven.tasker.run.profileId"
+        const val EXTRA_RUN_COMMAND = "sh.haven.tasker.run.command"
 
         /** App-process scope so a fire-and-forget command survives the receiver. */
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

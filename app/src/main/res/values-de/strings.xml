@@ -282,10 +282,12 @@
     <string name="tasker_field_server">Haven-Server</string>
     <string name="tasker_field_command">Befehl</string>
     <string name="tasker_field_command_help">Wird in der Login-Shell ausgeführt. Tasker/MacroDroid-Variablen werden vor der Ausführung ersetzt.</string>
-    <string name="tasker_toggle_overlay">Haven während der Ausführung in den Vordergrund bringen</string>
+    <string name="tasker_toggle_overlay">Den Befehl in einem Live-Terminal anzeigen</string>
     <string name="tasker_toggle_block">Warten, bis der Befehl abgeschlossen ist</string>
     <string name="tasker_channel_name">Befehlsergebnisse</string>
     <string name="tasker_result_exit">%1$s — Exit-Code %2$d</string>
     <string name="tasker_result_timed_out">%1$s — Zeitüberschreitung</string>
     <string name="tasker_result_failed">%1$s — fehlgeschlagen</string>
+    <string name="tasker_watch_title">%1$s beobachten</string>
+    <string name="tasker_watch_text">Tippen, um %1$s in einem Live-Terminal auszuführen</string>
 </resources>

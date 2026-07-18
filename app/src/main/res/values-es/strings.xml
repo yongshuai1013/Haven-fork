@@ -288,10 +288,12 @@
     <string name="tasker_field_server">Servidor Haven</string>
     <string name="tasker_field_command">Comando</string>
     <string name="tasker_field_command_help">Se ejecuta en el shell de inicio de sesión. Las variables de Tasker/MacroDroid se sustituyen antes de ejecutarlo.</string>
-    <string name="tasker_toggle_overlay">Traer Haven al frente mientras se ejecuta</string>
+    <string name="tasker_toggle_overlay">Mostrar el comando en una terminal en vivo</string>
     <string name="tasker_toggle_block">Esperar a que el comando termine</string>
     <string name="tasker_channel_name">Resultados de comandos</string>
     <string name="tasker_result_exit">%1$s — salida %2$d</string>
     <string name="tasker_result_timed_out">%1$s — se agotó el tiempo</string>
     <string name="tasker_result_failed">%1$s — falló</string>
+    <string name="tasker_watch_title">Ver %1$s</string>
+    <string name="tasker_watch_text">Toca para ejecutar %1$s en una terminal en vivo</string>
 </resources>

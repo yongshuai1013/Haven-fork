@@ -292,10 +292,12 @@
     <string name="tasker_field_server">Haven 서버</string>
     <string name="tasker_field_command">명령</string>
     <string name="tasker_field_command_help">로그인 셸에서 실행됩니다. Tasker/MacroDroid 변수는 실행 전에 치환됩니다.</string>
-    <string name="tasker_toggle_overlay">실행하는 동안 Haven을 앞으로 가져오기</string>
+    <string name="tasker_toggle_overlay">라이브 터미널에 명령어 표시</string>
     <string name="tasker_toggle_block">명령이 끝날 때까지 대기</string>
     <string name="tasker_channel_name">명령 결과</string>
     <string name="tasker_result_exit">%1$s — 종료 코드 %2$d</string>
     <string name="tasker_result_timed_out">%1$s — 시간 초과</string>
     <string name="tasker_result_failed">%1$s — 실패</string>
+    <string name="tasker_watch_title">%1$s 보기</string>
+    <string name="tasker_watch_text">탭하여 라이브 터미널에서 %1$s 실행</string>
 </resources>

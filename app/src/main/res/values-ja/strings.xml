@@ -282,10 +282,12 @@
     <string name="tasker_field_server">Haven サーバー</string>
     <string name="tasker_field_command">コマンド</string>
     <string name="tasker_field_command_help">ログインシェルで実行されます。Tasker/MacroDroid の変数は実行前に置換されます。</string>
-    <string name="tasker_toggle_overlay">実行中に Haven を前面に表示する</string>
+    <string name="tasker_toggle_overlay">コマンドをライブターミナルに表示する</string>
     <string name="tasker_toggle_block">コマンドが完了するまで待つ</string>
     <string name="tasker_channel_name">コマンド結果</string>
     <string name="tasker_result_exit">%1$s — 終了コード %2$d</string>
     <string name="tasker_result_timed_out">%1$s — タイムアウト</string>
     <string name="tasker_result_failed">%1$s — 失敗</string>
+    <string name="tasker_watch_title">%1$s を監視</string>
+    <string name="tasker_watch_text">タップして %1$s をライブターミナルで実行</string>
 </resources>

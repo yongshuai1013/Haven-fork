@@ -288,10 +288,12 @@
     <string name="tasker_field_server">Сервер Haven</string>
     <string name="tasker_field_command">Команда</string>
     <string name="tasker_field_command_help">Выполняется в командной оболочке входа. Переменные Tasker/MacroDroid подставляются перед выполнением.</string>
-    <string name="tasker_toggle_overlay">Выводить Haven на передний план во время выполнения</string>
+    <string name="tasker_toggle_overlay">Показывать команду в живом терминале</string>
     <string name="tasker_toggle_block">Ждать завершения команды</string>
     <string name="tasker_channel_name">Результаты команд</string>
     <string name="tasker_result_exit">%1$s — код выхода %2$d</string>
     <string name="tasker_result_timed_out">%1$s — превышено время ожидания</string>
     <string name="tasker_result_failed">%1$s — ошибка</string>
+    <string name="tasker_watch_title">Наблюдать за %1$s</string>
+    <string name="tasker_watch_text">Нажмите, чтобы выполнить %1$s в живом терминале</string>
 </resources>

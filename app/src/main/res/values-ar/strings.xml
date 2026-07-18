@@ -282,10 +282,12 @@
     <string name="tasker_field_server">خادم Haven</string>
     <string name="tasker_field_command">الأمر</string>
     <string name="tasker_field_command_help">يعمل في صدفة تسجيل الدخول. تُستبدل متغيرات Tasker/MacroDroid قبل تشغيله.</string>
-    <string name="tasker_toggle_overlay">إحضار Haven إلى المقدمة أثناء التشغيل</string>
+    <string name="tasker_toggle_overlay">عرض الأمر في طرفية مباشرة</string>
     <string name="tasker_toggle_block">الانتظار حتى ينتهي الأمر</string>
     <string name="tasker_channel_name">نتائج الأوامر</string>
     <string name="tasker_result_exit">%1$s — رمز الخروج %2$d</string>
     <string name="tasker_result_timed_out">%1$s — انتهت المهلة</string>
     <string name="tasker_result_failed">%1$s — فشل</string>
+    <string name="tasker_watch_title">مراقبة %1$s</string>
+    <string name="tasker_watch_text">اضغط لتشغيل %1$s في طرفية مباشرة</string>
 </resources>

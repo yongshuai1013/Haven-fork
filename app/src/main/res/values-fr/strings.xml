@@ -282,10 +282,12 @@
     <string name="tasker_field_server">Serveur Haven</string>
     <string name="tasker_field_command">Commande</string>
     <string name="tasker_field_command_help">S\'exécute dans le shell de connexion. Les variables Tasker/MacroDroid sont substituées avant l\'exécution.</string>
-    <string name="tasker_toggle_overlay">Mettre Haven au premier plan pendant l\'exécution</string>
+    <string name="tasker_toggle_overlay">Afficher la commande dans un terminal en direct</string>
     <string name="tasker_toggle_block">Attendre la fin de la commande</string>
     <string name="tasker_channel_name">Résultats des commandes</string>
     <string name="tasker_result_exit">%1$s — sortie %2$d</string>
     <string name="tasker_result_timed_out">%1$s — délai dépassé</string>
     <string name="tasker_result_failed">%1$s — échec</string>
+    <string name="tasker_watch_title">Surveiller %1$s</string>
+    <string name="tasker_watch_text">Appuyez pour exécuter %1$s dans un terminal en direct</string>
 </resources>

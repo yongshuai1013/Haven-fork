@@ -115,6 +115,17 @@ class MainActivity : AppCompatActivity() {
     // activity; attach/detach mirror fidoAuthenticator's lifecycle.
     @Inject lateinit var havenUiBridge: sh.haven.app.agent.HavenUiBridge
 
+    @Inject lateinit var taskerOverlayCoordinator: sh.haven.app.tasker.TaskerOverlayCoordinator
+
+    /**
+     * A pending Tasker overlay run (profileId → command). Set by
+     * [handleTaskerRunIntent] and consumed by a LaunchedEffect inside
+     * [setContent] — deferring past composition so the always-composed
+     * ConnectionsViewModel is subscribed to the (replay=0) command bus before
+     * the coordinator emits ConnectProfile, otherwise the connect is dropped.
+     */
+    private val pendingTaskerRun = androidx.compose.runtime.mutableStateOf<Pair<String, String>?>(null)
+
     private fun exitIfDisconnected() {
         if (SshConnectionService.disconnectedAll) {
             Log.d("MainActivity", "Disconnect All detected — exiting")
@@ -162,6 +173,26 @@ class MainActivity : AppCompatActivity() {
         handleConnectDeepLink(intent)
         handleOpenUsbDriveIntent(intent)
         handleOpenAgentLogExtra(intent)
+        handleTaskerRunIntent(intent)
+    }
+
+    /**
+     * Tap-to-watch from the Tasker plugin (#367 Phase 2): the fire receiver
+     * can't foreground us itself (BAL), so it posts a notification whose tap
+     * lands here. Now that we're foreground the coordinator can connect the
+     * profile into a visible terminal and stream the command in. Extras are
+     * cleared once consumed so a config change doesn't re-fire it.
+     */
+    private fun handleTaskerRunIntent(intent: Intent?) {
+        val profileId = intent?.getStringExtra(
+            sh.haven.app.tasker.TaskerFireReceiver.EXTRA_RUN_PROFILE_ID,
+        ) ?: return
+        val command = intent.getStringExtra(
+            sh.haven.app.tasker.TaskerFireReceiver.EXTRA_RUN_COMMAND,
+        ) ?: return
+        intent.removeExtra(sh.haven.app.tasker.TaskerFireReceiver.EXTRA_RUN_PROFILE_ID)
+        intent.removeExtra(sh.haven.app.tasker.TaskerFireReceiver.EXTRA_RUN_COMMAND)
+        pendingTaskerRun.value = profileId to command
     }
 
     /**
@@ -378,7 +409,18 @@ class MainActivity : AppCompatActivity() {
         handleConnectDeepLink(intent)
         handleOpenUsbDriveIntent(intent)
         handleOpenAgentLogExtra(intent)
+        handleTaskerRunIntent(intent)
         setContent {
+            // Tasker overlay run (#367): deferred here so the ConnectionsViewModel
+            // is subscribed to the command bus before the coordinator connects.
+            val pendingRun by pendingTaskerRun
+            LaunchedEffect(pendingRun) {
+                pendingRun?.let { (profileId, command) ->
+                    taskerOverlayCoordinator.runInTerminal(profileId, command)
+                    pendingTaskerRun.value = null
+                }
+            }
+
             // Prevent screenshots/screen recording when enabled
             val screenSecurity by preferencesRepository.screenSecurity
                 .collectAsState(initial = false)

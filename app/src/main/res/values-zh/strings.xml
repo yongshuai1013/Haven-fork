@@ -282,10 +282,12 @@
     <string name="tasker_field_server">Haven 服务器</string>
     <string name="tasker_field_command">命令</string>
     <string name="tasker_field_command_help">在登录 shell 中运行。Tasker/MacroDroid 变量会在运行前被替换。</string>
-    <string name="tasker_toggle_overlay">运行时将 Haven 置于前台</string>
+    <string name="tasker_toggle_overlay">在实时终端中显示命令</string>
     <string name="tasker_toggle_block">等待命令完成</string>
     <string name="tasker_channel_name">命令结果</string>
     <string name="tasker_result_exit">%1$s — 退出码 %2$d</string>
     <string name="tasker_result_timed_out">%1$s — 已超时</string>
     <string name="tasker_result_failed">%1$s — 失败</string>
+    <string name="tasker_watch_title">查看 %1$s</string>
+    <string name="tasker_watch_text">点按以在实时终端中运行 %1$s</string>
 </resources>

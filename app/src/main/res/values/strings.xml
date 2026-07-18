@@ -307,10 +307,12 @@
     <string name="tasker_field_server">Haven server</string>
     <string name="tasker_field_command">Command</string>
     <string name="tasker_field_command_help">Runs in the login shell. Tasker/MacroDroid variables are substituted before it runs.</string>
-    <string name="tasker_toggle_overlay">Bring Haven to the front while it runs</string>
+    <string name="tasker_toggle_overlay">Show the command in a live terminal</string>
     <string name="tasker_toggle_block">Wait until the command finishes</string>
     <string name="tasker_blurb" translatable="false">%1$s: %2$s</string>
     <string name="tasker_channel_name">Command results</string>
+    <string name="tasker_watch_title">Watch %1$s</string>
+    <string name="tasker_watch_text">Tap to run %1$s in a live terminal</string>
     <string name="tasker_result_exit">%1$s — exit %2$d</string>
     <string name="tasker_result_timed_out">%1$s — timed out</string>
     <string name="tasker_result_failed">%1$s — failed</string>

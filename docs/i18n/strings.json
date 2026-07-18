@@ -5147,21 +5147,21 @@
     },
     {
      "name": "tasker_toggle_overlay",
-     "en": "Bring Haven to the front while it runs",
+     "en": "Show the command in a live terminal",
      "comment": "Tasker/MacroDroid plugin (#367)",
      "args": [],
      "t": {
-      "ar": "إحضار Haven إلى المقدمة أثناء التشغيل",
-      "bn": "চলার সময় Haven-কে সামনে আনুন",
-      "de": "Haven während der Ausführung in den Vordergrund bringen",
-      "es": "Traer Haven al frente mientras se ejecuta",
-      "fr": "Mettre Haven au premier plan pendant l\\'exécution",
-      "hi": "चलने के दौरान Haven को सामने लाएँ",
-      "ja": "実行中に Haven を前面に表示する",
-      "ko": "실행하는 동안 Haven을 앞으로 가져오기",
-      "pt": "Trazer o Haven para a frente enquanto é executado",
-      "ru": "Выводить Haven на передний план во время выполнения",
-      "zh": "运行时将 Haven 置于前台"
+      "ar": "عرض الأمر في طرفية مباشرة",
+      "bn": "কমান্ডটি একটি লাইভ টার্মিনালে দেখান",
+      "de": "Den Befehl in einem Live-Terminal anzeigen",
+      "es": "Mostrar el comando en una terminal en vivo",
+      "fr": "Afficher la commande dans un terminal en direct",
+      "hi": "कमांड को लाइव टर्मिनल में दिखाएँ",
+      "ja": "コマンドをライブターミナルに表示する",
+      "ko": "라이브 터미널에 명령어 표시",
+      "pt": "Mostrar o comando num terminal ao vivo",
+      "ru": "Показывать команду в живом терминале",
+      "zh": "在实时终端中显示命令"
      }
     },
     {
@@ -5210,6 +5210,48 @@
       "pt": "Resultados de comandos",
       "ru": "Результаты команд",
       "zh": "命令结果"
+     }
+    },
+    {
+     "name": "tasker_watch_title",
+     "en": "Watch %1$s",
+     "comment": "Tasker/MacroDroid plugin (#367)",
+     "args": [
+      "%1$s"
+     ],
+     "t": {
+      "ar": "مراقبة %1$s",
+      "bn": "%1$s দেখুন",
+      "de": "%1$s beobachten",
+      "es": "Ver %1$s",
+      "fr": "Surveiller %1$s",
+      "hi": "%1$s देखें",
+      "ja": "%1$s を監視",
+      "ko": "%1$s 보기",
+      "pt": "Ver %1$s",
+      "ru": "Наблюдать за %1$s",
+      "zh": "查看 %1$s"
+     }
+    },
+    {
+     "name": "tasker_watch_text",
+     "en": "Tap to run %1$s in a live terminal",
+     "comment": "Tasker/MacroDroid plugin (#367)",
+     "args": [
+      "%1$s"
+     ],
+     "t": {
+      "ar": "اضغط لتشغيل %1$s في طرفية مباشرة",
+      "bn": "লাইভ টার্মিনালে %1$s চালাতে ট্যাপ করুন",
+      "de": "Tippen, um %1$s in einem Live-Terminal auszuführen",
+      "es": "Toca para ejecutar %1$s en una terminal en vivo",
+      "fr": "Appuyez pour exécuter %1$s dans un terminal en direct",
+      "hi": "लाइव टर्मिनल में %1$s चलाने के लिए टैप करें",
+      "ja": "タップして %1$s をライブターミナルで実行",
+      "ko": "탭하여 라이브 터미널에서 %1$s 실행",
+      "pt": "Toque para executar %1$s num terminal ao vivo",
+      "ru": "Нажмите, чтобы выполнить %1$s в живом терминале",
+      "zh": "点按以在实时终端中运行 %1$s"
      }
     },
     {

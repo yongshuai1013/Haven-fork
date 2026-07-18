@@ -282,10 +282,12 @@
     <string name="tasker_field_server">Haven सर्वर</string>
     <string name="tasker_field_command">कमांड</string>
     <string name="tasker_field_command_help">लॉगिन शेल में चलता है। चलने से पहले Tasker/MacroDroid वैरिएबल प्रतिस्थापित किए जाते हैं।</string>
-    <string name="tasker_toggle_overlay">चलने के दौरान Haven को सामने लाएँ</string>
+    <string name="tasker_toggle_overlay">कमांड को लाइव टर्मिनल में दिखाएँ</string>
     <string name="tasker_toggle_block">कमांड पूरा होने तक प्रतीक्षा करें</string>
     <string name="tasker_channel_name">कमांड परिणाम</string>
     <string name="tasker_result_exit">%1$s — एग्ज़िट कोड %2$d</string>
     <string name="tasker_result_timed_out">%1$s — समय समाप्त</string>
     <string name="tasker_result_failed">%1$s — विफल</string>
+    <string name="tasker_watch_title">%1$s देखें</string>
+    <string name="tasker_watch_text">लाइव टर्मिनल में %1$s चलाने के लिए टैप करें</string>
 </resources>
