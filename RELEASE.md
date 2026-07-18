@@ -42,16 +42,20 @@ Also update the static release badge in `README.md` to match — the
 because the dynamic shields lookup is unreliable behind GitHub's
 camo image proxy.
 
-## 2. Write the changelog
+## 2. Write the changelog — BOTH files
 
-Create `fastlane/metadata/android/en-US/changelogs/<arm64VersionCode>.txt` — the short release note that F-Droid displays. Aim for one short summary line followed by a paragraph or two of what actually changed. Keep under ~500 bytes.
+A release needs release notes in **two** places. Missing either is a broken release:
 
-Every tag must have one. F-Droid will publish with the previous version's text if you forget.
+1. **F-Droid** — `fastlane/metadata/android/en-US/changelogs/<arm64VersionCode>.txt`, the short note the F-Droid client shows. One summary line + a paragraph or two, under ~500 bytes. Miss it and F-Droid publishes the *previous* version's text.
+
+2. **GitHub release body** — a `## v<x.y.z>` section at the top of the top-level `CHANGELOG.md` (newest first; the heading may carry a ` — title` suffix). The `publish` job runs `scripts/check-changelog.sh extract v<x.y.z>` and uses that section verbatim as the GitHub Release body (so there's no manual `gh release edit --notes` step). **Miss it and the `publish` job FAILS — *after* the full ~40-minute build — with `✖ No CHANGELOG.md section`, and no release is created.** House style: emoji + bold headline + prose, `(#NNN, thanks <user>)`.
+
+★ **Before tagging**, run `bash scripts/check-changelog.sh check` (asserts the current `versionName` has a `CHANGELOG.md` section) and `bash scripts/check-changelog.sh extract v<x.y.z>` (prints it) — both must pass. If `publish` fails post-build for a missing section, add it, commit, then **move the tag** (`git tag -d v<x.y.z>; git push origin :refs/tags/v<x.y.z>; git tag v<x.y.z>; git push origin v<x.y.z>`) to re-trigger — re-running just the failed `publish` job re-uses the old tagged SHA and fails again.
 
 ## 3. Commit, tag, push
 
 ```bash
-git add app/build.gradle.kts fastlane/metadata/android/en-US/changelogs/<arm64VersionCode>.txt <other changed files>
+git add app/build.gradle.kts CHANGELOG.md fastlane/metadata/android/en-US/changelogs/<arm64VersionCode>.txt <other changed files>
 git commit -m "Bump to v<x.y.z>"
 git tag v<x.y.z>
 git push origin main v<x.y.z>
