@@ -1,0 +1,8 @@
+v5.78.0
+
+Files / SFTP
+• rclone remotes now show real Unix file permissions instead of a generic "-rw-r--r--" for everything (#413). Cloud backends without permissions keep a sensible default.
+• Tap a file's permission string to open the permissions editor directly — no need to hunt for the long-press menu (#414). Single files and multi-selection.
+
+Under the hood
+Refreshed dependencies: Kotlin 2.4.10, rclone 1.74.4, jsch 2.28.4, sshd-core 2.19, tink 1.23, x509-cert 0.3, rustls 0.23.42, and more.
