@@ -301,4 +301,5 @@
     <string name="sftp_remove_folder_title">移除文件夹位置？</string>
     <string name="sftp_remove_folder_message">%1$s 将从「文件」中移除。不会删除你的文件——仅移除 Haven 对此文件夹的访问权限。</string>
     <string name="sftp_remove_folder_confirm">移除</string>
+    <string name="sftp_rename_not_supported">此位置不支持重命名</string>
 </resources>

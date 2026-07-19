@@ -302,4 +302,5 @@
     <string name="sftp_remove_folder_title">¿Quitar ubicación de carpeta?</string>
     <string name="sftp_remove_folder_message">%1$s se quitará de Archivos. Tus archivos no se eliminan — solo el acceso de Haven a esta carpeta.</string>
     <string name="sftp_remove_folder_confirm">Quitar</string>
+    <string name="sftp_rename_not_supported">Esta ubicación no admite cambiar el nombre</string>
 </resources>

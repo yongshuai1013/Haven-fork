@@ -31273,6 +31273,25 @@
      }
     },
     {
+     "name": "sftp_rename_not_supported",
+     "en": "This location doesn\\'t support renaming",
+     "comment": "FAB actions",
+     "args": [],
+     "t": {
+      "ar": "هذا الموقع لا يدعم إعادة التسمية",
+      "bn": "এই অবস্থানটি নাম পরিবর্তন সমর্থন করে না",
+      "de": "Dieser Speicherort unterstützt kein Umbenennen",
+      "es": "Esta ubicación no admite cambiar el nombre",
+      "fr": "Cet emplacement ne prend pas en charge le renommage",
+      "hi": "यह स्थान नाम बदलने का समर्थन नहीं करता",
+      "ja": "この場所は名前の変更に対応していません",
+      "ko": "이 위치는 이름 변경을 지원하지 않습니다",
+      "pt": "Este local não oferece suporte a renomear",
+      "ru": "Это расположение не поддерживает переименование",
+      "zh": "此位置不支持重命名"
+     }
+    },
+    {
      "name": "sftp_upload_file",
      "en": "Upload file",
      "comment": "FAB actions",

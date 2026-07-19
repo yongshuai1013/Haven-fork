@@ -3098,6 +3098,12 @@ class SftpViewModel @Inject constructor(
                 backend.rename(entry.path, newPath)
                 _message.value = "Renamed to $newName"
                 refresh()
+            } catch (e: UnsupportedOperationException) {
+                // #415: some DocumentsProviders don't implement rename (Termux's is
+                // one — create/read/write/delete work, rename doesn't). Surface that
+                // plainly instead of a raw "Rename failed: Rename not supported".
+                Log.w(TAG, "Rename not supported by this backend", e)
+                _error.value = appContext.getString(R.string.sftp_rename_not_supported)
             } catch (e: Exception) {
                 Log.e(TAG, "Rename failed", e)
                 _error.value = "Rename failed: ${e.message}"

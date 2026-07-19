@@ -315,4 +315,5 @@
     <string name="sftp_remove_folder_title">폴더 위치를 제거할까요?</string>
     <string name="sftp_remove_folder_message">%1$s이(가) 파일에서 제거됩니다. 파일은 삭제되지 않으며, 이 폴더에 대한 Haven의 접근 권한만 해제됩니다.</string>
     <string name="sftp_remove_folder_confirm">제거</string>
+    <string name="sftp_rename_not_supported">이 위치는 이름 변경을 지원하지 않습니다</string>
 </resources>
