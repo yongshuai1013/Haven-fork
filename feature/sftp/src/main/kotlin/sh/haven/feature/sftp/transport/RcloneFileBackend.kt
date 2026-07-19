@@ -45,8 +45,14 @@ class RcloneFileBackend(
                 isDirectory = entry.isDir,
                 size = entry.size,
                 modifiedTime = modTime,
-                permissions = entry.mode?.let { rcloneModeToPermissions(it, entry.isDir) }
-                    ?: if (entry.isDir) "drwxr-xr-x" else "-rw-r--r--",
+                // rclone only carries a real Unix mode on metadata-supporting
+                // backends (local, s3, drive-with-perms). Its SFTP backend reports
+                // ReadMetadata=false, so `mode` is always null there — show a blank
+                // permission string rather than a fabricated `-rw-r--r--` that
+                // misreads every file (e.g. a 0600 ~/.ssh key) as 0644 (#413). Real
+                // Unix permissions on an SFTP box come from a native SSH/SFTP
+                // connection, which does carry (and can edit) them.
+                permissions = entry.mode?.let { rcloneModeToPermissions(it, entry.isDir) } ?: "",
                 mimeType = entry.mimeType,
             )
         }
