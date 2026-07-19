@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.81.1
+
+🛠️ **Fix a rare crash when switching back to a saved SFTP tab** — restoring a cached SFTP connection pre-warmed its session in the background without error handling, so if the server tripped JSch's "inputstream is closed" glitch during the handshake, the app could crash. It now fails quietly and the next action opens a fresh session with the normal retry. (#416, thanks mintleaf84)
+
 ## v5.81.0
 
 📁 **Files: add any folder as a browsable, editable location** — pick a folder once with Android's folder picker (your Termux home, a USB drive, the Downloads tree, a cloud provider like Nextcloud…) and it becomes its own tab in the Files screen. Browse it, and open a text file to edit it in place — make your changes, tap save, and Haven writes them straight back through the folder's provider. The access is remembered across restarts, and you can drop a location any time from the unlink button on its tab. Plain-text and extension-less files (common in a Termux home) now open in the editor with a single tap. Split out from #273. (#415, thanks timerloggedout-spec)
