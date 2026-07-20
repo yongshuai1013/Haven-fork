@@ -544,6 +544,32 @@ class ProotManager @Inject constructor(
     fun customBindShortArgs(distroId: String): List<String> =
         customBinds(distroId).flatMap { listOf("-b", it.spec()) }
 
+    /**
+     * Shared-storage binds as proot short-form args (`-b spec …`), or empty when
+     * the user has opted out ([shareStorageWithGuest], default on). Binds Android's
+     * `/storage` plus a `/sdcard` alias (#256) so the guest reaches the user's
+     * files; needs Haven's storage permission for content to actually show.
+     *
+     * Centralised here because EVERY proot launch path that should expose storage
+     * must add the identical binds — the interactive shell had them but the desktop
+     * launchers didn't, so files showed in the terminal but the desktop file
+     * manager saw an empty `/sdcard` (#420).
+     */
+    fun storageBindShortArgs(): List<String> =
+        if (shareStorageWithGuest) {
+            listOf("-b", "/storage", "-b", "/storage/emulated/0:/sdcard")
+        } else {
+            emptyList()
+        }
+
+    /** Shared-storage binds as proot long-form args (`--bind=spec`); see [storageBindShortArgs]. */
+    fun storageBindLongArgs(): List<String> =
+        if (shareStorageWithGuest) {
+            listOf("--bind=/storage", "--bind=/storage/emulated/0:/sdcard")
+        } else {
+            emptyList()
+        }
+
     /** Custom binds for [distroId] as proot long-form args (`--bind=spec`). */
     fun customBindLongArgs(distroId: String): List<String> =
         customBinds(distroId).map { "--bind=${it.spec()}" }
@@ -2249,6 +2275,10 @@ class ProotManager @Inject constructor(
             *(deviceModelDevicetreeBind()?.let { arrayOf("--bind=$it") } ?: emptyArray()),
             // #304 part 2: optionally expose Android's system partitions (opt-in).
             *androidSystemBindArgs(longForm = true),
+            // #420: expose the user's shared storage (/storage, /sdcard), so a
+            // one-shot command, an app launched into a desktop, and MCP run_in_proot
+            // all reach the user's files like the shell/desktop do.
+            *storageBindLongArgs().toTypedArray(),
             // #301: per-distro user-defined extra binds, so a one-shot command
             // (and MCP run_in_proot) sees the same mounts as the shell/desktop.
             *customBindLongArgs(activeDistroId).toTypedArray(),

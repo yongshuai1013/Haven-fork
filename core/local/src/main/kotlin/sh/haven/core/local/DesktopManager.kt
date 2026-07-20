@@ -874,6 +874,10 @@ class DesktopManager @Inject constructor(
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
+        // #420: expose the user's shared storage (/storage, /sdcard) — same binds
+        // the interactive shell uses, gated on the same opt-out. Without this the
+        // desktop file manager saw an empty /sdcard.
+        prootArgs.addAll(prootManager.storageBindShortArgs())
         // #301: per-distro user-defined extra binds.
         prootArgs.addAll(prootManager.customBindShortArgs(prootManager.activeDistroId))
         // /bin/sh works on both Alpine (symlink to busybox) and Debian
@@ -1165,6 +1169,10 @@ class DesktopManager @Inject constructor(
         )
         // #300: remap privileged binds (<1024) up by +2000 when opted in.
         if (prootManager.remapLowPorts) prootArgs.add("-p")
+        // #420: expose the user's shared storage (/storage, /sdcard) — same binds
+        // the interactive shell uses, gated on the same opt-out. Without this the
+        // desktop file manager saw an empty /sdcard.
+        prootArgs.addAll(prootManager.storageBindShortArgs())
         // #301: per-distro user-defined extra binds.
         prootArgs.addAll(prootManager.customBindShortArgs(prootManager.activeDistroId))
         prootArgs.addAll(listOf("-w", "/root") + cleanGuestEnv() + listOf("/bin/sh", "-c", shellCmd))
@@ -1659,6 +1667,9 @@ class DesktopManager @Inject constructor(
                 *(prootManager.deviceModelDevicetreeBind()?.let { arrayOf("-b", it) } ?: emptyArray()),
                 // #304 part 2: optionally expose Android's system partitions (opt-in).
                 *prootManager.androidSystemBindArgs(longForm = false),
+                // #420: expose the user's shared storage (/storage, /sdcard), same
+                // as the shell — else the desktop file manager sees an empty /sdcard.
+                *prootManager.storageBindShortArgs().toTypedArray(),
                 *customBinds,
                 "-w", "/root",
                 *cleanGuestEnv().toTypedArray(),

@@ -287,17 +287,8 @@ class LocalSessionManager @Inject constructor(
             // the app uid from binding them. Opt-in (default off).
             val portRemap = if (prootManager.remapLowPorts) arrayOf("-p") else emptyArray()
             // #301: opt out of exposing the user's shared storage to the guest.
-            val storageBinds = if (prootManager.shareStorageWithGuest) {
-                arrayOf(
-                    "-b", "/storage",
-                    // Convenience alias so shared storage is reachable at the
-                    // familiar /sdcard, not just /storage/emulated/0 (#256).
-                    // Needs Haven's storage permission for content to show.
-                    "-b", "/storage/emulated/0:/sdcard",
-                )
-            } else {
-                emptyArray()
-            }
+            // Same binds the desktop launchers use (#420) — see storageBindShortArgs.
+            val storageBinds = prootManager.storageBindShortArgs().toTypedArray()
             // #301: per-distro user-defined extra binds (any Android path into
             // the guest). Keyed on the distro this session actually runs.
             val customBinds = prootManager.customBindShortArgs(targetDistro).toTypedArray()
