@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.81.4
+
+🗂️ **Linux desktop: your files (/sdcard) now show up** — when you launched a desktop from Haven, the file manager opened `/sdcard` (and `/storage`) to an empty list, even though the terminal could see them. Shared storage is now mounted into the desktop and into apps launched inside it, so your Downloads, DCIM and the rest are reachable there like they are in the terminal. Honours the existing "share storage with guest" setting. (#420, thanks sugerpersion)
+
 ## v5.81.3
 
 🗂️ **Mosh & Eternal Terminal: the Files tab now actually lists** — a Mosh (or Eternal Terminal) connection showed a Files tab, but opening it just said "File browser failed" over an empty list. Browsing rides the SSH connection kept alive from the Mosh handshake, and Haven wasn't wiring that connection into the file browser, so it could never list. It now does — the tab lists the remote folder like any SSH/SFTP tab. (#413, thanks dkoppenh)
