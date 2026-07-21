@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.81.9
+
+🖥️ **RDP: KDE's KRDP server now works (H.264/AVC420)** — KRDP (the RDP server built into KDE Plasma) encodes its screen only as H.264 and won't fall back to the codecs Haven already supported, so connecting to a Plasma desktop over RDP showed a black screen. Haven now decodes H.264/AVC420 on-device using the phone's hardware video decoder (MediaCodec), so KRDP renders — verified against a live KRDP session. It's **on by default**. This also changes how Haven negotiates graphics with Windows and xrdp: they keep working, but Windows now uses AVC420 rather than the higher-quality AVC444 (that's a later addition). If a Windows or xrdp desktop looks wrong, turn it off under Settings → Diagnostics → "RDP: H.264/AVC420 decoding". (#425, thanks ysalmon)
+
 ## v5.81.8
 
 🧪 **Windows RDP: experimental fix for the black squares (opt-in)** — the v5.81.5 colour fix left scattered black squares on some Windows RDP desktops, because Haven decodes the first pass of each RemoteFX-Progressive tile but not the later "upgrade" refinement passes. This adds that decoder — but it's **off by default and experimental**, because it isn't yet verified against real Windows and a bad decode could look worse than the black squares. To try it: Settings → Diagnostics → "RDP: decode progressive upgrade tiles". If the picture looks worse, turn it off. Feedback on #418 very welcome. (#418, thanks ZGLinus)
