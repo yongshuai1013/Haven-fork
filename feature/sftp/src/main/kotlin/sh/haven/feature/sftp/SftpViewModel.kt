@@ -56,6 +56,7 @@ import sh.haven.core.ssh.SshSessionManager.SessionState
 import sh.haven.feature.sftp.transport.FileBackend
 import sh.haven.feature.sftp.transport.LocalFileBackend
 import sh.haven.feature.sftp.transport.RcloneFileBackend
+import sh.haven.feature.sftp.transport.SafFileBackend
 import sh.haven.feature.sftp.transport.SftpTransport
 import sh.haven.feature.sftp.transport.SmbFileBackend
 import java.io.OutputStream
@@ -106,7 +107,7 @@ data class SftpEntry(
  */
 enum class ConvertDestination { DOWNLOADS, SOURCE_FOLDER }
 
-enum class BackendType { SFTP, SMB, RCLONE, LOCAL }
+enum class BackendType { SFTP, SMB, RCLONE, LOCAL, SAF }
 
 /** Clipboard for cross-filesystem copy/move. */
 data class FileClipboard(
@@ -1064,6 +1065,7 @@ class SftpViewModel @Inject constructor(
             _isLocalProfile.value -> BackendType.LOCAL
             _isRcloneProfile.value -> BackendType.RCLONE
             _isSmbProfile.value -> BackendType.SMB
+            _isSafProfile.value -> BackendType.SAF
             else -> BackendType.SFTP
         }
         // Open a dedicated SFTP session for copy (separate from browse session)
@@ -3603,6 +3605,7 @@ class SftpViewModel @Inject constructor(
                 val destType = when {
                     _isRcloneProfile.value -> BackendType.RCLONE
                     _isSmbProfile.value -> BackendType.SMB
+                    _isSafProfile.value -> BackendType.SAF
                     else -> BackendType.SFTP
                 }
                 val ensuredDirs = mutableSetOf<String>()
@@ -3643,6 +3646,11 @@ class SftpViewModel @Inject constructor(
                             val client = activeSmbClient ?: throw IllegalStateException("SMB not connected")
                             appContext.contentResolver.openInputStream(item.uri)?.use { input ->
                                 client.upload(input, destPath, fileSize) { _, _ -> }
+                            }
+                        } else if (_isSafProfile.value) {
+                            val saf = safBackendFor(profileId) ?: throw IllegalStateException("SAF folder unavailable")
+                            appContext.contentResolver.openInputStream(item.uri)?.use { input ->
+                                saf.writeStream(destPath, input)
                             }
                         } else {
                             val session = getOrOpenSession(profileId) ?: throw IllegalStateException("Not connected")
@@ -3744,7 +3752,7 @@ class SftpViewModel @Inject constructor(
      * session, SFTP reuses/opens the cached session (with mosh/ET fallback),
      * SMB uses the active client, rclone the row's remote.
      */
-    private fun destFileBackend(
+    private suspend fun destFileBackend(
         destType: BackendType,
         destProfileId: String,
         destRemote: String?,
@@ -3753,6 +3761,19 @@ class SftpViewModel @Inject constructor(
         BackendType.SFTP -> getOrOpenSession(destProfileId)?.let { s -> SftpTransport({ s }) }
         BackendType.SMB -> activeSmbClient?.let { SmbFileBackend(it) }
         BackendType.RCLONE -> destRemote?.let { RcloneFileBackend(rcloneClient, it, appContext) }
+        BackendType.SAF -> safBackendFor(destProfileId)
+    }
+
+    /**
+     * Build a [SafFileBackend] from a profile's persisted tree grant (#415
+     * phase 2). Constructed per-call like [SftpTransport] — the doc-id cache is
+     * per-instance, so a fresh backend just re-walks lazily. Returns null when
+     * the profile is missing or carries no `safTreeUri` (e.g. a restore-to-new
+     * -device dead grant).
+     */
+    private suspend fun safBackendFor(profileId: String): SafFileBackend? {
+        val uriStr = repository.getById(profileId)?.safTreeUri ?: return null
+        return SafFileBackend(appContext, Uri.parse(uriStr))
     }
 
     /**
@@ -3887,6 +3908,9 @@ class SftpViewModel @Inject constructor(
                 val client = cb.sourceSmbClient ?: smbSessionManager.getClientForProfile(cb.sourceProfileId)
                 client?.let { SmbFileBackend(it).list(path) } ?: emptyList()
             }
+            BackendType.SAF -> { path: String ->
+                safBackendFor(cb.sourceProfileId)?.list(path) ?: emptyList()
+            }
         }
 
     /**
@@ -3954,6 +3978,9 @@ class SftpViewModel @Inject constructor(
                     val client = smbSessionManager.getClientForProfile(sourceProfileId)
                     client?.delete(sourcePath, isDirectory = false)
                 }
+                BackendType.SAF -> kotlinx.coroutines.runBlocking {
+                    safBackendFor(sourceProfileId)?.delete(sourcePath, isDirectory = false)
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "deleteSourceLeaf failed for $sourcePath: ${e.message}")
@@ -3971,6 +3998,7 @@ class SftpViewModel @Inject constructor(
             _isLocalProfile.value -> BackendType.LOCAL
             _isRcloneProfile.value -> BackendType.RCLONE
             _isSmbProfile.value -> BackendType.SMB
+            _isSafProfile.value -> BackendType.SAF
             else -> BackendType.SFTP
         }
         val destRemote = activeRcloneRemote
@@ -4391,6 +4419,15 @@ class SftpViewModel @Inject constructor(
                         }
                     }
                 }
+                BackendType.SAF -> {
+                    val saf = safBackendFor(destProfileId) ?: throw IllegalStateException("SAF folder unavailable")
+                    srcFile.inputStream().use { input ->
+                        saf.writeStream(destPath, input) { transferred ->
+                            _transferProgress.value = TransferProgress(label, total, transferred)
+                            maybePersistQueueProgress(transferred)
+                        }
+                    }
+                }
             }
             return
         }
@@ -4437,6 +4474,23 @@ class SftpViewModel @Inject constructor(
                         }
                     }
                 }
+                BackendType.SAF -> {
+                    val saf = safBackendFor(cb.sourceProfileId)
+                        ?: throw IllegalStateException("SAF folder unavailable")
+                    saf.openInputStream(entry.path, 0).use { input ->
+                        tempFile.outputStream().use { out ->
+                            val buf = ByteArray(64 * 1024)
+                            var transferred = 0L
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n)
+                                transferred += n
+                                _transferProgress.value = TransferProgress("\u2B07 $baseLabel", knownSize * 2, transferred)
+                            }
+                        }
+                    }
+                }
             }
 
             // Phase 2: upload from cache. Downloaded size seeds the bar's starting
@@ -4480,6 +4534,15 @@ class SftpViewModel @Inject constructor(
                     tempFile.inputStream().use { input ->
                         client.upload(input, destPath, downloaded) { transferred, _ ->
                             _transferProgress.value = TransferProgress("\u2B06 $baseLabel", downloaded * 2, downloaded + transferred)
+                        }
+                    }
+                }
+                BackendType.SAF -> {
+                    val saf = safBackendFor(destProfileId) ?: throw IllegalStateException("SAF folder unavailable")
+                    tempFile.inputStream().use { input ->
+                        saf.writeStream(destPath, input) { transferred ->
+                            _transferProgress.value = TransferProgress("\u2B06 $baseLabel", downloaded * 2, downloaded + transferred)
+                            maybePersistQueueProgress(transferred)
                         }
                     }
                 }
@@ -4694,6 +4757,9 @@ class SftpViewModel @Inject constructor(
                 val client = cb.sourceSmbClient
                     ?: smbSessionManager.getClientForProfile(cb.sourceProfileId) ?: return
                 client.delete(entry.path, entry.isDirectory)
+            }
+            BackendType.SAF -> kotlinx.coroutines.runBlocking {
+                safBackendFor(cb.sourceProfileId)?.delete(entry.path, entry.isDirectory)
             }
         }
     }

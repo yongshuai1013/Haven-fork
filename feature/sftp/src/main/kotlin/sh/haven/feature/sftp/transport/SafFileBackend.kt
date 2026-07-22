@@ -144,8 +144,44 @@ class SafFileBackend(
 
     override suspend fun writeBytes(path: String, data: ByteArray) = withContext(Dispatchers.IO) {
         val p = normalizeSafPath(path)
+        // "wt" truncates — required so shortening a file in the editor doesn't leave a
+        // stale tail. A provider that rejects the 't' flag surfaces as an error here
+        // rather than silently corrupting; none seen so far (Termux, ExternalStorage).
+        (resolver.openOutputStream(createOrResolveForWrite(p), "wt") ?: throw IOException("Cannot write $p"))
+            .use { it.write(data) }
+    }
+
+    /**
+     * Streaming write for cross-backend transfers (#415 phase 2): same
+     * create-or-truncate semantics as [writeBytes], but pumps [input] in
+     * chunks and reports cumulative bytes via [onBytes] — the file never
+     * sits in memory whole. Returns the byte count written.
+     */
+    suspend fun writeStream(
+        path: String,
+        input: InputStream,
+        onBytes: (Long) -> Unit = {},
+    ): Long = withContext(Dispatchers.IO) {
+        val p = normalizeSafPath(path)
+        var total = 0L
+        (resolver.openOutputStream(createOrResolveForWrite(p), "wt") ?: throw IOException("Cannot write $p"))
+            .use { out ->
+                val buf = ByteArray(256 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    total += n
+                    onBytes(total)
+                }
+            }
+        total
+    }
+
+    /** Existing document's Uri at [p], or create it (parent must exist). */
+    private fun createOrResolveForWrite(p: String): Uri {
         val existing = resolve(p)
-        val target: Uri = if (existing != null) {
+        return if (existing != null) {
             docUri(existing)
         } else {
             val parentPath = p.substringBeforeLast('/').ifEmpty { "/" }
@@ -156,11 +192,6 @@ class SafFileBackend(
             DocumentsContract.getDocumentId(created)?.let { docIdCache[p] = it }
             created
         }
-        // "wt" truncates — required so shortening a file in the editor doesn't leave a
-        // stale tail. A provider that rejects the 't' flag surfaces as an error here
-        // rather than silently corrupting; none seen so far (Termux, ExternalStorage).
-        (resolver.openOutputStream(target, "wt") ?: throw IOException("Cannot write $p"))
-            .use { it.write(data) }
     }
 
     override suspend fun stat(path: String): SftpEntry = withContext(Dispatchers.IO) {
