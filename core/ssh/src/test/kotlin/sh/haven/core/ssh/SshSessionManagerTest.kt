@@ -143,9 +143,13 @@ class SshSessionManagerTest {
     fun `attachShellChannel stores channel in session state`() {
         val client = mockk<SshClient>(relaxed = true)
         val channel = ShellChannel(
-            mockk<com.jcraft.jsch.ChannelShell>(relaxed = true),
-            java.io.ByteArrayInputStream(ByteArray(0)),
-            java.io.ByteArrayOutputStream(),
+            input = java.io.ByteArrayInputStream(ByteArray(0)),
+            output = java.io.ByteArrayOutputStream(),
+            resizeFn = { _, _ -> },
+            disconnectFn = { },
+            connectedProbe = { true },
+            closedProbe = { false },
+            exitStatusProbe = { -1 },
         )
         val sessionId = manager.registerSession("profile1", "Server", client)
         manager.attachShellChannel(sessionId, channel)

@@ -1,6 +1,5 @@
 package sh.haven.core.ssh
 
-import com.jcraft.jsch.ChannelShell
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import io.mockk.every
@@ -38,11 +37,6 @@ class SshClientShellTest {
         }
     }
 
-    @Test
-    fun `resizeShell calls setPtySize on channel`() {
-        val channel = mockk<ChannelShell>(relaxed = true)
-        val client = SshClient()
-        client.resizeShell(channel, 120, 40)
-        verify { channel.setPtySize(120, 40, 0, 0) }
-    }
+    // resize moved onto ShellChannel (#58 phase 5); its delegation to
+    // channel.setPtySize is covered by ShellChannelTest.
 }

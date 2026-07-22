@@ -1,6 +1,5 @@
 package sh.haven.core.ssh
 
-import com.jcraft.jsch.ChannelShell
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
@@ -27,12 +26,16 @@ class SshSessionManagerShellOutcomeTest {
         closed: Boolean = !connected,
         exit: Int = 0,
     ): ShellChannel {
-        val ch = mockk<ChannelShell>(relaxed = true)
-        every { ch.isConnected } returns connected
-        every { ch.isClosed } returns closed
-        every { ch.exitStatus } returns exit
         // Streams are bound before connect and carried on the ShellChannel (#382).
-        return ShellChannel(ch, input, ByteArrayOutputStream())
+        return ShellChannel(
+            input = input,
+            output = ByteArrayOutputStream(),
+            resizeFn = { _, _ -> },
+            disconnectFn = {},
+            connectedProbe = { connected },
+            closedProbe = { closed },
+            exitStatusProbe = { exit },
+        )
     }
 
     @Test

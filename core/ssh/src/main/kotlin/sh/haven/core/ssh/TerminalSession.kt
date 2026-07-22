@@ -1,7 +1,6 @@
 package sh.haven.core.ssh
 
 import android.util.Log
-import com.jcraft.jsch.ChannelShell
 import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
@@ -13,7 +12,7 @@ import kotlin.concurrent.thread
 private const val TAG = "TerminalSession"
 
 /**
- * Bridges a JSch [ChannelShell] to a terminal emulator.
+ * Bridges a [ShellChannel] to a terminal emulator.
  *
  * Reads SSH output on a background thread and delivers it via [onDataReceived].
  * Call [sendToSsh] to forward keyboard input to the remote shell.
@@ -254,7 +253,7 @@ class TerminalSession(
             pendingResize = writeExecutor.schedule({
                 try {
                     Log.d(TAG, "setPtySize: ${cols}x${rows}")
-                    client.resizeShell(shell.channel, cols, rows)
+                    shell.resize(cols, rows)
                 } catch (e: Exception) {
                     Log.e(TAG, "resize failed", e)
                 }
@@ -299,7 +298,7 @@ class TerminalSession(
                 writeExecutor.submit {
                     try {
                         Log.d(TAG, "reconnect: replaying setPtySize ${replayCols}x${replayRows}")
-                        newClient.resizeShell(newShell.channel, replayCols, replayRows)
+                        newShell.resize(replayCols, replayRows)
                     } catch (e: Exception) {
                         Log.w(TAG, "reconnect: setPtySize replay failed", e)
                     }
@@ -334,7 +333,7 @@ class TerminalSession(
             writeExecutor.schedule({
                 if (closed || !shell.isConnected) return@schedule
                 try {
-                    client.resizeShell(shell.channel, cols, wobbleRows)
+                    shell.resize(cols, wobbleRows)
                 } catch (e: Exception) {
                     Log.w(TAG, "post-reattach redraw nudge failed", e)
                 }
@@ -342,7 +341,7 @@ class TerminalSession(
             writeExecutor.schedule({
                 if (closed || !shell.isConnected) return@schedule
                 try {
-                    client.resizeShell(shell.channel, cols, rows)
+                    shell.resize(cols, rows)
                 } catch (e: Exception) {
                     Log.w(TAG, "post-reattach redraw restore failed", e)
                 }

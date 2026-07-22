@@ -1,6 +1,5 @@
 package sh.haven.core.ssh
 
-import com.jcraft.jsch.ChannelShell
 import sh.haven.core.fido.FidoAuthenticator
 import sh.haven.core.ssh.sftp.SftpSession
 import java.io.Closeable
@@ -73,8 +72,6 @@ interface SshConnection : Closeable {
         cols: Int = 80,
         rows: Int = 24,
     ): ShellChannel
-
-    fun resizeShell(channel: ChannelShell, cols: Int, rows: Int)
 
     fun openSftpSession(): SftpSession
 

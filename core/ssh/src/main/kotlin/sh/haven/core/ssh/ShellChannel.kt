@@ -1,39 +1,48 @@
 package sh.haven.core.ssh
 
-import com.jcraft.jsch.ChannelShell
 import com.jcraft.jsch.Session
 import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * A connected shell channel together with the streams JSch bound to it.
+ * An engine-neutral interactive shell channel (#58, phase 5).
  *
- * The streams must be taken BEFORE `Channel.connect()`: `getInputStream()` is
- * what installs JSch's server→client pipe, and `Channel.write()` swallows the
- * NullPointerException when that pipe isn't there yet — so anything the server
- * sends before the first `getInputStream()` call is silently discarded. That is
- * what dropped the target's SSH banner through a jump host (#381); a shell
- * channel can lose its first output (banner, MOTD, prompt) the same way.
+ * Callers see the shell as a pair of streams plus resize/teardown/liveness
+ * — never the underlying JSch `ChannelShell` or sshlib `SshSession`. Each
+ * engine builds one by supplying the streams and the behaviour closures:
+ * [openShellOn] for JSch, the sshlib shell path for ssh-proto.
  *
- * Fetch them once and pass this around: a second `getInputStream()` installs a
- * FRESH pipe and orphans whatever the first one had already buffered, so
- * re-reading `channel.inputStream` downstream would reintroduce the bug.
+ * The streams must be bound BEFORE the channel is connected: on JSch
+ * `getInputStream()` is what installs the server→client pipe, and a write
+ * before that pipe exists is silently dropped — which is how the target's
+ * SSH banner was lost through a jump host (#381). A shell channel can lose
+ * its first output (banner, MOTD, prompt) the same way. Fetch the streams
+ * once at construction and pass this object around; never re-fetch.
  */
 class ShellChannel(
-    val channel: ChannelShell,
     val input: InputStream,
     val output: OutputStream,
+    private val resizeFn: (cols: Int, rows: Int) -> Unit,
+    private val disconnectFn: () -> Unit,
+    private val connectedProbe: () -> Boolean,
+    private val closedProbe: () -> Boolean,
+    private val exitStatusProbe: () -> Int,
 ) {
-    val isConnected: Boolean get() = channel.isConnected
-    val isClosed: Boolean get() = channel.isClosed
-    val exitStatus: Int get() = channel.exitStatus
+    val isConnected: Boolean get() = connectedProbe()
+    val isClosed: Boolean get() = closedProbe()
 
-    fun disconnect() = channel.disconnect()
+    /** The remote process exit status, or -1 if not yet known / unreported. */
+    val exitStatus: Int get() = exitStatusProbe()
+
+    /** Resize the remote PTY (SIGWINCH). */
+    fun resize(cols: Int, rows: Int) = resizeFn(cols, rows)
+
+    fun disconnect() = disconnectFn()
 }
 
 /**
- * Open an interactive shell channel on [session], binding its streams before
- * connecting it. See [ShellChannel] for why the order matters.
+ * Open an interactive JSch shell channel on [session], binding its streams
+ * before connecting it. See [ShellChannel] for why the order matters.
  */
 internal fun openShellOn(
     session: Session,
@@ -42,11 +51,19 @@ internal fun openShellOn(
     rows: Int,
     agentForwarding: Boolean,
 ): ShellChannel {
-    val channel = session.openChannel("shell") as ChannelShell
+    val channel = session.openChannel("shell") as com.jcraft.jsch.ChannelShell
     channel.setPtyType(term, cols, rows, 0, 0)
     if (agentForwarding) channel.setAgentForwarding(true)
     val input = channel.inputStream
     val output = channel.outputStream
     channel.connect()
-    return ShellChannel(channel, input, output)
+    return ShellChannel(
+        input = input,
+        output = output,
+        resizeFn = { c, r -> channel.setPtySize(c, r, 0, 0) },
+        disconnectFn = { channel.disconnect() },
+        connectedProbe = { channel.isConnected },
+        closedProbe = { channel.isClosed },
+        exitStatusProbe = { channel.exitStatus },
+    )
 }

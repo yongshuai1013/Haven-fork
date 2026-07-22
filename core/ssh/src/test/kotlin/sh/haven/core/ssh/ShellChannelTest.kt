@@ -41,7 +41,12 @@ class ShellChannelTest {
         }
         assertSame(input, shell.input)
         assertSame(output, shell.output)
-        assertSame(channel, shell.channel)
+        // resize/disconnect now delegate to the JSch channel via the neutral
+        // ShellChannel closures (#58 phase 5) rather than exposing it.
+        shell.resize(120, 40)
+        verify { channel.setPtySize(120, 40, 0, 0) }
+        shell.disconnect()
+        verify { channel.disconnect() }
     }
 
     @Test

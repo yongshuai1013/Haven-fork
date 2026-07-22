@@ -58,14 +58,15 @@ internal object SshlibSftpConnector {
     }
 
     /**
-     * Dial + authenticate + open the SFTP subsystem. The returned session owns
-     * the connection. Callers must have cleared [unsupportedReason] first.
+     * Dial + authenticate a sshlib connection, returning the connected client.
+     * The caller owns the connection and must [org.connectbot.sshlib.SshClient.disconnect]
+     * it. Callers must have cleared [unsupportedReason] first.
      */
-    suspend fun connect(
+    suspend fun dialAndAuth(
         config: ConnectionConfig,
         hostKeyVerifier: HostKeyVerifier,
         connectTimeoutMs: Long = CONNECT_TIMEOUT_MS,
-    ): SshlibSftpSession {
+    ): SshlibClient {
         val host = SshClient.resolveHost(config.host, config.addressFamily)
         val trustGate = TrustedOnlyVerifier(hostKeyVerifier, config.host, config.port)
         val client = SshlibClient(
@@ -96,6 +97,24 @@ internal object SshlibSftpConnector {
                     throw SshIoException("sshlib: protocol error: ${result.message}", result.cause)
             }
             authenticate(client, config)
+            return client
+        } catch (t: Throwable) {
+            try { client.disconnect() } catch (_: Exception) { /* best effort */ }
+            throw t
+        }
+    }
+
+    /**
+     * Dial + authenticate + open the SFTP subsystem. The returned session owns
+     * the connection. Callers must have cleared [unsupportedReason] first.
+     */
+    suspend fun connect(
+        config: ConnectionConfig,
+        hostKeyVerifier: HostKeyVerifier,
+        connectTimeoutMs: Long = CONNECT_TIMEOUT_MS,
+    ): SshlibSftpSession {
+        val client = dialAndAuth(config, hostKeyVerifier, connectTimeoutMs)
+        try {
             val sftp = when (val r = client.openSftp()) {
                 is org.connectbot.sshlib.SftpResult.Success -> r.value
                 is org.connectbot.sshlib.SftpResult.ServerError ->

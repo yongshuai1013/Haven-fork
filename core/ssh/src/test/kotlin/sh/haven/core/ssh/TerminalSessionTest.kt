@@ -22,8 +22,15 @@ class TerminalSessionTest {
      * was connected, rather than re-fetching them (#382) — wrap the mock's
      * stubbed streams the way SshClient.openShellChannel does.
      */
-    private fun shellOf(channel: ChannelShell) =
-        ShellChannel(channel, channel.inputStream, channel.outputStream)
+    private fun shellOf(channel: ChannelShell) = ShellChannel(
+        input = channel.inputStream,
+        output = channel.outputStream,
+        resizeFn = { c, r -> channel.setPtySize(c, r, 0, 0) },
+        disconnectFn = { channel.disconnect() },
+        connectedProbe = { channel.isConnected },
+        closedProbe = { channel.isClosed },
+        exitStatusProbe = { channel.exitStatus },
+    )
 
     @Test
     fun `sendToSsh writes bytes to channel output stream`() {
@@ -125,7 +132,7 @@ class TerminalSessionTest {
     }
 
     @Test
-    fun `resize calls client resizeShell`() {
+    fun `resize calls setPtySize on the channel`() {
         val channel = mockk<ChannelShell>(relaxed = true) {
             every { inputStream } returns ByteArrayInputStream(ByteArray(0))
             every { getOutputStream() } returns ByteArrayOutputStream()
@@ -147,7 +154,7 @@ class TerminalSessionTest {
         // resize dispatches to a background executor
         Thread.sleep(200)
 
-        verify { client.resizeShell(channel, 120, 40) }
+        verify { channel.setPtySize(120, 40, 0, 0) }
 
         session.close()
     }
@@ -255,8 +262,8 @@ class TerminalSessionTest {
         )
         // Repaint wobble: a genuine size change (80x23) then restore (80x24)
         // on the *new* channel, forcing tmux to redraw the reattached pane.
-        verify { client.resizeShell(channel2, 80, 23) }
-        verify { client.resizeShell(channel2, 80, 24) }
+        verify { channel2.setPtySize(80, 23, 0, 0) }
+        verify { channel2.setPtySize(80, 24, 0, 0) }
 
         session.close()
     }
