@@ -9552,6 +9552,120 @@
      }
     },
     {
+     "name": "connections_section_ssh_engine",
+     "en": "SSH engine",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "محرك SSH",
+      "bn": "SSH ইঞ্জিন",
+      "de": "SSH-Engine",
+      "es": "Motor SSH",
+      "fr": "Moteur SSH",
+      "hi": "SSH इंजन",
+      "ja": "SSH エンジン",
+      "ko": "SSH 엔진",
+      "pt": "Motor SSH",
+      "ru": "Движок SSH",
+      "zh": "SSH 引擎"
+     }
+    },
+    {
+     "name": "connections_helper_ssh_engine",
+     "en": "Which SSH implementation this connection uses. sshlib is experimental: file transfer only for now — terminal and tunnels stay on JSch.",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "تنفيذ SSH الذي يستخدمه هذا الاتصال. ‏sshlib تجريبي: نقل الملفات فقط حاليًا — تبقى الطرفية والأنفاق على JSch.",
+      "bn": "এই সংযোগটি কোন SSH বাস্তবায়ন ব্যবহার করে। sshlib পরীক্ষামূলক: আপাতত শুধু ফাইল স্থানান্তর — টার্মিনাল ও টানেল JSch-এ থাকবে।",
+      "de": "Welche SSH-Implementierung diese Verbindung nutzt. sshlib ist experimentell: vorerst nur Dateiübertragung — Terminal und Tunnel bleiben bei JSch.",
+      "es": "Qué implementación SSH usa esta conexión. sshlib es experimental: por ahora solo transferencia de archivos — el terminal y los túneles siguen en JSch.",
+      "fr": "Implémentation SSH utilisée par cette connexion. sshlib est expérimental : transfert de fichiers uniquement pour l\\'instant — le terminal et les tunnels restent sur JSch.",
+      "hi": "यह कनेक्शन कौन-सा SSH कार्यान्वयन उपयोग करता है। sshlib प्रायोगिक है: अभी केवल फ़ाइल स्थानांतरण — टर्मिनल और टनल JSch पर ही रहेंगे।",
+      "ja": "この接続が使用する SSH 実装。sshlib は実験的機能です：現時点ではファイル転送のみ — ターミナルとトンネルは JSch のままです。",
+      "ko": "이 연결이 사용하는 SSH 구현. sshlib는 실험적 기능입니다: 현재 파일 전송 전용 — 터미널과 터널은 JSch를 사용합니다.",
+      "pt": "Qual implementação SSH esta conexão usa. sshlib é experimental: por enquanto apenas transferência de arquivos — terminal e túneis continuam no JSch.",
+      "ru": "Какая реализация SSH используется этим подключением. sshlib — экспериментальный: пока только передача файлов; терминал и туннели остаются на JSch.",
+      "zh": "此连接使用的 SSH 实现。sshlib 为实验性：目前仅用于文件传输 — 终端和隧道仍使用 JSch。"
+     }
+    },
+    {
+     "name": "connections_ssh_engine_jsch_label",
+     "en": "Default (JSch)",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "افتراضي (JSch)",
+      "bn": "ডিফল্ট (JSch)",
+      "de": "Standard (JSch)",
+      "es": "Predeterminado (JSch)",
+      "fr": "Par défaut (JSch)",
+      "hi": "डिफ़ॉल्ट (JSch)",
+      "ja": "デフォルト（JSch）",
+      "ko": "기본값 (JSch)",
+      "pt": "Padrão (JSch)",
+      "ru": "По умолчанию (JSch)",
+      "zh": "默认（JSch）"
+     }
+    },
+    {
+     "name": "connections_ssh_engine_jsch_desc",
+     "en": "The proven engine. All features.",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "المحرك المُجرَّب. جميع الميزات.",
+      "bn": "প্রমাণিত ইঞ্জিন। সব বৈশিষ্ট্য।",
+      "de": "Die bewährte Engine. Alle Funktionen.",
+      "es": "El motor probado. Todas las funciones.",
+      "fr": "Le moteur éprouvé. Toutes les fonctionnalités.",
+      "hi": "आज़माया हुआ इंजन। सभी सुविधाएँ।",
+      "ja": "実績あるエンジン。全機能対応。",
+      "ko": "검증된 엔진. 모든 기능 지원.",
+      "pt": "O motor comprovado. Todos os recursos.",
+      "ru": "Проверенный движок. Все функции.",
+      "zh": "成熟稳定的引擎。支持全部功能。"
+     }
+    },
+    {
+     "name": "connections_ssh_engine_sshlib_label",
+     "en": "sshlib (experimental)",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "sshlib (تجريبي)",
+      "bn": "sshlib (পরীক্ষামূলক)",
+      "de": "sshlib (experimentell)",
+      "es": "sshlib (experimental)",
+      "fr": "sshlib (expérimental)",
+      "hi": "sshlib (प्रायोगिक)",
+      "ja": "sshlib（実験的）",
+      "ko": "sshlib (실험적)",
+      "pt": "sshlib (experimental)",
+      "ru": "sshlib (экспериментальный)",
+      "zh": "sshlib（实验性）"
+     }
+    },
+    {
+     "name": "connections_ssh_engine_sshlib_desc",
+     "en": "Kotlin engine, SFTP file browsing/transfer only. Needs a direct connection — no jump host or proxy.",
+     "comment": "Group header",
+     "args": [],
+     "t": {
+      "ar": "محرك Kotlin، تصفح/نقل ملفات SFTP فقط. يتطلب اتصالًا مباشرًا — دون مضيف وسيط أو وكيل.",
+      "bn": "Kotlin ইঞ্জিন, শুধুমাত্র SFTP ফাইল ব্রাউজিং/স্থানান্তর। সরাসরি সংযোগ প্রয়োজন — জাম্প হোস্ট বা প্রক্সি নয়।",
+      "de": "Kotlin-Engine, nur SFTP-Dateibrowsing/-übertragung. Benötigt eine Direktverbindung — kein Jump-Host oder Proxy.",
+      "es": "Motor Kotlin, solo navegación/transferencia de archivos SFTP. Requiere conexión directa — sin salto ni proxy.",
+      "fr": "Moteur Kotlin, navigation/transfert de fichiers SFTP uniquement. Connexion directe requise — pas de jump host ni de proxy.",
+      "hi": "Kotlin इंजन, केवल SFTP फ़ाइल ब्राउज़िंग/स्थानांतरण। सीधा कनेक्शन आवश्यक — जंप होस्ट या प्रॉक्सी नहीं।",
+      "ja": "Kotlin エンジン。SFTP ファイル閲覧・転送のみ。直接接続が必要 — 踏み台・プロキシ非対応。",
+      "ko": "Kotlin 엔진, SFTP 파일 탐색/전송 전용. 직접 연결 필요 — 점프 호스트·프록시 미지원.",
+      "pt": "Motor Kotlin, apenas navegação/transferência de arquivos SFTP. Requer conexão direta — sem jump host ou proxy.",
+      "ru": "Движок на Kotlin, только просмотр/передача файлов по SFTP. Нужно прямое подключение — без jump-хоста и прокси.",
+      "zh": "Kotlin 引擎，仅支持 SFTP 文件浏览/传输。需要直接连接 — 不支持跳板机或代理。"
+     }
+    },
+    {
      "name": "connection_address_family_label",
      "en": "Address family",
      "comment": "Group header",
