@@ -99,6 +99,20 @@
     <string name="terminal_scan_failed">Scan failed: %s</string>
     <string name="terminal_scan_no_camera">No camera app available</string>
 
+    <!-- FloatingTextInputDialog — floating text-entry key on the keyboard toolbar.
+         Base locale only; other locales are translation debt for the normal
+         i18n process (do not hand-translate here). -->
+    <string name="terminal_text_input_title">Text input</string>
+    <string name="terminal_text_input_placeholder">Type text to send…</string>
+    <string name="terminal_text_input_send">Send</string>
+    <string name="terminal_text_input_resize_handle">Resize text input window</string>
+    <string name="terminal_text_input_move_up">Move up</string>
+    <string name="terminal_text_input_move_down">Move down</string>
+    <string name="terminal_text_input_move_left">Move left</string>
+    <string name="terminal_text_input_move_right">Move right</string>
+    <string name="terminal_text_input_expand">Make larger</string>
+    <string name="terminal_text_input_shrink">Make smaller</string>
+
     <!-- SelectionToolbar button labels and toasts -->
     <string name="terminal_selection_copy">Copy</string>
     <string name="terminal_selection_paste">Paste</string>

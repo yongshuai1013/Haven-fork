@@ -5,6 +5,10 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.82.0
+
+⌨️ **Terminal: floating text input** — a new toolbar key opens a draggable, resizable text box floating over the terminal, so you can compose a whole command with your normal keyboard (autocorrect, swipe typing, voice input, cursor movement) and send it in one shot, instead of fighting the raw terminal cell character-by-character. Embedded newlines and tabs show inline as ↩ / ⇥ so you can see exactly what will be sent, and the text is bracketed-paste-wrapped on send, so a multi-line block arrives as a paste instead of executing line-by-line. Unsent drafts are kept per tab and survive rotation; the window position/size is remembered. The key sits on the default toolbar and can be moved/hidden like any other key. Ported from ConnectBot's Text Input dialog (Apache-2.0).
+
 ## v5.81.13
 
 🔄 **RDP: sessions survive a server-side "reactivation" instead of dying** — an RDP server is allowed to renegotiate the session mid-flight (a Deactivation-Reactivation sequence): FreeRDP's shadow server does it right after connect to resize you to its display, and Windows does it when the desktop resolution changes. Haven treated it as a fatal protocol error and the session died — this is what v5.81.12 made fail *honestly*, and this release makes it not fail at all. Haven now re-runs the capability exchange, adopts the new desktop size (the viewer resizes), and carries on. Verified end-to-end against a FreeRDP shadow server whose display size differs from the phone's: the session now connects, resizes, and renders where it previously died within a second. A Windows resolution change mid-session should now survive too, though that exact scenario is untested. (#438)

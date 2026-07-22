@@ -5800,6 +5800,13 @@
      }
     },
     {
+     "name": "toolbar_text_input_desc",
+     "en": "Open floating text input",
+     "comment": "Strings added for issue #210 localisation",
+     "args": [],
+     "t": {}
+    },
+    {
      "name": "toolbar_presets_label",
      "en": "Presets",
      "comment": "Strings added for issue #210 localisation",
@@ -37380,6 +37387,76 @@
       "ru": "Нет доступного приложения камеры",
       "zh": "无可用相机应用"
      }
+    },
+    {
+     "name": "terminal_text_input_title",
+     "en": "Text input",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_placeholder",
+     "en": "Type text to send…",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_send",
+     "en": "Send",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_resize_handle",
+     "en": "Resize text input window",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_move_up",
+     "en": "Move up",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_move_down",
+     "en": "Move down",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_move_left",
+     "en": "Move left",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_move_right",
+     "en": "Move right",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_expand",
+     "en": "Make larger",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
+    },
+    {
+     "name": "terminal_text_input_shrink",
+     "en": "Make smaller",
+     "comment": "FloatingTextInputDialog — floating text-entry key on the keyboard toolbar. Base locale only; other locales are translation debt for the normal i18n process (do not hand-translate here).",
+     "args": [],
+     "t": {}
     },
     {
      "name": "terminal_selection_copy",

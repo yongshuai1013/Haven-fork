@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.LastPage
@@ -194,6 +195,12 @@ data class ToolbarCallbacks(
      * reference (path or share URL) at the cursor.
      */
     val onAttachTap: () -> Unit = {},
+    /**
+     * Tap on the floating text-input key. Opens the draggable/resizable
+     * text-entry dialog over the terminal so a full line can be composed
+     * with the normal IME and sent to the session in one shot.
+     */
+    val onOpenTextInput: () -> Unit = {},
 )
 
 val LocalToolbarCallbacks = compositionLocalOf<ToolbarCallbacks> {
@@ -254,6 +261,7 @@ fun KeyboardToolbar(
     composeModeActive: Boolean = false,
     onToggleComposeMode: () -> Unit = {},
     onAttachTap: () -> Unit = {},
+    onOpenTextInput: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var shiftActive by remember { mutableStateOf(false) }
@@ -327,6 +335,7 @@ fun KeyboardToolbar(
             onSnippetLibraryChanged(newLibrary)
         },
         onAttachTap = onAttachTap,
+        onOpenTextInput = onOpenTextInput,
     )
 
     CompositionLocalProvider(
@@ -1054,6 +1063,11 @@ private fun BuiltInKey(
             description = stringResource(R.string.toolbar_attach_desc),
             onClick = cb.onAttachTap,
         )
+        ToolbarKey.TEXT_INPUT -> ToolbarIconButton(
+            icon = Icons.Filled.EditNote,
+            description = stringResource(R.string.toolbar_text_input_desc),
+            onClick = cb.onOpenTextInput,
+        )
         ToolbarKey.SHIFT -> ToolbarToggleButton("Shift", shiftActive, onClick = cb.onToggleShift)
         ToolbarKey.CTRL -> ToolbarToggleButton("Ctrl", ctrlActive, onClick = cb.onToggleCtrl)
         ToolbarKey.ALT -> ToolbarToggleButton("Alt", altActive, onClick = cb.onToggleAlt)
@@ -1262,6 +1276,7 @@ private fun ToolbarKeyIcon(icon: ImageVector, contentDescription: String? = null
 private fun keyIcon(key: ToolbarKey): ImageVector? = when (key) {
     ToolbarKey.KEYBOARD -> Icons.Filled.Keyboard
     ToolbarKey.ATTACH -> Icons.Filled.AttachFile
+    ToolbarKey.TEXT_INPUT -> Icons.Filled.EditNote
     ToolbarKey.VOICE_KEYBOARD -> Icons.Filled.Lock
     ToolbarKey.HOME -> Icons.Filled.FirstPage
     ToolbarKey.END -> Icons.Filled.LastPage
@@ -1288,6 +1303,7 @@ private fun toolbarKeyVisual(item: ToolbarItem): KeyVisual = when (item) {
     is ToolbarItem.BuiltIn -> when (item.key) {
         ToolbarKey.KEYBOARD -> KeyVisual.IconV(Icons.Filled.Keyboard, null)
         ToolbarKey.ATTACH -> KeyVisual.IconV(Icons.Filled.AttachFile, null)
+        ToolbarKey.TEXT_INPUT -> KeyVisual.IconV(Icons.Filled.EditNote, null)
         ToolbarKey.VOICE_KEYBOARD -> KeyVisual.IconV(Icons.Filled.Lock, null)
         ToolbarKey.COMPOSE -> KeyVisual.TextV("中", glyph = true)
         ToolbarKey.HOME -> KeyVisual.IconV(Icons.Filled.FirstPage, "Home")

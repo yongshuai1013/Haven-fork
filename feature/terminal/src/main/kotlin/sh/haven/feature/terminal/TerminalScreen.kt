@@ -295,6 +295,20 @@ fun TerminalScreen(
     var pendingScanMode by remember { mutableStateOf<TerminalViewModel.ScanMode?>(null) }
     var cameraOutputUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Floating text-input dialog (ported from ConnectBot). Both pieces of
+    // state are hoisted ABOVE the key(activeTab.sessionId) block below: the
+    // dialog itself renders *inside* key() so its send closure can never
+    // outlive its tab (a non-tap active-tab change — session death clamping
+    // the index, an MCP selectTabBySessionId — tears the dialog down instead
+    // of silently re-binding typed text to the wrong session), while the
+    // per-tab draft map up here means switching back to a tab restores what
+    // was typed there. rememberSaveable (not remember) because drafts are
+    // user-authored text that must survive rotation and process death —
+    // unlike the attachSheetVisible boolean above, losing them is not
+    // harmless. HashMap is Serializable, so the autoSaver handles it.
+    var textInputDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var textInputDrafts by rememberSaveable { mutableStateOf(HashMap<String, String>()) }
+
     val cameraScanLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->
@@ -1119,12 +1133,9 @@ fun TerminalScreen(
                         val doPaste: () -> Unit = {
                             val text = realClipboard.getText()?.text
                             if (!text.isNullOrEmpty()) {
-                                val payload = if (isBracketPaste) {
-                                    "\u001b[200~$text\u001b[201~"
-                                } else {
-                                    text
-                                }
-                                activeTab.sendInput(payload.toByteArray())
+                                activeTab.sendInput(
+                                    bracketPasteWrap(text, isBracketPaste).toByteArray(),
+                                )
                             }
                         }
 
@@ -1331,6 +1342,7 @@ fun TerminalScreen(
                         composeModeActive = composeController?.isComposeModeActive == true,
                         onToggleComposeMode = { composeController?.toggleComposeMode() },
                         onAttachTap = { attachSheetVisible = true },
+                        onOpenTextInput = { textInputDialogVisible = true },
                         selectionContent = selectionController?.let { ctrl -> {
                             SelectionToolbarContent(
                                 controller = ctrl,
@@ -1341,6 +1353,51 @@ fun TerminalScreen(
                         } },
                         modifier = Modifier.fillMaxWidth(),
                     )
+
+                    // Floating text-input dialog — MUST stay inside the
+                    // key(activeTab.sessionId) block: an active-tab change of
+                    // any kind (tap, session death clamping the index, MCP
+                    // selectTabBySessionId) then tears it down and recreates
+                    // it, so a send can never fire into a tab other than the
+                    // one it was opened for. The draft itself lives in the
+                    // per-tab textInputDrafts map hoisted above the key()
+                    // boundary, so it survives the teardown.
+                    if (textInputDialogVisible) {
+                        FloatingTextInputDialog(
+                            text = textInputDrafts[activeTab.sessionId].orEmpty(),
+                            onTextChange = { draft ->
+                                textInputDrafts = HashMap(textInputDrafts).apply {
+                                    if (draft.isEmpty()) {
+                                        remove(activeTab.sessionId)
+                                    } else {
+                                        put(activeTab.sessionId, draft)
+                                    }
+                                }
+                            },
+                            onSend = {
+                                val draft = textInputDrafts[activeTab.sessionId].orEmpty()
+                                if (draft.isNotEmpty()) {
+                                    // Same bracket-wrap path as paste: an
+                                    // embedded newline must arrive as pasted
+                                    // text (mode 2004), not execute as a
+                                    // literal Enter inside vim/psql.
+                                    activeTab.sendInput(
+                                        bracketPasteWrap(draft, isBracketPaste).toByteArray(),
+                                    )
+                                    textInputDrafts = HashMap(textInputDrafts).apply {
+                                        remove(activeTab.sessionId)
+                                    }
+                                }
+                            },
+                            onDismiss = {
+                                textInputDialogVisible = false
+                                // Hand focus (and the IME's InputConnection)
+                                // back to the terminal, so typing resumes in
+                                // the session instead of going nowhere.
+                                focusRequester.requestFocus()
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -1459,6 +1516,17 @@ private fun handleLayoutAwareKeyEvent(
 
     return true
 }
+
+/**
+ * Wrap [text] in bracketed-paste markers (xterm mode 2004) when the remote
+ * app has requested them, so pasted/injected text — embedded newlines
+ * included — arrives as one "paste this block" event instead of being
+ * interpreted keystroke-by-keystroke. `sendInput` itself never wraps;
+ * callers decide. Shared by the paste path (doPaste / Ctrl+Shift+V) and the
+ * floating text-input dialog's send.
+ */
+internal fun bracketPasteWrap(text: CharSequence, bracketPasteMode: Boolean): String =
+    if (bracketPasteMode) "\u001b[200~$text\u001b[201~" else text.toString()
 
 /** Keys that termlib maps to VTermKey codes — let termlib handle these directly. */
 private fun isSpecialTerminalKey(keyCode: Int): Boolean {
