@@ -54,6 +54,9 @@ object SshOptionsApplier {
 
             val lower = key.lowercase()
             if (lower in RESERVED_KEYS) continue
+            // Haven-internal directives (HavenSshEngine, …) configure Haven
+            // itself, not the SSH library — never forward them to JSch.
+            if (lower.startsWith("haven")) continue
 
             val jschKeys = OPENSSH_TO_JSCH[lower]
             when {

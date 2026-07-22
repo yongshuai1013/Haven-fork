@@ -243,7 +243,7 @@ class ReticulumSessionManager @Inject constructor(
 
     /**
      * Lazily open (or reuse) a persistent SFTP session for [profileId] over the
-     * profile's connected Link, mirroring SSH's `openSftpForProfile`. The actual
+     * profile's connected Link, mirroring SSH's `openSftpSession`. The actual
      * `sftp-server` Link + handshake happen on first file op, not here. Returns
      * null if the profile has no CONNECTED session. Synchronized so concurrent
      * resolvers don't double-open.

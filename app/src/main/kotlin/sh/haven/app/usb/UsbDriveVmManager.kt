@@ -314,7 +314,7 @@ class UsbDriveVmManager @Inject constructor(
     /**
      * Surface the drive into the Files browser. Two steps, because the file
      * browser opens an SFTP *channel* on an already-connected SSH session —
-     * it never dials one (SshSessionManager.openSftpForProfile only returns a
+     * it never dials one (SshSessionManager.openSftpSession only returns a
      * CONNECTED session). So:
      *  1. ConnectProfile — establish the SSH session via the same path a
      *     Connections tap uses (route-through/auth all apply). This also

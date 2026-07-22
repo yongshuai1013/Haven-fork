@@ -1,7 +1,6 @@
 package sh.haven.core.ssh
 
 import android.util.Log
-import com.jcraft.jsch.ChannelSftp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -167,7 +166,7 @@ class SshSessionManager @Inject constructor(
         val client: SshClient,
         val shellChannel: ShellChannel? = null,
         val terminalSession: TerminalSession? = null,
-        val sftpChannel: ChannelSftp? = null,
+        val sftpSession: SftpSession? = null,
         val connectionConfig: ConnectionConfig? = null,
         val sessionManager: SessionManager = SessionManager.NONE,
         val sessionCommandOverride: String? = null,
@@ -555,33 +554,25 @@ class SshSessionManager @Inject constructor(
     }
 
     /**
-     * Open an SFTP channel for a profile. Finds any connected session for that profile
-     * and opens (or reuses) an SFTP channel on it.
-     * Returns the channel, or null if no session for this profile is connected.
+     * Open (or reuse) an [SftpSession] for [profileId]. Finds any connected
+     * session for that profile and opens (or reuses) an SFTP session on it.
+     * Callers in feature- and app-modules use this so they never import
+     * engine types (JSch's `ChannelSftp`) directly. Returns null if no
+     * session for this profile is connected.
      */
-    fun openSftpForProfile(profileId: String): ChannelSftp? {
+    fun openSftpSession(profileId: String): SftpSession? {
         val session = _sessions.value.values
             .filter { it.profileId == profileId && it.status == SessionState.Status.CONNECTED }
             .firstOrNull() ?: return null
-        // Reuse existing channel if still connected
-        session.sftpChannel?.let { if (it.isConnected) return it }
-        val channel = session.client.openSftpChannel()
+        // Reuse the existing session if still connected
+        session.sftpSession?.let { if (it.isConnected) return it }
+        val sftp = JschSftpSession(session.client.openSftpChannel())
         _sessions.update { map ->
             val existing = map[session.sessionId] ?: return@update map
-            map + (session.sessionId to existing.copy(sftpChannel = channel))
+            map + (session.sessionId to existing.copy(sftpSession = sftp))
         }
-        return channel
+        return sftp
     }
-
-    /**
-     * Open (or reuse) an [SftpSession] for [profileId] — the Haven-internal
-     * facade over JSch's `ChannelSftp`. Callers in feature- and app-modules
-     * use this instead of [openSftpForProfile] so they do not import JSch
-     * types directly. Backed by the same channel that [openSftpForProfile]
-     * caches, so the two return semantically the same session.
-     */
-    fun openSftpSession(profileId: String): SftpSession? =
-        openSftpForProfile(profileId)?.let { JschSftpSession(it) }
 
     /**
      * Find a connected [SshClient] for this profile. Used by file-transfer
@@ -1585,11 +1576,11 @@ class SshSessionManager @Inject constructor(
             Log.e(TAG, "tearDown: terminalSession.close() failed", e)
         }
         try {
-            if (session.sftpChannel?.isConnected == true) {
-                session.sftpChannel.disconnect()
+            if (session.sftpSession?.isConnected == true) {
+                session.sftpSession.close()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "tearDown: sftpChannel.disconnect() failed", e)
+            Log.e(TAG, "tearDown: sftpSession.close() failed", e)
         }
         try {
             if (session.shellChannel?.isConnected == true) {

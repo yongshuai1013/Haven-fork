@@ -2090,7 +2090,7 @@ internal class McpTools(
                         put("sessionManager", sshState.sessionManager.name)
                         put("chosenSessionName", sshState.chosenSessionName ?: JSONObject.NULL)
                         put("hasShell", sshState.shellChannel != null)
-                        put("hasSftp", sshState.sftpChannel != null)
+                        put("hasSftp", sshState.sftpSession != null)
                         put("jumpSessionId", sshState.jumpSessionId ?: JSONObject.NULL)
                         put("activeForwards", JSONArray().apply {
                             for (f in sshState.activeForwards) {

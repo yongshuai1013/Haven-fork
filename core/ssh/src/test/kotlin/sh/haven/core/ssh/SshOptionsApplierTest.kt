@@ -50,6 +50,19 @@ class SshOptionsApplierTest {
         assertFalse("OpenSSH key name leaked", "KexAlgorithms" in target.store)
     }
 
+    @Test
+    fun `Haven-internal directives never reach JSch config`() {
+        val target = defaultTarget()
+        SshOptionsApplier.apply(target, mapOf(
+            "HavenSshEngine" to "sshlib",
+            "havensshengine" to "sshlib",
+            "ServerAliveInterval" to "30",
+        ))
+        assertFalse("HavenSshEngine leaked", target.store.keys.any { it.lowercase().startsWith("haven") })
+        // Non-Haven unknown keys still fall through to raw setConfig.
+        assertEquals("30", target.store["ServerAliveInterval"])
+    }
+
     // --- Prefix semantics on mergeAlgorithmList ---
 
     @Test
