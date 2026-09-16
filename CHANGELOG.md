@@ -5,6 +5,26 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.89.2
+
+- **Cloudflare Access sign-in now works with self-hosted applications (#643).** Haven asked the Access edge for a login page it constructed itself, but the pair of values naming *which* Access application protects a hostname exists only in the redirect the edge hands back, so self-hosted apps answered "Unable to find your Access application" while the same hostname loaded fine in a browser. Sign-in now requests the protected hostname directly, redirects off, and loads the redirect target the edge returns — the way a browser does. A redirect that has already bounced to the identity provider, or anything not an http(s) login URL, is refused rather than handed to a WebView holding your cookies; anything unusable falls back to the old constructed URL.
+
+- **SSH keys can be generated again after an install-channel switch (#655).** Switching between F-Droid and a GitHub release changes the APK signature, and Android throws away the Keystore entries belonging to the old one. Stored SSH keys become undecryptable, which is expected and unrecoverable — but generating a *new* key failed too, because generation writes through the same dead master key. Settings now detects the dead keyset and offers a repair (only on a permanent failure — a transient one, like a locked device, still means your keys are recoverable). The repair dialog says plainly that stored keys must be imported or generated again.
+
+- Dependency updates: Kotlin 2.4.20, Compose BOM 2026.09.00, navigation-compose 2.10.1, Go `x/crypto` 0.57.0, Tailscale 1.102.4, and rustls 0.23.44 / smallvec 1.16.1 / uniffi 0.32.1 in the RDP native build.
+
+## v5.89.1
+
+- Fixed attaching from a local shell tab. Take photo or Send file from a local tab dead-ended: the Files tab pre-selected the device's own filesystem as the destination, which can't accept uploads, so no destination was offered and no path was pasted. The pick banner now lands on the first connected remote instead, and the upload rides the active protocol as usual — SFTP for a connected SSH host.
+
+## v5.89.0
+
+- **AI chat routes through SSH and Reticulum.** An OPENAI profile gains an AI-route setting next to its endpoint: Direct (default), Via SSH, or Via Reticulum. Via SSH opens a local port forward through a connected SSH carrier profile — jump-host auth and prompts included — and the chat's HTTP dials the loopback forward while URL rewriting stays off, so TLS hostname verification still runs against the real endpoint name. Via Reticulum forwards over a connected Reticulum carrier the same way; the carrier must already be connected (a forward-only consumer can't keep the RNS stack alive by itself). A route and tunnel/proxy routing are mutually exclusive — setting one clears the other. The route is torn down on every disconnect path: disconnecting the endpoint closes its forward, and a carrier dying fails the endpoint's sessions and drops the forward, so the next send refuses until a fresh connect rather than silently bypassing the route.
+
+- **Chat images from the Files tab.** The chat attach sheet gains a Files option alongside gallery and camera: pick a file from any Files-tab backend to attach. Files above 20 MiB are rejected with the size shown; the pick banner has a Cancel, and cancelling leaves no staged attachment.
+
+- **Take photo from the terminal attach sheet.** The terminal paperclip sheet gains a Take photo option next to send-file and the scanner entries: the capture rides the existing send-file path, uploading through the Files tab and inserting the remote path at the cursor.
+
 ## v5.88.0
 
 - **AI chat.** New chat screen for AI models, over OpenAI-compatible endpoints (llama-server, vLLM, CLIProxyAPI), Ollama's native API, the Anthropic Messages API, or Gemini — selected per profile and verified against the server's model list on connect. Endpoints ride the same per-profile routing as every other transport (WireGuard, Tailscale, SOCKS/HTTP proxies); API keys are stored encrypted at rest; plain-HTTP `http://` LAN endpoints are now reachable by explicit choice. Attach up to 4 images per message from gallery or camera for vision models; long-press a message to copy its text or image to the system clipboard, one-tap copy of the newest assistant reply, and a composer paste button when the clipboard holds an image. Transcripts are ephemeral by default; a save toggle persists the conversation (including attachments) to the app database encrypted at rest, and turning it off deletes the rows. MCP: `create_connection`/`update_connection` gain `connectionType=OPENAI` with a `protocol` field and `openaiPathPrefix`, and new `openai_list_models` / `openai_chat` tools run completions without the screen.

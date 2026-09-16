@@ -208,6 +208,7 @@ class ConnectionsViewModelSessionTest {
             reticulumTransport = mockk(relaxed = true) {
                 every { discoveredDestinations } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
             },
+            reticulumForwardServer = mockk(relaxed = true),
             smbSessionManager = smbSessionManager,
             rcloneSessionManager = rcloneSessionManager,
             rcloneClient = mockk(relaxed = true),
@@ -261,6 +262,7 @@ class ConnectionsViewModelSessionTest {
             pendingAuthPromptHolder = mockk(relaxed = true),
             sessionSelectionHolder = mockk(relaxed = true),
             openAiSessionManager = mockk(relaxed = true),
+            aiRouteRegistry = sh.haven.core.openai.AiRouteRegistry(),
             connectionPreflight = mockk(relaxed = true) {
                 coEvery { beforeConnect(any()) } answers {
                     sh.haven.core.data.repository.ConnectionPreflight.Result.Proceed(firstArg())

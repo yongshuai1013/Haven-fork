@@ -171,6 +171,12 @@ fun SftpScreen(
      * instead of being stranded on the SFTP screen.
      */
     onAttachFinished: () -> Unit = {},
+    /**
+     * Fired after the user resolves a pending chat-attach file pick (confirm
+     * or cancel); the host scrolls back to the Chat page where the staged
+     * image lands.
+     */
+    onChatAttachFinished: () -> Unit = {},
     /** Open a phone-attached USB drive in a VM (#287); the resulting "USB: …"
      * connection then appears here as a tab. Wired by the host to the same flow
      * as Desktop → Manage → "Open USB drive…". */
@@ -242,6 +248,11 @@ fun SftpScreen(
     val attachRequest by viewModel.attachRequest.collectAsState()
     val attachProgress by viewModel.attachProgress.collectAsState()
     val attachActive = attachRequest != null
+    // Chat attach pick: armed by the chat composer's FILES option. Suppressed
+    // while the terminal folder-pick banner is active — that flow owns the
+    // screen when both are somehow pending.
+    val chatAttachPending by viewModel.chatAttachPending.collectAsState()
+    val chatAttachActive = chatAttachPending && !attachActive
     val chmodRequest by viewModel.chmodRequest.collectAsState()
     val chownRequest by viewModel.chownRequest.collectAsState()
 
@@ -441,17 +452,44 @@ fun SftpScreen(
         onAttachFinished()
     }
 
+    // Back press while a chat-attach file pick is pending cancels it, so the
+    // chat screen unblocks (its awaitPick resolves null) instead of leaving
+    // the pick armed across navigation.
+    androidx.activity.compose.BackHandler(enabled = chatAttachActive) {
+        viewModel.cancelChatAttach()
+        onChatAttachFinished()
+    }
+
     // When the picker opens, pre-select the terminal's active SSH session's
     // profile so the user lands in the right host's filesystem instead of
     // wherever they last browsed. Keyed on the request reference so a
     // subsequent attach with the same initialProfileId re-triggers; manual
     // profile switches mid-pick aren't fought because the key doesn't
     // change while one request is active.
-    LaunchedEffect(attachRequest) {
+    // Keyed on activeProfileId too: when the pick request arrives the tab's
+    // own profile sync may still be mid-flight (activeProfileId null, only
+    // settling on "local" a frame later), and a request-only key would miss
+    // that. Manual profile switches mid-pick aren't fought: switching between
+    // remotes leaves the condition false, and "local" is never a valid pick
+    // destination, so snapping off it is the banner's own rule.
+    LaunchedEffect(attachRequest, activeProfileId) {
         val req = attachRequest ?: return@LaunchedEffect
-        val initialId = req.initialProfileId ?: return@LaunchedEffect
-        if (activeProfileId != initialId) {
-            viewModel.selectProfile(initialId)
+        val initialId = req.initialProfileId
+        if (initialId != null) {
+            if (activeProfileId != initialId) {
+                viewModel.selectProfile(initialId)
+            }
+        } else if (activeProfileId == null || activeProfileId == "local") {
+            // No carrier profile (e.g. attach from a local shell tab — the
+            // terminal strips local profiles because the banner can't confirm
+            // a local destination) and the tab is parked on no profile or the
+            // synthetic Local one: land on the first connected remote instead,
+            // which is usually the SSH host the upload will ride. With nothing
+            // remote connected the tab stays put and the banner's
+            // pick-a-profile state is the only honest offer.
+            viewModel.connectedProfiles.value
+                .firstOrNull { it.id != "local" && !it.isSaf }
+                ?.let { viewModel.selectProfile(it.id) }
         }
     }
 
@@ -790,6 +828,44 @@ fun SftpScreen(
                                 enabled = canConfirm,
                             ) {
                                 Text(stringResource(R.string.sftp_attach_use_folder))
+                            }
+                        }
+                    }
+                }
+            }
+            // Chat-pick banner — visible while the chat composer awaits a
+            // file from this browser. Tapping a file confirms it; folder
+            // taps keep navigating.
+            if (chatAttachActive) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(
+                            text = stringResource(R.string.sftp_chat_attach_pick_file),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                        Text(
+                            text = when {
+                                activeProfileId == null -> stringResource(R.string.sftp_attach_pick_profile)
+                                else -> stringResource(R.string.sftp_chat_attach_will_pick_from, currentPath)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(onClick = {
+                                viewModel.cancelChatAttach()
+                                onChatAttachFinished()
+                            }) {
+                                Text(stringResource(R.string.common_cancel))
                             }
                         }
                     }
@@ -1191,6 +1267,16 @@ fun SftpScreen(
                                 onTap = {
                                     if (selectionMode) {
                                         viewModel.toggleSelection(entry)
+                                    } else if (chatAttachActive) {
+                                        // Chat attach pick: tapping a file
+                                        // confirms it into the chat composer;
+                                        // folders keep navigating.
+                                        if (entry.isDirectory) {
+                                            viewModel.navigateTo(entry.path)
+                                        } else {
+                                            viewModel.confirmChatAttach(entry)
+                                            onChatAttachFinished()
+                                        }
                                     } else if (attachActive) {
                                         // Attach picker mode: only folder-navigation taps do
                                         // anything; file taps are no-op so the user can't

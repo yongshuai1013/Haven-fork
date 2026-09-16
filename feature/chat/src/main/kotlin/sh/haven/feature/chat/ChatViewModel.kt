@@ -76,6 +76,8 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val openAiClient: OpenAiClient,
     private val tunnelResolver: TunnelResolver,
+    private val chatAttachBroker: sh.haven.core.data.attach.ChatAttachBroker,
+    private val chatRemoteReader: sh.haven.core.data.attach.ChatRemoteReader,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -87,6 +89,9 @@ class ChatViewModel @Inject constructor(
 
     /** Composer staging cap; bounds the request payload a single send can reach. */
     private val maxStagedImages = 4
+
+    /** Remote-attach read cap, applied against the file's stat and its spooled bytes. */
+    private val attachMaxBytes = 20L * 1024 * 1024
 
     /**
      * Point the screen at a profile (the OPENAI connect flow navigates here).
@@ -133,6 +138,44 @@ class ChatViewModel @Inject constructor(
 
     fun removeStaged(id: String) =
         _ui.update { s -> s.copy(staged = s.staged.filterNot { it.id == id }) }
+
+    /**
+     * Attach a file picked from the Files tab (the namespace-attach round
+     * trip): arms the [ChatAttachBroker] pick and waits for the SFTP screen
+     * to confirm a file, then reads it through the backend-agnostic
+     * [ChatRemoteReader] (stat-capped) and stages it like any other image.
+     * Cancel or a read failure surfaces through the error slot; the cap
+     * guard in the staged insert below is the same one [stageImage] uses.
+     */
+    fun stageRemoteImage() {
+        viewModelScope.launch {
+            val pick = chatAttachBroker.awaitPick() ?: return@launch
+            val bytes = try {
+                chatRemoteReader.read(pick.profileId, pick.path, attachMaxBytes)
+            } catch (e: Exception) {
+                _ui.update {
+                    it.copy(
+                        error = e.message
+                            ?: context.getString(R.string.chat_attach_failed),
+                    )
+                }
+                return@launch
+            }
+            val prepared = ChatImagePrep.prepare(bytes)
+            if (prepared == null) {
+                _ui.update { it.copy(error = context.getString(R.string.chat_attach_failed)) }
+                return@launch
+            }
+            val staged = StagedImage(
+                id = UUID.randomUUID().toString(),
+                image = ChatImage(prepared.mimeType, prepared.base64),
+                preview = ChatImagePrep.decodePreview(prepared.base64),
+            )
+            _ui.update { s ->
+                if (s.staged.size >= maxStagedImages) s else s.copy(staged = s.staged + staged)
+            }
+        }
+    }
 
     fun send(text: String) {
         val state = _ui.value
@@ -181,15 +224,29 @@ class ChatViewModel @Inject constructor(
                 fail("Profile disappeared")
                 return@launch
             }
-            // Same fail-closed tunnel contract as connect: a profile with a
-            // configured tunnel must resolve a socket factory or the chat
-            // dial is refused (it would otherwise leak a direct connection).
-            val factory = tunnelResolver.socketFactory(profile)
-            if (profile.tunnelConfigId != null && factory == null) {
-                fail("Tunnel configured but provides no socket factory — refusing to chat directly.")
-                return@launch
+            // Same fail-closed route contract as connect (AiRoute serves all
+            // three dial sites): a routed profile reuses the loopback factory
+            // the carrier's forward was established with, never re-resolving
+            // — and a configured route that isn't there refuses the dial
+            // rather than leaking a direct connection.
+            val routed = sh.haven.core.openai.AiRoute.isRouted(
+                profile.aiRouteType, profile.aiRouteProfileId,
+            )
+            val session = openAiSessionManager.getSessionsForProfile(profileId)
+                .firstOrNull { it.status == OpenAiSessionManager.SessionState.Status.CONNECTED }
+            val dial = sh.haven.core.openai.AiRoute.dialFactory(
+                routed = routed,
+                routeFactory = session?.routeSocketFactory,
+                tunnelFactory = if (routed) null else tunnelResolver.socketFactory(profile),
+                tunnelConfigured = if (routed) false else profile.tunnelConfigId != null,
+            )
+            val client = when (val d = dial) {
+                is sh.haven.core.openai.AiRoute.Dial.Refused -> {
+                    fail(d.reason)
+                    return@launch
+                }
+                is sh.haven.core.openai.AiRoute.Dial.Via -> openAiClient.buildClient(d.factory)
             }
-            val client = openAiClient.buildClient(factory)
             try {
                 openAiClient.chatCompletionStream(
                     client,
