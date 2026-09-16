@@ -13,8 +13,8 @@ android {
         applicationId = "sh.haven.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 849
-        versionName = "5.87.86"
+        versionCode = 850
+        versionName = "5.88.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -264,7 +264,9 @@ dependencies {
     implementation(project(":feature:terminal"))
     implementation(project(":feature:sftp"))
     implementation(project(":feature:mail"))
+    implementation(project(":feature:chat"))
     implementation(project(":core:mail"))
+    implementation(project(":core:openai"))
     implementation(project(":feature:keys"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:editor"))
