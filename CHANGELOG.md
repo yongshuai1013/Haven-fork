@@ -5,6 +5,20 @@ the corresponding GitHub Release; a release can't ship without its section
 (enforced by `scripts/check-changelog.sh` in CI). The GitHub "Full Changelog"
 compare link is appended automatically — don't add it here.
 
+## v5.89.6
+
+- **Editing a saved Cloudflare-routed connection no longer strips its Cloudflare settings.** The edit dialog pre-populated its fields once, at a moment when the saved tunnel config hadn't loaded yet, so a saved profile came back as a plain SSH profile — and saving it deleted the embedded tunnel and the captured JWT. Opening Edit and saving without re-doing the sign-in was the one-way trip to a broken profile. The fields now apply the saved tunnel when its load completes (#643).
+- **Cloudflare sign-in starts from a clean session.** Each sign-in now clears every cookie the WebView holds for both the app hostname and the team domain, not just the app domain's `CF_Authorization` — stale team-domain sessions were surfacing Cloudflare's "Invalid login session" interstitial on repeat sign-ins and made users tap through a recovery link (#643).
+
+## v5.89.5
+
+- **Play in Browser: fixed files that would not stream.** A stream that ends early — seeking a non-faststart MP4 to its trailing moov atom does exactly this — left its queued SFTP responses and a dead read-side thread on the shared control channel, so every later request on that channel returned zero bytes and the player gave up with "moov not found". Each openInputStream stream now runs on its own SFTP channel, retired on close.
+- Failed HLS transcodes are now written to the connection log (a failed job previously left nothing to read there), and SFTP stream failures name the exception class — jsch throws `SftpException("")` on a desynced channel, which logged as an empty message.
+
+## v5.89.4
+
+- **Cloudflare Access sign-in: the v5.89.2 fix for self-hosted applications never actually ran.** The probe that fetches the login redirect from the Access edge does blocking network I/O, and it was called from the sign-in screen's main-thread scope — Android killed it and the code swallowed the failure, so sign-in silently fell back to the constructed login URL and self-hosted apps kept showing "Unable to find your Access application" (#643). The probe now runs on a worker thread, and a probe that finds nothing is logged instead of swallowed.
+
 ## v5.89.3
 
 - The Connections screen's peer-discovery scan no longer probes Tailscale's LocalAPI (`100.100.100.100`) when the Tailscale app isn't installed. That address only exists on the app's own TUN interface, so without it installed every scan fired a doomed connect attempt that firewall apps reported as Haven phoning out (#654). With Tailscale installed, discovery works exactly as before.
