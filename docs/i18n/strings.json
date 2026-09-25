@@ -42387,6 +42387,25 @@
      }
     },
     {
+     "name": "terminal_switch_tab",
+     "en": "Switch tab",
+     "comment": "Tab bar",
+     "args": [],
+     "t": {
+      "ar": "تبديل علامة التبويب",
+      "bn": "ট্যাব পরিবর্তন",
+      "de": "Tab wechseln",
+      "es": "Cambiar de pestaña",
+      "fr": "Changer d\\'onglet",
+      "hi": "टैब बदलें",
+      "ja": "タブを切り替え",
+      "ko": "탭 전환",
+      "pt": "Alternar aba",
+      "ru": "Переключить вкладку",
+      "zh": "切换标签页"
+     }
+    },
+    {
      "name": "terminal_copy_last_output",
      "en": "Copy last output",
      "comment": "Tab bar",
@@ -44233,6 +44252,26 @@
       "ru": "Открыть",
       "sr": "Отвори",
       "zh": "打开"
+     }
+    },
+    {
+     "name": "terminal_selection_macros",
+     "en": "Macros",
+     "comment": "SelectionToolbar button labels and toasts",
+     "args": [],
+     "t": {
+      "ar": "ماكروات",
+      "bn": "ম্যাক্রো",
+      "de": "Makros",
+      "es": "Macros",
+      "fr": "Macros",
+      "hi": "मैक्रोज़",
+      "ja": "マクロ",
+      "ko": "매크로",
+      "pt": "Macros",
+      "ru": "Макросы",
+      "sr": "Макрои",
+      "zh": "宏"
      }
     },
     {
